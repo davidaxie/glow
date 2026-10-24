@@ -29,6 +29,7 @@ Things only David can do. None of these block Wave 0 work locally.
     10. When sign-in and room joining work on `main`: create the external group **Public**, fill in App Privacy (answers in RELEASE.md) with a privacy policy at `https://{DOMAIN}/privacy`, and run the workflow's **external** lane to submit for beta review.
     11. When it's approved: turn on the **public link**, set it as `TESTFLIGHT_URL` in Vercel, and give it to B7 for the posters.
     12. When the domain exists: set `GLOW_WEB_DOMAIN` (via A1) and `APPLE_APP_ID={TEAM_ID}.com.davidxie.glow` in Vercel, then scan a poster QR with the iPhone Camera and check Glow opens.
+12. **GitHub Actions billing** (from B9, 2026-10-24). Since about 18:40 UTC, jobs don't start: "The job was not started because recent account payments have failed or your spending limit needs to be increased" (github.com → Settings → Billing and plans). It hit macOS first (PR #17), then Ubuntu too (PR #5's Release checks, which passed in 13 seconds on an earlier commit). The repo is private, so macOS minutes count ten times; the TestFlight job runs on macOS, so releases need this fixed as well.
 
 ## Requests
 
