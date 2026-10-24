@@ -1,8 +1,8 @@
 /**
- * Owner: B8. What safety uses from other owners, in one place to swap.
+ * Owner: B8. What safety uses from other owners, in one place.
  *
- * - B5 (PR #15): `notify(userIds, event)` and `notifyRoom(roomId, event)` from
- *   `@/server/notify`. Until it merges, `./stubs/notify` stands in with the same signatures.
- *   Both never throw.
+ * - B5: `notify(userIds, event)` and `notifyRoom(roomId, event)` from `@/server/notify`:
+ *   a Realtime broadcast on the private channel, plus an Apple push when the event has one.
+ *   Both never throw. Tests mock this module to see what safety sends.
  */
-export { notify, notifyRoom } from './stubs/notify';
+export { notify, notifyRoom } from '@/server/notify';

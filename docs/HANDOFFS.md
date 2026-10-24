@@ -374,7 +374,7 @@ _2026-10-24, Wave 1._ PR [#12](https://github.com/davidaxie/glow/pull/12) (moder
 
 A limited request answers 429 `rate_limited` with `Retry-After`; the app already maps that to `APIError.rateLimited`. Keys are hashed before they reach the store, and limits fail open if Upstash is down (B8-D3).
 
-**Still mocked**: Claude runs only with `ANTHROPIC_API_KEY`; without it, local runs use the fake (B8-D1). Upstash runs only with `UPSTASH_REDIS_REST_*`; locally it's in memory. Notifications go through `server/src/server/safety/dependencies.ts`, a stand-in with B5's `notify`/`notifyRoom` signatures that only logs, until B5's #15 merges (then that one file switches to `@/server/notify`).
+**Still mocked**: Claude runs only with `ANTHROPIC_API_KEY`; without it, local runs use the fake (B8-D1). Upstash runs only with `UPSTASH_REDIS_REST_*`; locally it's in memory. Notifications are real: `server/src/server/safety/dependencies.ts` re-exports B5's `notify` and `notifyRoom` from `@/server/notify` (since #15).
 
 **Next wave needs**
 
