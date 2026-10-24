@@ -71,13 +71,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         dependencies.push.foregroundPresentation(for: PushNotification(notification.request.content))
     }
 
+    // The completion-handler form, not the async one: UIKit asserts that this completion runs on
+    // the main thread (it updates the app's snapshot), and the async form calls it from wherever
+    // its task finishes, which crashed the app on a tapped notification (found by D1's
+    // PushTapUITests).
     nonisolated func userNotificationCenter(
         _: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
-    ) async {
+        withCompletionHandler completionHandler: @escaping () -> Void,
+    ) {
         let push = PushNotification(response.notification.request.content)
-        guard let route = dependencies.push.route(for: push) else { return }
-        await router.go(route)
+        let route = dependencies.push.route(for: push)
+        nonisolated(unsafe) let done = completionHandler
+        Task { @MainActor in
+            if let route { router.go(route) }
+            done()
+        }
     }
 }
 
