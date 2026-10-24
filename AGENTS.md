@@ -126,12 +126,12 @@ Module code lives in `ios/Packages/GlowKit/Sources/{Module}/` and its tests in `
 | Session, FeatureOnboarding, FeatureSettings | B1 | |
 | Location, FeatureRooms | B2 | |
 | Imaging, FeatureCheckIn | B3 | |
-| Push, Realtime, `ios/fixtures/push/` | B5 | |
+| Push, GlowRealtime (the spec's Realtime module), `ios/fixtures/push/` | B5 | The module is GlowRealtime because supabase-swift already has a target named Realtime |
 | FeatureSafety | B8 | |
 | `ios/fastlane/` | B9 | |
 | FeatureDeck | C1 | |
 | FeatureMatch | C2 | |
-| FeatureGlow, `ios/GlowLiveActivity/` (the widget extension) | C3 | E1 owns a `Precision` folder inside FeatureGlow in Wave 4, by agreement with C3 |
+| FeatureGlow, LiveActivityShared (the Live Activity attributes), `ios/GlowLiveActivity/` (the widget extension) | C3 | E1 owns a `Precision` folder inside FeatureGlow in Wave 4, by agreement with C3 |
 | FeatureChat | C4 | |
 | `ios/GlowUITests/` | D1 | D1 may make small fixes anywhere through PRs labeled `integration`, telling the owner in `docs/HANDOFFS.md` |
 | `Localizable.xcstrings` in every module | D4 | Accessibility fixes go through PRs to each owner |

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Push Notifications. development for Xcode builds, production for TestFlight (xcconfig). -->
+	<key>aps-environment</key>
+	<string>$(GLOW_APS_ENVIRONMENT)</string>
+	<!-- Time Sensitive Notifications, for glow.started. -->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
+	<!-- Sign in with Apple. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+	<!-- Associated Domains: room QR links open the app. {DOMAIN} is GLOW_WEB_DOMAIN in Shared.xcconfig. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:$(GLOW_WEB_DOMAIN)</string>
+	</array>
+</dict>
+</plist>

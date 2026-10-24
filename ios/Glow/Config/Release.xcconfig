@@ -1,0 +1,11 @@
+// Release: TestFlight and App Store builds. Owner: A3 (B9 fills in the hosted values).
+#include "Shared.xcconfig"
+
+GLOW_ENVIRONMENT = release
+
+API_BASE_URL = https:/$()/$(GLOW_WEB_DOMAIN)
+// PLACEHOLDER: the hosted Supabase project doesn't exist yet. B9 sets these, from CI.
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+
+GLOW_APS_ENVIRONMENT = production

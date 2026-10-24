@@ -1,0 +1,80 @@
+import AppCore
+import os
+import UIKit
+import UserNotifications
+
+/// Owns the app's dependencies and router, and forwards push callbacks to the Push service (B5).
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    let dependencies: Dependencies
+    let router: Router
+    private let logger = Logger(subsystem: Log.subsystem, category: "app")
+
+    override init() {
+        let dependencies = AppComposition.makeDependencies()
+        self.dependencies = dependencies
+        router = Router(config: dependencies.config, analytics: dependencies.analytics)
+        super.init()
+    }
+
+    func application(
+        _: UIApplication,
+        didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil,
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        dependencies.analytics.track(AnalyticsEvent("app_launched"))
+        #if DEBUG
+            // `scripts/sim.sh allow-push` launches with this argument and taps Allow, so simulated
+            // pushes show without going through onboarding. The real ask is B1's notifications step.
+            if UserDefaults.standard.bool(forKey: "GlowDebugAskForNotifications") {
+                Task {
+                    _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+                }
+            }
+        #endif
+        return true
+    }
+
+    // MARK: Remote notifications
+
+    func application(_: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let push = dependencies.push
+        Task { await push.didRegister(deviceToken: deviceToken) }
+    }
+
+    func application(_: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: any Error) {
+        logger.error("Push registration failed")
+        let push = dependencies.push
+        Task { await push.didFailToRegister(error) }
+    }
+
+    // MARK: UNUserNotificationCenterDelegate
+
+    // The notification center may call these off the main thread, so they're nonisolated and only
+    // touch Sendable state before hopping to the main actor.
+
+    nonisolated func userNotificationCenter(
+        _: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+    ) async -> UNNotificationPresentationOptions {
+        dependencies.push.foregroundPresentation(for: PushNotification(notification.request.content))
+    }
+
+    nonisolated func userNotificationCenter(
+        _: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+    ) async {
+        let push = PushNotification(response.notification.request.content)
+        guard let route = dependencies.push.route(for: push) else { return }
+        await router.go(route)
+    }
+}
+
+extension PushNotification {
+    /// Copies a notification's userInfo as JSON, so it can cross to the Push service safely.
+    init(_ content: UNNotificationContent) {
+        let json = JSONSerialization.isValidJSONObject(content.userInfo)
+            ? (try? JSONSerialization.data(withJSONObject: content.userInfo, options: [.sortedKeys]))
+            : nil
+        self.init(categoryIdentifier: content.categoryIdentifier, payload: json ?? Data("{}".utf8))
+    }
+}

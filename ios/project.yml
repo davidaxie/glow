@@ -1,0 +1,228 @@
+# XcodeGen spec for the Glow iPhone app. Owner: A3 (signing settings shared with B9).
+#
+# The .xcodeproj is generated from this file and never committed. Don't hand-edit it:
+# change this file and run `scripts/sim.sh build` (or `xcodegen generate --spec ios/project.yml`).
+# Features live in the local Swift package at Packages/GlowKit, not here.
+
+name: Glow
+
+options:
+  bundleIdPrefix: com.davidxie
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: false
+  defaultConfig: Debug
+  # Keep the committed lockfile in the generated project so every build resolves the same versions.
+  # scripts/sim.sh build copies it back if resolution changes it.
+  postGenCommand: >-
+    mkdir -p Glow.xcodeproj/project.xcworkspace/xcshareddata/swiftpm &&
+    if [ -f Package.resolved ]; then cp Package.resolved Glow.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved; fi
+
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Glow/Config/Debug.xcconfig
+  Release: Glow/Config/Release.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    DEAD_CODE_STRIPPING: YES
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+    Release:
+      SWIFT_COMPILATION_MODE: wholemodule
+
+packages:
+  GlowKit:
+    path: Packages/GlowKit
+  # Sentry is deferred: sentry-cocoa 9.x downloads 3.2 GB of binary frameworks per checkout
+  # (docs/DECISIONS.md). The adapter in Glow/Analytics/LiveAnalytics.swift switches on by itself
+  # once this package and the `- package: Sentry` dependency below are added back:
+  #   Sentry:
+  #     url: https://github.com/getsentry/sentry-cocoa
+  #     exactVersion: 9.31.0
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios
+    exactVersion: 3.92.4
+
+targets:
+  Glow:
+    type: application
+    platform: iOS
+    sources:
+      - path: Glow
+        excludes:
+          - "Config/Local.xcconfig"
+    settings:
+      base:
+        PRODUCT_NAME: Glow
+        PRODUCT_BUNDLE_IDENTIFIER: $(GLOW_APP_BUNDLE_ID)
+        INFOPLIST_FILE: Glow/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Glow/Glow.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: GlowLiveActivity
+      - package: GlowKit
+        product: AppCore
+      - package: GlowKit
+        product: APIClient
+      - package: GlowKit
+        product: DesignSystem
+      - package: GlowKit
+        product: Session
+      - package: GlowKit
+        product: Location
+      - package: GlowKit
+        product: Imaging
+      - package: GlowKit
+        product: Push
+      - package: GlowKit
+        product: GlowRealtime
+      - package: GlowKit
+        product: FeatureOnboarding
+      - package: GlowKit
+        product: FeatureSettings
+      - package: GlowKit
+        product: FeatureRooms
+      - package: GlowKit
+        product: FeatureCheckIn
+      - package: GlowKit
+        product: FeatureSafety
+      - package: GlowKit
+        product: FeatureDeck
+      - package: GlowKit
+        product: FeatureMatch
+      - package: GlowKit
+        product: FeatureGlow
+      - package: GlowKit
+        product: FeatureChat
+      - package: PostHog
+        product: PostHog
+    postBuildScripts:
+      # The glow:// scheme and local networking exist in Debug builds only (spec: Simulator workflow).
+      # Adding them here, rather than removing them from Release, means a broken script can only
+      # ever make Debug stricter.
+      - name: Debug-only Info.plist keys
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/debug-info-plist.stamp
+        script: |
+          set -euo pipefail
+          if [ "${CONFIGURATION}" != "Debug" ]; then exit 0; fi
+          plist="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+          buddy=/usr/libexec/PlistBuddy
+          "$buddy" -c "Delete :CFBundleURLTypes" "$plist" 2>/dev/null || true
+          "$buddy" -c "Add :CFBundleURLTypes array" \
+            -c "Add :CFBundleURLTypes:0 dict" \
+            -c "Add :CFBundleURLTypes:0:CFBundleURLName string ${PRODUCT_BUNDLE_IDENTIFIER}.debug" \
+            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" \
+            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string glow" \
+            "$plist"
+          "$buddy" -c "Delete :NSAppTransportSecurity" "$plist" 2>/dev/null || true
+          "$buddy" -c "Add :NSAppTransportSecurity dict" \
+            -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" \
+            "$plist"
+          touch "${DERIVED_FILE_DIR}/debug-info-plist.stamp"
+
+  GlowLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: GlowLiveActivity
+    settings:
+      base:
+        PRODUCT_NAME: GlowLiveActivity
+        PRODUCT_BUNDLE_IDENTIFIER: $(GLOW_LIVE_ACTIVITY_BUNDLE_ID)
+        INFOPLIST_FILE: GlowLiveActivity/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: GlowKit
+        product: LiveActivityShared
+      - package: GlowKit
+        product: DesignSystem
+
+  GlowTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GlowTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(GLOW_APP_BUNDLE_ID).tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Glow.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Glow
+        BUNDLE_LOADER: $(TEST_HOST)
+    dependencies:
+      - target: Glow
+
+  GlowUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: GlowUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(GLOW_APP_BUNDLE_ID).uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Glow
+    dependencies:
+      - target: Glow
+
+schemes:
+  Glow:
+    build:
+      targets:
+        Glow: all
+        GlowLiveActivity: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - GlowTests
+        - GlowUITests
+        - package: GlowKit/AppCoreTests
+        - package: GlowKit/APIClientTests
+        - package: GlowKit/DesignSystemTests
+        - package: GlowKit/LiveActivitySharedTests
+        - package: GlowKit/SessionTests
+        - package: GlowKit/LocationTests
+        - package: GlowKit/ImagingTests
+        - package: GlowKit/PushTests
+        - package: GlowKit/GlowRealtimeTests
+        - package: GlowKit/FeatureOnboardingTests
+        - package: GlowKit/FeatureSettingsTests
+        - package: GlowKit/FeatureRoomsTests
+        - package: GlowKit/FeatureCheckInTests
+        - package: GlowKit/FeatureSafetyTests
+        - package: GlowKit/FeatureDeckTests
+        - package: GlowKit/FeatureMatchTests
+        - package: GlowKit/FeatureGlowTests
+        - package: GlowKit/FeatureChatTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

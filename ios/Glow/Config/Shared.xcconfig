@@ -1,0 +1,30 @@
+// Shared build settings for every target and configuration. Owner: A3.
+// Debug.xcconfig and Release.xcconfig include this file.
+//
+// Note: in xcconfig files `//` starts a comment, so URLs are written as `https:/$()/host`.
+
+// ---------------------------------------------------------------------------
+// PLACEHOLDER: the web domain is not chosen yet.
+// This is the only place {DOMAIN} is set. It feeds the Associated Domains entitlement
+// (applinks:{DOMAIN}), the room links the app accepts (https://{DOMAIN}/r/{slug}?t={token})
+// and the Release API_BASE_URL. B9 replaces it once the domain exists. See docs/DECISIONS.md.
+GLOW_WEB_DOMAIN = glow-domain-not-chosen.invalid
+// ---------------------------------------------------------------------------
+
+// Bundle IDs.
+GLOW_APP_BUNDLE_ID = com.davidxie.glow
+GLOW_LIVE_ACTIVITY_BUNDLE_ID = $(GLOW_APP_BUNDLE_ID).LiveActivity
+
+// Versions. B9's release lane bumps CURRENT_PROJECT_VERSION.
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Signing. No Apple Developer team yet: Simulator builds don't need one. B9 sets the team.
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+// Analytics and crash reports. Empty means a no-op (see AppCore Analytics).
+// Set real values in Local.xcconfig or from CI, never in git.
+POSTHOG_KEY =
+POSTHOG_HOST = https:/$()/us.i.posthog.com
+SENTRY_DSN =

@@ -1,0 +1,21 @@
+# SwiftFormat for the iOS app. Owner: A3. CI runs `swiftformat --lint ios` (scripts/sim.sh lint).
+
+--swiftversion 6.2
+--exclude .claude,node_modules,ios/build,ios/Glow.xcodeproj,ios/Packages/GlowKit/.build,ios/Packages/GlowKit/Sources/APIClient/Generated,ios/fastlane
+
+--indent 4
+--maxwidth 140
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--commas always
+--self remove
+--importgrouping testable-last
+--header ignore
+--stripunusedargs closure-only
+--ifdef indent
+--extensionacl on-declarations
+
+# Keep explicit Sendable, plain `//` ownership comments, and test names as written.
+--disable redundantSendable,docComments,swiftTestingTestCaseNames
