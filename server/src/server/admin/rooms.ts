@@ -18,7 +18,7 @@ import { HttpError, badRequest, notFound } from '@/server/http';
 import { logger } from '@/server/log';
 import { deps } from './context';
 import { roomLink } from './links';
-import { displayToken } from './qr-token';
+import { displayToken } from '@/server/qr';
 import { RepoConflict, type CardRecord, type RoomPatch, type RoomRecord } from './repo';
 import { toAdminRoom } from './views';
 

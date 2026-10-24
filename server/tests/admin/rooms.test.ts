@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { zAdminRoom, zDisplayToken } from '@/contracts';
 import { setAdminDepsForTests } from '@/server/admin/context';
 import { WEB_DOMAIN, parseRoomLink, roomLink } from '@/server/admin/links';
-import { displayToken } from '@/server/admin/qr-token';
+import { displayToken, verifyRoomToken } from '@/server/qr';
 import {
   cleanSpots,
   createRoom,
@@ -107,6 +107,22 @@ describe('screen tokens', () => {
     const body = zDisplayToken.parse(await displayTokenFor(ROOM_ID));
     expect(parseRoomLink(body.url)).toEqual({ slug: 'demo', token: body.token });
     expect(body.token).toMatch(/^[A-Z2-7]{8}$/);
+  });
+
+  it('is a token the join route accepts now and for one more window, then refuses', async () => {
+    const { repo } = setup();
+    const room = repo.rooms.get(ROOM_ID)!;
+    const now = repo.now();
+    const { token, windowEndsAt } = await displayTokenFor(ROOM_ID);
+    const secrets = {
+      qrSecret: room.qrSecret,
+      staticQrToken: room.staticQrToken,
+      allowStaticQr: true,
+    };
+    const ends = Date.parse(windowEndsAt);
+    expect(verifyRoomToken(secrets, token, now)).toBe(true);
+    expect(verifyRoomToken(secrets, token, ends + 1_000)).toBe(true);
+    expect(verifyRoomToken(secrets, token, ends + 30_000 + 1_000)).toBe(false);
   });
 });
 
