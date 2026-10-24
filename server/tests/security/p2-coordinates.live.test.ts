@@ -50,7 +50,10 @@ const found = (text: string) => DIGITS.filter((d) => text.includes(d));
 beforeAll(async () => {
   if (!LIVE) return;
   world = new World(live);
-  [person, other] = await Promise.all([world.person('woman', ['man']), world.person('man', ['woman'])]);
+  [person, other] = await Promise.all([
+    world.person('woman', ['man']),
+    world.person('man', ['woman']),
+  ]);
   roomId = await world.room();
   const room = await world.db.from('rooms').select('code').eq('id', roomId).single();
   roomCode = room.data!.code;
@@ -134,7 +137,9 @@ describe.skipIf(!LIVE)('P2: coordinates go nowhere (live)', () => {
       .filter((p) => p && !p.startsWith('rpc/'));
     expect(tables).toEqual(expect.arrayContaining(['location_checks', 'checkins', 'profiles']));
     for (const table of tables) {
-      const rows = await supa(live, 'GET', `/rest/v1/${table}?select=*&limit=10000`, { key: 'service' });
+      const rows = await supa(live, 'GET', `/rest/v1/${table}?select=*&limit=10000`, {
+        key: 'service',
+      });
       expect(found(JSON.stringify(rows.json)), table).toEqual([]);
     }
   });

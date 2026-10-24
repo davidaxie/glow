@@ -4,7 +4,11 @@
  * get_deck lock per viewer), so parallel requests must never get more than one at a time would.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { CARD_VIEWS_PER_ROOM_PER_DAY, DECK_PAGE_SIZE, TAPS_PER_ROOM_PER_DAY } from '@/contracts/constants';
+import {
+  CARD_VIEWS_PER_ROOM_PER_DAY,
+  DECK_PAGE_SIZE,
+  TAPS_PER_ROOM_PER_DAY,
+} from '@/contracts/constants';
 import { resetEnvCacheForTests } from '@/env';
 import { call } from './helpers/api';
 import { LIVE, type Live } from './helpers/live';
@@ -50,7 +54,11 @@ describe.skipIf(!LIVE)('caps hold under parallel requests (live)', () => {
 
     const replies = await Promise.all(
       cards.map((card) =>
-        call('createTap', { token: viewer.token, params: { id: roomId }, body: { cardId: card.id } }),
+        call('createTap', {
+          token: viewer.token,
+          params: { id: roomId },
+          body: { cardId: card.id },
+        }),
       ),
     );
     const statuses = replies.map((r) => r.status);

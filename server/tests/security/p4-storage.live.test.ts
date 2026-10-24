@@ -46,7 +46,8 @@ describe.skipIf(!LIVE)('P4: storage is closed to the app (live)', () => {
 
   for (const who of ['anon', 'signed-in owner', 'signed-in attacker'] as const) {
     it(`${who}: no read, public link, signed link, listing, overwrite or delete`, async () => {
-      const token = who === 'anon' ? undefined : who === 'signed-in owner' ? owner.token : attacker.token;
+      const token =
+        who === 'anon' ? undefined : who === 'signed-in owner' ? owner.token : attacker.token;
       for (const [bucket, path] of objects()) {
         const at = `${bucket}/${path}`;
         for (const route of ['object', 'object/authenticated', 'object/public']) {
@@ -89,7 +90,9 @@ describe.skipIf(!LIVE)('P4: storage is closed to the app (live)', () => {
         expect(Array.isArray(del.json) ? del.json : [], `delete ${at}`).toEqual([]);
       }
 
-      const buckets = await supa(live, 'GET', '/storage/v1/bucket', { ...(token ? { token } : {}) });
+      const buckets = await supa(live, 'GET', '/storage/v1/bucket', {
+        ...(token ? { token } : {}),
+      });
       expect(Array.isArray(buckets.json) ? buckets.json : []).toEqual([]);
       const newBucket = await supa(live, 'POST', '/storage/v1/bucket', {
         ...(token ? { token } : {}),

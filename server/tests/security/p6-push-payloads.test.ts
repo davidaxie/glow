@@ -23,7 +23,8 @@ describe('P6 and P1: every push and event', () => {
 
   for (const type of types) {
     it(`${type}: only its type and a match or room ID, and fixed lock screen text`, () => {
-      const id = eventCatalog[type].channel === 'room' ? { roomId: ROOM } : { matchId: MATCH };
+      // Each event names either a match or a room (checkin.expiring and deck.changed a room).
+      const id = contractEvent({ type, matchId: MATCH }) ? { matchId: MATCH } : { roomId: ROOM };
       const stuffed = {
         type,
         ...id,
@@ -52,8 +53,13 @@ describe('P6 and P1: every push and event', () => {
       expect(aps.alert.body).toBe(spec.body);
       expect(aps.alert.body).not.toMatch(/[{}%$]/);
       expect(Object.keys(aps.alert)).toEqual(['body']);
-      expect(Object.keys(request!.payload).sort()).toEqual(['aps', 'type', ...Object.keys(id)].sort());
-      for (const value of [request!.collapseId, (request!.payload.aps as Record<string, string>)['thread-id']]) {
+      expect(Object.keys(request!.payload).sort()).toEqual(
+        ['aps', 'type', ...Object.keys(id)].sort(),
+      );
+      for (const value of [
+        request!.collapseId,
+        (request!.payload.aps as Record<string, string>)['thread-id'],
+      ]) {
         expect(value).toMatch(/^[a-z.]+:[0-9a-f-]{36}$/);
       }
     });

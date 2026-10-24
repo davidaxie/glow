@@ -17,7 +17,11 @@ import { describe, expect, it } from 'vitest';
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SERVER = join(ROOT, 'server');
 
-function walk(dir: string, keep: (path: string) => boolean, skip = /\/(build|node_modules|\.build|DerivedData|\.next|\.git)(\/|$)/): string[] {
+function walk(
+  dir: string,
+  keep: (path: string) => boolean,
+  skip = /\/(build|node_modules|\.build|DerivedData|\.next|\.git)(\/|$)/,
+): string[] {
   if (!existsSync(dir)) return [];
   const out: string[] = [];
   for (const name of readdirSync(dir)) {
@@ -53,7 +57,8 @@ const KNOWN: Record<string, string> = {
   'ios/Packages/GlowKit/Sources/FeatureCheckIn/CaptureStep.swift': 'D2-F3',
 };
 
-const DEBUG_ONLY = /api\/dev\/test-login|signInForTesting\(|forKey:\s*"GlowDebug|GlowDebug\w*Fallback\(/;
+const DEBUG_ONLY =
+  /api\/dev\/test-login|signInForTesting\(|forKey:\s*"GlowDebug|GlowDebug\w*Fallback\(/;
 
 describe('Release builds carry no test sign-in or debug hooks', () => {
   const swift = [
@@ -71,7 +76,8 @@ describe('Release builds carry no test sign-in or debug hooks', () => {
     for (const file of swift) {
       for (const { line, n, debug } of debugScopes(readFileSync(file, 'utf8'))) {
         const code = line.replace(/\/\/.*$/, '');
-        if (DEBUG_ONLY.test(code) && !debug && !KNOWN[relative(ROOT, file)]) outside.push(`${relative(ROOT, file)}:${n}: ${line.trim()}`);
+        if (DEBUG_ONLY.test(code) && !debug && !KNOWN[relative(ROOT, file)])
+          outside.push(`${relative(ROOT, file)}:${n}: ${line.trim()}`);
       }
     }
     expect(outside).toEqual([]);
@@ -81,23 +87,28 @@ describe('Release builds carry no test sign-in or debug hooks', () => {
 describe('No server secret reaches the app or the browser', () => {
   const SECRET_KEY = /sb_secret_[A-Za-z0-9_-]{16,}/;
   const jwtRoles = (text: string) =>
-    [...text.matchAll(/eyJ[A-Za-z0-9_-]{10,}\.(eyJ[A-Za-z0-9_-]{10,})\.[A-Za-z0-9_-]{10,}/g)].map((m) => {
-      try {
-        return (JSON.parse(Buffer.from(m[1]!, 'base64url').toString('utf8')) as { role?: string }).role;
-      } catch {
-        return undefined;
-      }
-    });
+    [...text.matchAll(/eyJ[A-Za-z0-9_-]{10,}\.(eyJ[A-Za-z0-9_-]{10,})\.[A-Za-z0-9_-]{10,}/g)].map(
+      (m) => {
+        try {
+          return (JSON.parse(Buffer.from(m[1]!, 'base64url').toString('utf8')) as { role?: string })
+            .role;
+        } catch {
+          return undefined;
+        }
+      },
+    );
 
   it('no file in ios/ holds a Supabase secret key or a service_role JWT', () => {
     // B9's release gate keeps test fixtures of what it refuses; those aren't keys.
-    const files = walk(join(ROOT, 'ios'), (p) => !/\.(png|jpg|jpeg|heic|mp4|mov|car|a)$/i.test(p)).filter(
-      (p) => !p.includes('/fastlane/'),
-    );
+    const files = walk(
+      join(ROOT, 'ios'),
+      (p) => !/\.(png|jpg|jpeg|heic|mp4|mov|car|a)$/i.test(p),
+    ).filter((p) => !p.includes('/fastlane/'));
     const found: string[] = [];
     for (const file of files) {
       const text = readFileSync(file, 'latin1');
-      if (SECRET_KEY.test(text) || jwtRoles(text).includes('service_role')) found.push(relative(ROOT, file));
+      if (SECRET_KEY.test(text) || jwtRoles(text).includes('service_role'))
+        found.push(relative(ROOT, file));
     }
     expect(found).toEqual([]);
   });
@@ -126,15 +137,21 @@ describe('No server secret reaches the app or the browser', () => {
     const secrets = existsSync(envFile)
       ? readFileSync(envFile, 'utf8')
           .split('\n')
-          .map((l) => /^(SUPABASE_SERVICE_ROLE_KEY|CRON_SECRET|JOIN_TICKET_SECRET|CARD_URL_SECRET|ANTHROPIC_API_KEY|UPSTASH_REDIS_REST_TOKEN|APNS_PRIVATE_KEY)=(.+)$/.exec(l.trim()))
+          .map((l) =>
+            /^(SUPABASE_SERVICE_ROLE_KEY|CRON_SECRET|JOIN_TICKET_SECRET|CARD_URL_SECRET|ANTHROPIC_API_KEY|UPSTASH_REDIS_REST_TOKEN|APNS_PRIVATE_KEY)=(.+)$/.exec(
+              l.trim(),
+            ),
+          )
           .filter((m): m is RegExpExecArray => !!m && m[2]!.replace(/['"]/g, '').length >= 16)
           .map((m) => m[2]!.replace(/^['"]|['"]$/g, ''))
       : [];
     const found: string[] = [];
     for (const file of walk(staticDir, () => true, /\/node_modules\//)) {
       const text = readFileSync(file, 'latin1');
-      if (SECRET_KEY.test(text) || jwtRoles(text).includes('service_role')) found.push(relative(SERVER, file));
-      for (const secret of secrets) if (text.includes(secret)) found.push(`${relative(SERVER, file)} (an env secret)`);
+      if (SECRET_KEY.test(text) || jwtRoles(text).includes('service_role'))
+        found.push(relative(SERVER, file));
+      for (const secret of secrets)
+        if (text.includes(secret)) found.push(`${relative(SERVER, file)} (an env secret)`);
       if (/SUPABASE_SERVICE_ROLE_KEY|CRON_SECRET|JOIN_TICKET_SECRET|CARD_URL_SECRET/.test(text)) {
         found.push(`${relative(SERVER, file)} (a secret's name)`);
       }
