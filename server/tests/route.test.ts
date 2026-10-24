@@ -88,6 +88,33 @@ describe('route helper', () => {
     });
   });
 
+  it('runs authorize after sign-in and before reading anything the caller sent', async () => {
+    await mockVerify();
+    const handler = vi.fn();
+    const authorize = vi.fn(() => {
+      throw notFound();
+    });
+    const withAuthorize = (
+      route as unknown as (
+        id: string,
+        h: unknown,
+        o: { authorize: (user: { id: string }) => void },
+      ) => ReturnType<typeof route>
+    )('echo', handler, { authorize });
+    // A body that would be a 400 still gets the plain 404, so nothing about the route shows.
+    const res = await call(withAuthorize, { ...jsonBody({ wrong: true }), params: { id: 'bad' } });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'Not found.' } });
+    expect(authorize).toHaveBeenCalledWith(expect.objectContaining({ id: USER_ID }));
+    expect(handler).not.toHaveBeenCalled();
+
+    // No token: still 401 first, and authorize never runs.
+    authorize.mockClear();
+    const signedOut = await call(withAuthorize, { token: null, ...jsonBody({}) });
+    expect(signedOut.status).toBe(401);
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
   it('answers 404 for a malformed ID, since it cannot name anything', async () => {
     await mockVerify();
     const res = await call(testRoute('echo', vi.fn()), { params: { id: 'not-a-uuid' } });

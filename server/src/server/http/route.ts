@@ -83,9 +83,20 @@ export type NextRouteHandler = (
   ctx: { params: Promise<Record<string, string | string[] | undefined>> },
 ) => Promise<Response>;
 
+export type RouteOptions = {
+  /**
+   * Runs right after sign-in and before the path, query or body is read. Throw `notFound()`
+   * to turn someone away with the same 404 whatever they sent (P11): for example, the admin
+   * routes for anyone who isn't an admin, who would otherwise learn from a 400 that the
+   * route exists and what it expects.
+   */
+  readonly authorize?: (user: AuthUser) => void | Promise<void>;
+};
+
 export function route<Id extends OperationId>(
   operationId: Id,
   handler: RouteHandler<Id>,
+  options: RouteOptions = {},
 ): NextRouteHandler {
   const op: OperationDef = operations[operationId];
   const isStub = (handler as unknown) === notImplemented;
@@ -96,6 +107,7 @@ export function route<Id extends OperationId>(
     try {
       const user = await authenticate(op, req);
       await limitRequest(operationId, req, user);
+      if (user && options.authorize) await options.authorize(user);
       const params = await parseParams(op, ctx);
       if (isStub) notImplemented();
       const query = parseQuery(op, req);
