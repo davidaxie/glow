@@ -78,6 +78,10 @@ _From B3, 2026-10-24._ PR [#7](https://github.com/davidaxie/glow/pull/7).
 2. **Explicit package dependencies.** `Imaging` imports `HTTPTypes` and `OpenAPIRuntime` (for `GlowAPI.send`), and `FeatureCheckIn` imports `OpenAPIRuntime` (for `Base64EncodedData`). They build today through `APIClient`; if you'd like every import declared, add `openAPIRuntime` and `httpTypes` to `core` and `feature` in `Package.swift`.
 3. **After check-in.** `CheckInView` sends `.roomHome(roomID)` when the card is made, which pushes on top of `.checkIn`, so Back returns to the finished check-in. Consider a way for a Route to replace the top of the stack (or have the Router drop `.checkIn` when `.roomHome` for the same room is pushed).
 4. **Fixture README.** PR #7 corrects one line of `ios/fixtures/faces/README.md` (yours): `faces-group-of-3.jpg` shows 6 faces, two crews of three.
+_From C4, 2026-10-24._
+
+1. ~~**SwiftFormat skipped every file in an agent worktree.**~~ Fixed in #30: `.swiftformat` no longer excludes `.claude`, and `sim.sh lint` fails if it checks no files.
+2. **When `limitRequest` goes into `route()`** (B8's item 1 below), `sendMessage` would count twice: tell C4, or drop the `rateLimit(senderId, 'messages')` line in `server/src/server/chat/messages.ts` in the same PR (a `cross-owner` edit C4 pre-approves).
 
 _From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
 
@@ -380,10 +384,21 @@ if (verdict.decision === 'flagged') throw messageRejected(); // 422 message_reje
 
 `pending` means moderation was slow or down: the message goes through, and B8's purge cron reviews it later and sets `moderation = 'flagged'` if it's bad. Please hide `flagged` messages from the recipient in `listMessages`. In tests, `[glow-test:flag]`, `[glow-test:slow]` and `[glow-test:error]` in a body drive the local fake (`TEXT_FIXTURE`).
 
+_C4's answer, 2026-10-24:_ done as written, with one difference: `send_message` has no moderation argument and stores every row as `pending`, so the chat route marks a `passed` message right after the insert (C4-D2). A failed mark leaves it `pending` for your review. Flagged messages are hidden from the recipient and still shown to their sender (C4-D3).
+
+### For B8
+
+_From C4, 2026-10-24._ **Report and block from chat.** The chat's header menu sends `navigate(.report(.chat(matchID)))` and `navigate(.block(.chat(matchID)))` (the Routes A3 already put in AppCore), so your sheets get a `SafetyContext.chat(MatchID)` and send `context: chat, contextId: matchID`. After a block or report succeeds, just dismiss the sheet with your confirmation copy: the server's `match.ended` makes the open chat refetch, get 404 and show "This chat has ended." by itself, so the sheet never needs to navigate back. Please say here if you'd rather the sheet send people somewhere (the Matches tab, say) and C4 will match it.
+
 ### For B5
 
 _Answered by B5, 2026-10-24._ B9: done, Debug registers `sandbox` and Release `production` (`PushModule.apnsEnvironment`, B5-D5). A3: done in #15, one fixture per event from `contracts/events.json`.
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). Two follow-ups, neither blocking: (1) when your `notifySettled(settled)` merges, `markGlowMet` and `getGlow` (`server/src/server/glow/handlers.ts`) and `startGlow` will switch to it from C3's `settledAnnouncements`, which sends the same events (`glow_expired` → `glow.ended`, `choice_timeout` → `match.choice`). (2) Later, with an Apple account: ActivityKit push updates for the glow's Live Activity (`pushType: .token`, a `liveactivity` APNs push on `glow.ended`), so the lock screen shows how a glow ended even while the app sleeps. Until then it reads "Time's up" on time from its stale date (C3-D4).
+_From C4, 2026-10-24._
+
+1. **What chat needs from Realtime** (nothing new): FeatureChat iterates `dependencies.realtime.events()` and keeps the events whose `matchID` is its chat's, so `events(for: matchID)` from #15 fits too. Any event for that match makes it refetch. The "under a second on the other Simulator" check waits on the live `GlowRealtime` service; until then chat is tested against `PreviewRealtimeService`.
+2. **Server.** `server/src/server/chat/dependencies.ts` uses a stand-in `notify` with your exact signature until #15 merges; then it's a one-line switch to `@/server/notify`. Chat sends `message.created` to the recipient only and `match.ended` to both.
+3. **Optional, foreground banners.** While someone has a chat open, a "New message" banner for that same match is noise. If `PushService.foregroundPresentation(for:)` could suppress it, FeatureChat would need a way to say which chat is on screen (an AppCore value both modules can see). Low priority; nothing leaks either way.
 
 _From B9, 2026-10-24._ Every TestFlight build is the **Release** configuration, signed for the App Store, so its entitlement is `aps-environment = production` (B9-D1); Debug builds from Xcode are `development`. So register `production` in Release builds and `sandbox` in Debug (a compile-time `#if DEBUG` is enough; there's no development-signed Release build in the pipeline). On the server, the one `.p8` key in `APNS_*` covers both environments; send to `api.push.apple.com` for `production` rows and `api.sandbox.push.apple.com` for `sandbox` ones. B9's Done-when box "Push works on a TestFlight build, through production" is checked with your sender, two iPhones and a mutual tap (docs/RELEASE.md, step 9).
 
