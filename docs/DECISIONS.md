@@ -838,3 +838,51 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** Under the code word the screen says "Aqua glow" (the color's name), so someone who can't tell the colors apart still knows what to look for. Analytics events are `glow_shown`, `glow_we_met_tapped`, `glow_end_tapped` (`as`: `cancel` or `switch_to_chat`) and `glow_ended` (`outcome`: `met`, `canceled` or `expired`), with no code word, color or meeting spot.
 
 **Why.** Color alone excludes some people. And a word plus a color plus a time is enough to pick a pair out of a room's metrics, so none of them go to PostHog.
+
+## D5 · Demo and launch kit
+
+### D5-D1 · Test people never go into a real room
+
+**Question.** `scripts/seed-demo.ts` can run against any Supabase with `--remote`. A typo in `--slug` could put twelve fake people into the real event room, where attendees would see and tap them.
+
+**Choice.** The seed only touches a room whose name ends in "(test data)", and refuses (exit 2) for any other existing room, before creating anyone. Rooms it creates get that name. Seeded people have fixed IDs per room slug, `{slug}-{name}@glow.test` emails, first names starting with "Test", and `test_data` in their auth metadata, so `--remove` can always find exactly them, and nobody else.
+
+**Why.** Attendees must never spend a tap, or their hope, on someone who doesn't exist.
+
+### D5-D2 · The stage demo runs in its own test-data room
+
+**Question.** The brief puts the stage phones, in demo mode, in "the real Cal Hacks room". Then the deck on the projector would show real attendees' outfit photos to the whole hall, and attendees could tap the presenters.
+
+**Choice.** Two rooms. The attendee room has real people only, demo mode off, and is what the posters, the display QR and the projected live numbers point at. The stage room ("Glow stage room (test data)", made by the seed) holds only the two admin stage phones and seeded test people, with demo mode on. Only the stage room's deck is ever shown.
+
+**Why.** A card is shown to the people in the room with you, not to an audience. Seeded numbers are never presented as real ones either.
+
+### D5-D3 · Seeded join checks are recorded as demo-mode skips
+
+**Choice.** `create_checkin` needs a passed join check (D49). The seed writes `result = 'demo_skip'` (no accuracy bucket), never `pass`, and only in a room it controls.
+
+**Why.** Nobody stood anywhere; a fake pass would be a lie in a table meant as proof. Skips are already counted on the admin room page, so they're visible.
+
+### D5-D4 · The venue is one edit, and the tests keep the Simulators in step
+
+**Choice.** `VENUE` at the top of `scripts/seed-demo.ts` (center, radius, timezone, meeting spots, table, and `confirmed: false`) is the only place D5's material reads the venue from. `--print-venue` prints it for the admin web and as the two lines for `ios/fixtures/demo-room.env` (A1's file, which `sim.sh at venue` reads). A test fails while the two differ, and the seed prints the lines to copy.
+
+### D5-D5 · The deck is never mirrored to the projector
+
+**Choice.** The stage shows phone A through a document camera (or the backup video), never AirPlay or screen sharing, and P12 stays on: if the deck hides when someone mirrors it, that's a line in the pitch, not a bug to work around. No Debug switch to turn P12 off was asked for.
+
+### D5-D6 · Outreach collects nothing about anyone
+
+**Choice.** The first-50 plan is posters, one Discord message, the table and visits to nearby teams, and only once the public TestFlight link works and the organizers agree. No sign-up sheet, waitlist or email collection as a fallback, and no per-poster tracking. Success is measured on the room's anonymous live numbers.
+
+### D5-D7 · The Devpost draft says what's simulated
+
+**Choice.** The draft has a "What's real and what's simulated" section: the stage room's seeded test people and their public-domain cards, the admin location skip, and (if true on the day) push, TestFlight review or Simulators. It's a draft for David; D5 posts nothing.
+
+### D5-D8 · Seeded people have no profile photos and never tap
+
+**Choice.** Seeded people get a complete profile but no profile photos (no real person's photo is used beyond the public-domain NASA outfit crops), and the seed never records a tap from them. So nobody can ever match a seeded person, and the reveal never shows a fake face.
+
+### D5-D9 · The seed leaves an existing room's demo mode alone
+
+**Choice.** A room the seed creates has demo mode on. An existing room keeps its setting unless `--demo-mode` is passed, so seeding the shared local `demo` room doesn't let `admin@glow.test` skip location checks in other agents' tests.
