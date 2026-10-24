@@ -1,5 +1,5 @@
 // Owner: B7. Admins only: everyone else gets 404 (P11). Logic in server/src/server/admin.
 import { route } from '@/server/http';
-import { adminListCardsHandler } from '@/server/admin/handlers';
+import { adminListCardsHandler, adminOnly } from '@/server/admin/handlers';
 
-export const GET = route('adminListCards', adminListCardsHandler);
+export const GET = route('adminListCards', adminListCardsHandler, { authorize: adminOnly });

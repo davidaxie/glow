@@ -3,6 +3,7 @@
  * and anyone who isn't gets the same 404 as a room that doesn't exist (P11). The admin web
  * calls the same functions through server actions, with the session from its cookie.
  */
+import type { AuthUser } from '@/server/auth';
 import type { RouteHandler } from '@/server/http';
 import { requireAdmin } from './access';
 import { cardImage, listCards, removeCard } from './cards';
@@ -21,6 +22,13 @@ import {
 } from './rooms';
 
 const NO_STORE = 'no-store, max-age=0';
+
+/**
+ * The route helper's `authorize` step for every admin route: right after sign-in, before the
+ * path, query or body is read, so a non-admin gets the same 404 whatever they send (P11).
+ * Each handler checks again, in case a route is ever wired without it.
+ */
+export const adminOnly = (user: AuthUser): Promise<void> => requireAdmin(user.id);
 
 export function jpegResponse(bytes: Uint8Array): Response {
   return new Response(new Uint8Array(bytes), {

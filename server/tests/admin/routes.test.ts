@@ -67,11 +67,12 @@ function routeFile(path: string) {
     .join('/')}/route.ts`;
 }
 
-async function call(id: string, op: Op): Promise<Response> {
+async function call(id: string, op: Op, junk = false): Promise<Response> {
   const mod = (await import(/* @vite-ignore */ routeFile(op.path))) as Record<string, Handler>;
   const params = paramsFor(id, op);
-  const path = op.path.replace(/\{(\w+)\}/g, (_, n: string) => params[n]!);
-  const body = BODIES[id];
+  const path =
+    op.path.replace(/\{(\w+)\}/g, (_, n: string) => params[n]!) + (junk ? '?status=nope' : '');
+  const body = junk ? (op.method === 'GET' ? undefined : { nonsense: true }) : BODIES[id];
   const req = new NextRequest(`http://localhost${path}`, {
     method: op.method,
     headers: {
@@ -109,6 +110,17 @@ describe('admin routes', () => {
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'Not found.' } });
     // Nothing past the admin check ran.
+    expect(repo.calls).toEqual(['isAdmin']);
+  });
+
+  it.each(built)('%s answers the same 404 to a non-admin who sends junk', async (id, op) => {
+    await mockVerify();
+    const repo = world(false);
+    const res = await call(id, op, true);
+    if (res.status === 501) return;
+    // Not a 400: that would show the route exists and what it expects (P11).
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'Not found.' } });
     expect(repo.calls).toEqual(['isAdmin']);
   });
 

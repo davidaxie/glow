@@ -1,5 +1,5 @@
 // Owner: B7. Admins only: everyone else gets 404 (P11). Logic in server/src/server/admin.
 import { route } from '@/server/http';
-import { adminReplaceSpotsHandler } from '@/server/admin/handlers';
+import { adminOnly, adminReplaceSpotsHandler } from '@/server/admin/handlers';
 
-export const PUT = route('adminReplaceSpots', adminReplaceSpotsHandler);
+export const PUT = route('adminReplaceSpots', adminReplaceSpotsHandler, { authorize: adminOnly });
