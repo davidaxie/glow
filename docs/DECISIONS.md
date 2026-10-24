@@ -280,3 +280,29 @@ On Vercel the server also refuses a localhost or non-https `SUPABASE_URL`, the l
 **Choice.** `scripts/sim.sh scan` relaunches the Debug app with `-GlowDebugOpenURL <link>`, which goes through the same `Router.open` as any link (and waits for onboarding like one). It's compiled out of Release. `scripts/sim.sh open <url>` still takes the system path, prompt and all.
 
 **Why.** A real QR scan hands a universal link straight to the app, with no prompt, so this is closer to the real thing than the prompt is.
+
+## B6 · Design system
+
+### B6-D1 · Dark ink on every glow color
+
+**Question.** The spec puts a white code word on Ember, Rose, Violet and Sky. White on those is 2.8:1 (Ember), 3.3:1 (Rose, Sky) and 4.2:1 (Violet), under WCAG AA for normal text, and Ember is under 3:1 even for large text. B6's brief requires all text to meet AA, and the glow screen also shows smaller text (meeting spot, countdown) that scales with Dynamic Type.
+
+**Choice.** `GlowHue.ink` is the app background color, #0B0B10, on all eight colors: 4.7:1 on Violet (the lowest) and up to 17:1 on Pearl. It's one property, so switching back to the spec's rule is a one-line change if A1 prefers it.
+
+**Why.** It's the only rule that passes AA on every color at every text size, and the code word has to be read across a dark room.
+
+### B6-D2 · Filled buttons and selected chips use dark ink
+
+**Question.** White text on the accent #FF4FA3 is 2.8:1, and on danger #FF5A5F 2.9:1.
+
+**Choice.** Primary and danger buttons and selected chips draw their label in #0B0B10 (`GlowPalette.onAccent`), 6.4:1. Pressing a filled control mixes in 12% white instead of darkening it, so pressed labels gain contrast. `GlowPalette.textPairings` lists every text and background combination the components draw, and a test checks each one against 4.5:1.
+
+**Why.** WCAG AA, with nothing resting on the large-text exception.
+
+### B6-D3 · The glow pulse brightens and never darkens
+
+**Question.** The spec's flash safety says the glow pulses slower than once a second and never dims below 70% brightness. A pulse that darkens the color would also lower the code word's contrast at its dimmest moment.
+
+**Choice.** The glow color stays at full strength. A soft white bloom (at most 15% white at its center) fades in and out on top every 1.25 s (0.8 times a second). The dimmest moment is 76% of the brightest in luminance on the darkest color (Violet), and tests check all eight against 70%. Under Reduce Motion the bloom doesn't scale: it only fades, on a slower 4 s cycle.
+
+**Why.** Contrast only goes up during a pulse, and the flash limits hold with margin.
