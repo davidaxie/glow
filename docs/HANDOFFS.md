@@ -88,6 +88,15 @@ _From C4, 2026-10-24._
 
 1. ~~**SwiftFormat skipped every file in an agent worktree.**~~ Fixed in #30: `.swiftformat` no longer excludes `.claude`, and `sim.sh lint` fails if it checks no files.
 2. **When `limitRequest` goes into `route()`** (B8's item 1 below), `sendMessage` would count twice: tell C4, or drop the `rateLimit(senderId, 'messages')` line in `server/src/server/chat/messages.ts` in the same PR (a `cross-owner` edit C4 pre-approves).
+_From C2, 2026-10-24._
+
+1. **The mutual takeover from anywhere in the app.** `match.created` reaches whoever didn't make the second tap while they could be on any screen, so the takeover has to be opened from the root. FeatureMatch exports a modifier for it. Please add one line to `ios/Glow/Navigation/RootView.swift`, on `content` inside `body` (after `.preferredColorScheme(.dark)`):
+
+   ```swift
+   .opensMutualMoments()   // FeatureMatch: match.created → navigate(.mutual(matchID))
+   ```
+
+   It listens to `dependencies.realtime` while the tabs show and sends `.mutual(matchID)` through `navigate`. `RootView` already imports FeatureMatch.
 
 _From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
 
@@ -548,6 +557,45 @@ _2026-10-24, Wave 2._ PR [#23](https://github.com/davidaxie/glow/pull/23) on `w2
 - **D1:** open a chat with `Route.chat(matchID)`; the model is `ChatModel` and `PreviewChatAPI` makes made-up threads for UI tests. A thread refetches on any Realtime event for its match.
 - **D3:** on devices, check the composer above the keyboard, interactive keyboard dismissal, and the "New message" push opening the chat (B5's routing).
 - **D4:** strings are in `ChatView.swift`, `ChatBubble.swift` and `ChatComposer.swift`; VoiceOver reads each message as "You, 8:15 PM: …" or "Sam, 8:15 PM: …", and failed ones offer Try again, Edit and Delete as actions.
+### For B8
+
+_From C2, 2026-10-24._ `setChoice` with Find runs a location check, like `joinRoom`. Please map `setChoice` to the `join` policy in `OPERATION_POLICIES`, so the Find check can't be used as a location oracle. Until A1 calls `limitRequest` from `route()`, C2's handler calls `rateLimit(user.id, 'join')` itself for Find, and drops that call once the route helper does it.
+
+### For C3
+
+_From C2, 2026-10-24._ **`startGlow`, proposed signature.** C2's `setChoice` calls it when `set_choice` answers `next: glow` with `reason: both_find`. Until yours lands, C2 calls `start_glow` through a thin stand-in, `server/src/server/choice/glow-start.ts`, with the same signature, and swaps in yours when it merges. Tell C2 here if you want it different.
+
+```ts
+// server/src/server/glow/index.ts (C3)
+export type StartGlowOutcome =
+  | { readonly result: 'started' }
+  | { readonly result: 'chat'; readonly reason: 'not_checked_in' | 'no_code_word' | 'already_decided' }
+  | { readonly result: 'waiting'; readonly reason: 'location_stale' | 'not_both_find' };
+
+/** Calls start_glow with the word list, sends every event its result implies, and never throws
+ *  for a match it can't start. Throws HttpError 404 for not_found. */
+export async function startGlow(db: SupabaseClient<Database>, matchId: string): Promise<StartGlowOutcome>;
+```
+
+The split C2 assumes: **`startGlow` sends every event `start_glow`'s result implies** (CONTRACTS.md, "start_glow results" and "Settled timeouts"): `glow.started` to both on `started`, `match.choice` to both on `chat`, `match.recheck` to each of `staleUserIds` on `waiting` with `location_stale`, and the `settled` entries (`glow.ended` for `glow_expired`, including other pairs' glows in the room, and `match.choice` for `choice_timeout`). C2's `setChoice` sends only what `set_choice` itself implies. After `startGlow`, C2 refetches the match with `get_match` and answers `next: glow` for `started`, `next: chat` for `chat`, and `next: waiting` (`other_location_stale`) for `waiting`.
+
+## Status
+
+### C2 · Mutual moment and reveal
+
+_2026-10-24, Wave 2, in progress._ Branch `w2/c2-match`. Draft PR to follow on this line.
+
+**Routes into glow and chat (for C3 and C4).** FeatureMatch only ever passes a `MatchID`. Refetch everything else (`getGlow`, `listMessages`).
+
+| When | FeatureMatch sends | Presented as |
+| --- | --- | --- |
+| The glow started: `setChoice` answered `next: glow`, or a refetch (after `match.choice` or `glow.started`) shows `status: glowing` | `navigate(.glow(matchID))` | Full screen. It replaces the mutual takeover. |
+| The chat opened: `next: chat` (Just chat, they chose chat, the window ran out, someone left the room, no free code word), or a refetch shows `chatting` or `met` | `navigate(.chat(matchID))` | Closes any takeover and pushes onto the Matches tab |
+| A row in the matches list | `choosing` → `.match(id)`, `glowing` → `.glow(id)`, `chatting` and `met` → `.chat(id)` | |
+
+- **C3:** when a glow ends (We met, Cancel, Switch to chat, or time), FeatureGlow decides where to go; `navigate(.chat(matchID))` is the natural next screen. FeatureMatch doesn't listen for `glow.ended`.
+- **C4:** a chat can open while the other person is still on the match screen; they get `match.choice` and FeatureMatch sends them to `.chat` too.
+- **Notification taps** (B5's `RealtimeEvent.destination`): `match.created` → `.mutual`, `match.choice` → `.match`, `glow.started` → `.glow`. FeatureMatch's `.match` screen forwards to `.glow` or `.chat` if the match has already moved on, so a stale notification still lands in the right place.
 
 ### B9 · Release and TestFlight
 
