@@ -98,8 +98,129 @@ newest_pro_device_type() {
     sort -V | tail -1
 }
 
-boot() {
-  local udid="$1"
+# --- Simulator slots ---------------------------------------------------------------------------
+# At most GLOW_SIM_MAX_SLOTS (3) Glow Simulators are booted on this Mac at once, across every
+# agent. A slot is a directory under GLOW_SIM_SLOT_DIR, taken with an atomic mkdir. Its `owner`
+# file names the Simulator, the agent, the time, and (from ci-local) the owning process. A slot
+# is stale, and reclaimed, when its owning process is gone (its Simulator is shut down too), or
+# when its Simulator isn't booted any more, after a grace period for booting.
+SLOT_DIR="${GLOW_SIM_SLOT_DIR:-/tmp/glow-sim-slots}"
+MAX_SLOTS="${GLOW_SIM_MAX_SLOTS:-3}"
+SLOT_WAIT="${GLOW_SIM_SLOT_WAIT:-1800}"
+SLOT_GRACE=180
+RELEASE_ON_EXIT=""
+
+booted_glow_udids() {
+  xcrun simctl list -j devices booted | jq -r '.devices[][] | select(.name | startswith("Glow")) | .udid'
+}
+
+slot_field() { # <slot dir> <key>
+  sed -nE "s/^$2=//p" "$1/owner" 2>/dev/null | head -1
+}
+
+slot_of() { # <udid>: prints the slot holding it
+  local slot
+  for slot in "$SLOT_DIR"/slot-*; do
+    if [ -d "$slot" ] && [ "$(slot_field "$slot" udid)" = "$1" ]; then
+      echo "$slot"
+      return 0
+    fi
+  done
+  return 1
+}
+
+reap_slots() {
+  local booted slot udid pid since now
+  booted="$(booted_glow_udids 2>/dev/null || true)"
+  now="$(date +%s)"
+  for slot in "$SLOT_DIR"/slot-*; do
+    [ -d "$slot" ] || continue
+    udid="$(slot_field "$slot" udid)"
+    pid="$(slot_field "$slot" pid)"
+    since="$(slot_field "$slot" since)"
+    if [ -n "$pid" ] && [ "$pid" != 0 ] && ! kill -0 "$pid" 2>/dev/null; then
+      if [ -n "$udid" ]; then xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true; fi
+      rm -rf "$slot"
+      say "Freed $(basename "$slot"): its owner (process $pid) is gone."
+    elif [ $((now - ${since:-0})) -gt "$SLOT_GRACE" ] && ! printf '%s\n' "$booted" | grep -qx "$udid"; then
+      rm -rf "$slot"
+    fi
+  done
+}
+
+show_slots() {
+  local slot since any=0
+  for slot in "$SLOT_DIR"/slot-*; do
+    [ -d "$slot" ] || continue
+    any=1
+    since="$(slot_field "$slot" since)"
+    printf '    %s: %s (agent %s, since %s)\n' "$(basename "$slot")" "$(slot_field "$slot" name)" \
+      "$(slot_field "$slot" agent)" "$(date -r "${since:-0}" +%H:%M:%S 2>/dev/null || echo '?')" >&2
+  done
+  local unslotted
+  unslotted="$(unslotted_glow_booted "")"
+  if [ "$unslotted" -gt 0 ]; then printf '    plus %s Glow Simulator(s) booted outside sim.sh\n' "$unslotted" >&2; fi
+  if [ "$any" -eq 0 ] && [ "$unslotted" -eq 0 ]; then printf '    all free\n' >&2; fi
+}
+
+# Booted Glow Simulators that hold no slot (booted outside sim.sh) count too. $1 is left out.
+unslotted_glow_booted() {
+  local udid count=0
+  while IFS= read -r udid; do
+    [ -n "$udid" ] && [ "$udid" != "$1" ] || continue
+    slot_of "$udid" >/dev/null || count=$((count + 1))
+  done < <(booted_glow_udids 2>/dev/null || true)
+  echo "$count"
+}
+
+# Takes a slot for <udid> <name>, waiting (a local sleep, no network) until one is free.
+acquire_slot() {
+  local udid="$1" name="$2" waited=0 i slot used
+  mkdir -p "$SLOT_DIR"
+  chmod 1777 "$SLOT_DIR" 2>/dev/null || true
+  if slot_of "$udid" >/dev/null; then return 0; fi
+  while :; do
+    reap_slots
+    used="$(find "$SLOT_DIR" -maxdepth 1 -name 'slot-*' -type d | wc -l | tr -d ' ')"
+    used=$((used + $(unslotted_glow_booted "$udid")))
+    if [ "$used" -lt "$MAX_SLOTS" ]; then
+      for i in $(seq 1 "$MAX_SLOTS"); do
+        slot="$SLOT_DIR/slot-$i"
+        if mkdir "$slot" 2>/dev/null; then
+          printf 'udid=%s\nname=%s\nagent=%s\npid=%s\nsince=%s\n' "$udid" "$name" "${GLOW_AGENT_ID:-none}" \
+            "${GLOW_SLOT_OWNER_PID:-0}" "$(date +%s)" >"$slot/owner"
+          return 0
+        fi
+      done
+    fi
+    if [ $((waited % 60)) -eq 0 ]; then
+      say "All $MAX_SLOTS Simulator slots on this Mac are taken (waited ${waited}s). Holders:"
+      show_slots
+    fi
+    [ "$waited" -lt "$SLOT_WAIT" ] || die "no Simulator slot came free in ${SLOT_WAIT}s."
+    sleep 10
+    waited=$((waited + 10))
+  done
+}
+
+# Shuts the Simulator down and frees its slot.
+release_slot() {
+  local slot
+  xcrun simctl shutdown "$1" >/dev/null 2>&1 || true
+  if slot="$(slot_of "$1")"; then rm -rf "$slot"; fi
+}
+
+release_on_exit() {
+  if [ -n "$RELEASE_ON_EXIT" ]; then
+    release_slot "$RELEASE_ON_EXIT"
+    say "Shut down $SIM_A and freed its Simulator slot."
+  fi
+}
+
+boot() { # <udid> [name]: takes a slot first, so at most MAX_SLOTS are ever booted
+  local udid="$1" name="${2:-$1}"
+  acquire_slot "$udid" "$name"
+  if ! booted_glow_udids 2>/dev/null | grep -qx "$udid"; then say "Booting $name ($udid)"; fi
   xcrun simctl boot "$udid" 2>/dev/null || true
   xcrun simctl bootstatus "$udid" -b >/dev/null
 }
@@ -120,8 +241,7 @@ cmd_setup() {
       say "Creating $name (${device_type##*.}, ${runtime##*.})"
       udid="$(xcrun simctl create "$name" "$device_type" "$runtime")"
     fi
-    say "Booting $name ($udid)"
-    boot "$udid"
+    boot "$udid" "$name"
     xcrun simctl ui "$udid" appearance dark >/dev/null 2>&1 || true
     xcrun simctl status_bar "$udid" override --time "9:41" --batteryState charged --batteryLevel 100 \
       --cellularBars 4 --wifiBars 3 >/dev/null 2>&1 || true
@@ -151,10 +271,32 @@ cmd_teardown() {
       say "$name doesn't exist. Nothing to do."
       continue
     fi
-    xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+    release_slot "$udid"
     xcrun simctl delete "$udid"
     say "Deleted $name ($udid)"
   done < <(targets "$which")
+}
+
+# Shuts down this agent's Simulators and frees their slots, without deleting them.
+cmd_release() {
+  use_xcode
+  need jq "Install it with: brew install jq"
+  local name udid
+  while IFS= read -r name; do
+    udid="$(udid_of "$name")"
+    [ -n "$udid" ] || continue
+    release_slot "$udid"
+    say "Shut down $name and freed its slot."
+  done < <(targets "${1:-both}")
+}
+
+cmd_slots() {
+  use_xcode
+  need jq "Install it with: brew install jq"
+  mkdir -p "$SLOT_DIR"
+  reap_slots
+  say "Simulator slots ($MAX_SLOTS on this Mac, in $SLOT_DIR):"
+  show_slots
 }
 
 # --- Build -----------------------------------------------------------------------------------
@@ -229,7 +371,7 @@ cmd_install() {
   local name udid
   while IFS= read -r name; do
     udid="$(udid_or_die "$name")"
-    boot "$udid"
+    boot "$udid" "$name"
     say "Installing on $name"
     xcrun simctl terminate "$udid" "$BUNDLE_ID" >/dev/null 2>&1 || true
     xcrun simctl install "$udid" "$APP"
@@ -335,6 +477,7 @@ cmd_allow_push() {
   local name udid
   while IFS= read -r name; do
     udid="$(udid_or_die "$name")"
+    boot "$udid" "$name"
     say "Granting notification permission on $name (log: ios/build/logs/allow-push.log)"
     if ! xcodebuild_glow -destination "id=$udid" \
       -only-testing:GlowUITests/SimulatorSetupUITests/testAllowNotifications test >"$LOGS/allow-push.log" 2>&1; then
@@ -394,6 +537,10 @@ cmd_test() {
   generate
   local udid only=()
   udid="$(udid_or_die "$SIM_A")"
+  # xcodebuild would boot Glow A itself, so take its slot first, and give it back when done.
+  boot "$udid" "$SIM_A"
+  RELEASE_ON_EXIT="$udid"
+  trap release_on_exit EXIT
   case "${1:-}" in
     "") ;;
     unit) only=(-skip-testing:GlowUITests) ;;
@@ -478,7 +625,7 @@ cmd_reset() {
   local name udid
   while IFS= read -r name; do
     udid="$(udid_or_die "$name")"
-    xcrun simctl shutdown "$udid" 2>/dev/null || true
+    release_slot "$udid"
     xcrun simctl erase "$udid"
     say "Erased $name. Run scripts/sim.sh setup to boot it again."
   done < <(targets "${1:-both}")
@@ -507,11 +654,15 @@ Glow Simulator workflow (docs/SPEC.md, "Simulator workflow")
   scripts/sim.sh logs [A|B]            stream the app's logs
   scripts/sim.sh reset [A|B|both]      erase the Simulators
   scripts/sim.sh teardown [A|B|both]   shut down and delete this agent's Simulators
+  scripts/sim.sh release [A|B|both]    shut down this agent's Simulators and free their slots
+  scripts/sim.sh slots                 who holds the Mac's Simulator slots (at most 3 booted)
 
 Most commands take A, B or both (the default) as their last argument.
 
 Parallel agents: eval "$(scripts/agent-env.sh <ID>)" first, so GLOW_SIM_A and GLOW_SIM_B name
 this agent's own Simulators and GLOW_API_BASE_URL points the app at this agent's server.
+At most 3 Glow Simulators are booted on this Mac at once: setup, install and test wait for a free
+slot, and test shuts Glow A down and frees its slot when it finishes.
 EOF
 }
 
@@ -536,6 +687,8 @@ case "$command" in
   logs) cmd_logs "$@" ;;
   reset) cmd_reset "$@" ;;
   teardown) cmd_teardown "$@" ;;
+  release) cmd_release "$@" ;;
+  slots) cmd_slots "$@" ;;
   help | -h | --help) cmd_help ;;
   *) die "unknown command '$command'. Run: scripts/sim.sh help" ;;
 esac

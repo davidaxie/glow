@@ -4,10 +4,13 @@
 #
 #   scripts/ci-local.sh B1               # both jobs
 #   scripts/ci-local.sh B1 --server-only # the Ubuntu job only (no iOS changes in your PR)
+#   scripts/ci-local.sh B1 --keep-db     # leave your own Supabase stack running afterwards
 #
 # It uses your agent slot (scripts/agent-env.sh): your own server port, your own Simulator
 # ("Glow A (B1)") and your own Supabase stack (--own-db --reset, so the database matches
-# this branch's migrations). Nothing shared is touched.
+# this branch's migrations). Nothing shared is touched. At the end, even on failure, it shuts
+# your Simulator down and frees its slot (at most 3 are booted on this Mac), and stops your own
+# Supabase stack unless you pass --keep-db (at most 4 run at once).
 #
 # The last line is the summary to paste into your PR, for example:
 #   ci-local B1 3f2a9c1 (rebased on main 9de2799): ubuntu pass, macos pass, 14m02s
@@ -18,12 +21,14 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "ci-local: run it 
 cd "$ROOT"
 
 AGENT="${1:-}"
-[ -n "$AGENT" ] || { echo "usage: scripts/ci-local.sh <AGENT_ID> [--server-only]" >&2; exit 2; }
+[ -n "$AGENT" ] || { echo "usage: scripts/ci-local.sh <AGENT_ID> [--server-only] [--keep-db]" >&2; exit 2; }
 shift
 IOS=1
+KEEP_DB=0
 for arg in "$@"; do
   case "$arg" in
     --server-only) IOS=0 ;;
+    --keep-db) KEEP_DB=1 ;;
     *) echo "ci-local: unknown option $arg" >&2; exit 2 ;;
   esac
 done
@@ -68,6 +73,17 @@ run() { # run <job> <step name> <command...>; logs to .agent-state/ci-local/<ste
   return 1
 }
 
+# Always clean up: the Simulator and its slot, then the own stack (unless --keep-db).
+DB_STARTED=0
+SIM_USED=0
+cleanup() {
+  if [ "$SIM_USED" -eq 1 ]; then scripts/sim.sh release A >/dev/null 2>&1 || true; fi
+  if [ "$DB_STARTED" -eq 1 ] && [ "$KEEP_DB" -eq 0 ]; then
+    scripts/agent-env.sh "$AGENT" --stop-db >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
 # --- Ubuntu job -----------------------------------------------------------------------------
 say "Ubuntu job (server and database), as agent $AGENT"
 eval "$(scripts/agent-env.sh "$AGENT" --own-db --reset 2>"$LOGS/own-db.log")" || {
@@ -75,6 +91,7 @@ eval "$(scripts/agent-env.sh "$AGENT" --own-db --reset 2>"$LOGS/own-db.log")" ||
   echo "ci-local: couldn't start your own Supabase stack." >&2
   exit 1
 }
+DB_STARTED=1
 echo "  own stack: $SUPABASE_URL, server port: $PORT"
 # The local stack's Postgres has no TLS, and `supabase gen types --db-url` tries TLS first.
 case "${GLOW_DB_URL:-}" in
@@ -142,6 +159,9 @@ if [ "$IOS" -eq 1 ] && [ "$ubuntu" = pass ]; then
   say "macOS job (iOS build and tests) on $GLOW_SIM_A"
   macos=pass
   export GLOW_CI=1
+  # This run owns its Simulator slot: if it dies, the next sim.sh frees the slot.
+  export GLOW_SLOT_OWNER_PID=$$
+  SIM_USED=1
   run macos "SwiftFormat and SwiftLint" scripts/sim.sh lint &&
     run macos "xcodegen is deterministic" scripts/sim.sh verify-project &&
     run macos "Boot Glow A" scripts/sim.sh setup A &&

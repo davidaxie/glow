@@ -154,9 +154,19 @@ api_port="$(awk '/^\[api\]/{s=1;next} /^\[/{s=0} s && /^port *=/{gsub(/[^0-9]/,"
 [ "$api_port" = "$((DB_BASE + 1))" ] || { echo "agent-env: couldn't move $PROJECT_ID to its own ports." >&2; exit 1; }
 
 if ! "$SUPABASE_BIN" status --workdir "$STATE" >/dev/null 2>&1; then
+  # At most 4 agent stacks at once on this Mac, besides the shared one (AGENTS.md).
+  others="$(docker ps --format '{{.Names}}' 2>/dev/null | sed -nE 's/^supabase_db_(glow-[a-z0-9]+)$/\1/p' | grep -vx "$PROJECT_ID" || true)"
+  running="$(printf '%s' "$others" | grep -c . || true)"
+  if [ "$running" -ge "${GLOW_MAX_OWN_DBS:-4}" ]; then
+    echo "agent-env: $running agent Supabase stacks are running ($(echo $others)), and the limit is ${GLOW_MAX_OWN_DBS:-4}. Try again when one stops." >&2
+    exit 1
+  fi
   echo "agent-env: starting $PROJECT_ID on ports $DB_BASE to $((DB_BASE + 7)) (this takes a minute)" >&2
   "$SUPABASE_BIN" start --workdir "$STATE" -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta >&2
-elif [ "$RESET" -eq 1 ]; then
+fi
+# A stopped stack starts from its old data volume, so --reset reapplies this worktree's
+# migrations and seed whether the stack was already up or has just started.
+if [ "$RESET" -eq 1 ]; then
   echo "agent-env: reapplying migrations and seed on $PROJECT_ID" >&2
   "$SUPABASE_BIN" db reset --workdir "$STATE" >&2
 fi
