@@ -1,0 +1,12 @@
+{
+  "Simulator Target Bundle": "com.davidxie.glow",
+  "glowFixture": "simulator-only: the server never pushes this event, it arrives over Realtime",
+  "aps": {
+    "alert": {
+      "body": "Simulator test: glow.ended"
+    },
+    "thread-id": "glow.fixture"
+  },
+  "type": "glow.ended",
+  "matchId": "f1c70000-0000-4000-8000-000000000001"
+}

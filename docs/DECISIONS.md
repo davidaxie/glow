@@ -457,3 +457,21 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** No bypass. The review notes (`ios/fastlane/testflight/review-notes.txt`) explain that rooms only open inside a venue, what a reviewer can do without one (sign in, onboarding, the scanner and code entry), and the privacy design; `GLOW_REVIEW_VIDEO_URL` can add a recording of the full loop. Sign in with Apple or the email code works for any reviewer, so no demo account is needed. The contact name, email and phone, and the feedback email, come only from GitHub secrets (`GLOW_REVIEW_*`, `GLOW_FEEDBACK_EMAIL`).
 
 **Why.** Any way around the location check that works for a reviewer works for anyone who learns it, and the location check is what keeps strangers outside the room out of everyone's deck. David's phone number doesn't belong in a repository many agents read.
+
+## B5 · Push, realtime and events
+
+### B5-D1 · `notify` rebuilds every payload from the contract
+
+**Question.** Callers build event objects from database results that also carry `userIds` and other fields. What stops one of them reaching a channel or a push?
+
+**Choice.** `notify()` and `notifyRoom()` parse the event with the generated `zGlowEvent` and rebuild it from the declared keys only (`type` plus `matchId` or `roomId`, lowercased), so an extra field can't leave the server. The TypeScript types (`UserEvent`, `RoomEvent`) come from `eventCatalog`, so `deck.changed` can only go to a room and everything else only to a person. Both never throw: a failed broadcast or push is logged with the event type and counts (never user IDs or tokens), and the request that called it still succeeds.
+
+**Why.** P1 and P6 shouldn't depend on every caller remembering to pick fields. A notification is a hint to refetch, so losing one is better than failing the tap or message that caused it.
+
+### B5-D2 · Push fixtures for events without a push
+
+**Question.** The brief wants `sim.sh push A <event>` to open the right screen for every event, but some events (`match.choice`, `match.ended`, `glow.ended`, `deck.changed`) have no push in the contract.
+
+**Choice.** `ios/fixtures/push/` has a fixture for every event. The ones with a push are exactly the server's payload (`server/tests/notify/fixtures.test.ts` fails if they drift). The others are Simulator-only stand-ins, marked `"glowFixture": "simulator-only…"`, with the alert text "Simulator test: {event}". The server never pushes those events: `apnsRequestFor` returns null for them, and a test checks it.
+
+**Why.** It lets us check every event's screen in the Simulator without inventing lock screen text the server would ever send.

@@ -1,0 +1,14 @@
+{
+  "Simulator Target Bundle": "com.davidxie.glow",
+  "aps": {
+    "alert": {
+      "body": "Time to find each other."
+    },
+    "sound": "default",
+    "category": "GLOW",
+    "thread-id": "match:f1c70000-0000-4000-8000-000000000001",
+    "interruption-level": "time-sensitive"
+  },
+  "type": "glow.started",
+  "matchId": "f1c70000-0000-4000-8000-000000000001"
+}
