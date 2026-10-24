@@ -185,9 +185,10 @@ platform :ios do
 
     api_key = connect_api_key
     app_id = settings.fetch('GLOW_APP_BUNDLE_ID')
-    build = options[:build] || ENV['GLOW_BUILD_NUMBER']
+    # The workflow passes an empty GLOW_BUILD_NUMBER when no build was chosen: that means the latest.
+    build = [options[:build], ENV['GLOW_BUILD_NUMBER']].map { |v| v.to_s.strip }.find { |v| !v.empty? }
     build ||= latest_testflight_build_number(api_key: api_key, app_identifier: app_id)
-    version = options[:version] || ENV['GLOW_APP_VERSION'] ||
+    version = [options[:version], ENV['GLOW_APP_VERSION']].map { |v| v.to_s.strip }.find { |v| !v.empty? } ||
               lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION] ||
               settings.fetch('MARKETING_VERSION')
     domain = settings.fetch('GLOW_WEB_DOMAIN')
