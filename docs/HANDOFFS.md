@@ -383,6 +383,55 @@ A limited request answers 429 `rate_limited` with `Retry-After`; the app already
 - **D1**: the end-to-end block path is `navigate(.block(.chat(id)))` → "Block" → "Close" (back to Matches); the other person's app gets `match.ended`. Expiry: set a check-in's `expires_at` in the past and call the purge route with the cron secret.
 - **D2**: things to try to break: blocking or reporting a card the deck never showed you, or a match you're not in (404); a capture with someone else's room (stored without the room); the purge route without the secret (401); deleting an account and then finding anything about it (`rowsMentioning` in the live test is a start).
 
+### B5 · Push, realtime and events
+
+_2026-10-24, Wave 1, interfaces._ Branch `w1/b5-push-interfaces`: just the shapes everyone calls, so B4, B8 and C1 to C4 can code against them today. The full sender, device routes and live iOS services follow on `w1/b5-push`.
+
+**Server: `notify`** (`server/src/server/notify`)
+
+```ts
+import { after } from 'next/server';
+import { notify, notifyRoom } from '@/server/notify';
+
+// One person or several (both people in a match), from a database function's userIds.
+after(() => notify(result.userIds, { type: 'match.created', matchId: result.matchId }));
+// Everyone checked into a room. Never a push.
+after(() => notifyRoom(roomId, { type: 'deck.changed', roomId }));
+```
+
+- `notify(userIds, event)` takes a user ID or a list, and only `user:{id}` events (`UserEvent`); `notifyRoom(roomId, event)` takes only `deck.changed` (`RoomEvent`). Both types come from `contracts/events.json`, so TypeScript stops a wrong pairing.
+- The payload is rebuilt from the contract (`{ type, matchId }` or `{ type, roomId }`). Anything else you pass is dropped before it leaves the server (P1, P6).
+- It never throws and never fails your request. It resolves to `{ realtime: 'sent' | 'failed' | 'skipped', push: { sent, failed, pruned } | null }` if you want to log it.
+- In your tests: `vi.mock('@/server/notify', () => ({ notify: vi.fn(), notifyRoom: vi.fn() }))`, then assert the calls.
+- Realtime goes out now. Push is skipped until the sender lands on `w1/b5-push` (same function, nothing to change on your side).
+
+**iOS: `PushService` and `RealtimeService`** (`AppCore/Services/`, mocks in `AppCore/Mocks/`)
+
+- `RealtimeEventKind` is now the generated `GlowEvents.EventType`, so it includes `.matchEnded` and can't drift from the contract. `RealtimeEvent(eventJSON:)` and `PushNotification.event` decode payloads strictly.
+- Subscribe in a feature, filtered by kind, match or room:
+
+  ```swift
+  @Environment(\.dependencies) private var dependencies
+
+  .task {
+      for await event in dependencies.realtime.events(.messageCreated, .matchEnded) {
+          await model.refresh()                 // the event only says what changed; refetch
+      }
+  }
+  .task {
+      for await state in dependencies.realtime.connectionStates() where state == .connected {
+          await model.refresh()                 // events sent while away are gone after a reconnect
+      }
+  }
+  ```
+
+  Also `events(for: matchID)` and `events(for: roomID)`. In previews and tests, `PreviewRealtimeService().emit(RealtimeEvent(kind: .matchCreated, matchID: id))`.
+- `RealtimeEvent.destination` is the screen for an event (match.created → `.mutual`, glow.started → `.glow`, message.created and glow.ended → `.chat`, match.choice and match.recheck → `.match`, match.ended → `.matches`, checkin.expiring → `.roomHome`, deck.changed → `.deck`). Tapped notifications use it. Realtime events never navigate by themselves.
+- `PushService.unregister()` is new: it deletes this phone's token on the server. **B1:** please call `await dependencies.push.unregister()` before signing out, and `try await dependencies.push.requestAuthorization()` in the notifications onboarding step.
+- `ios/fixtures/push/` has one `.apns` per event (`scripts/sim.sh push A glow_started`). The ones with a push are byte for byte what the server sends (a Vitest test checks); the ones without are marked Simulator-only stand-ins (B5-D2).
+
+**Still mocked**: `PushModule.live` and `RealtimeModule.live` still return the AppCore mocks; push sending is skipped.
+
 ### A2 · Contracts and database
 
 _2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts` (merged), then the Checkpoint 1 fixes in PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.

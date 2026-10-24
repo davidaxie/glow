@@ -1,8 +1,8 @@
 import Foundation
 import UserNotifications
 
-/// Reports permission as already decided, ignores tokens, and shows foreground notifications as banners.
-/// Maps nothing to a Route until B5 parses payloads from contracts/events.json.
+/// Reports permission as already decided, ignores tokens, shows foreground notifications as banners,
+/// and maps tapped notifications to Routes exactly like the live service.
 public struct PreviewPushService: PushService {
     public var authorizationResult: PushAuthorization
 
@@ -20,12 +20,13 @@ public struct PreviewPushService: PushService {
 
     public func didRegister(deviceToken _: Data) async {}
     public func didFailToRegister(_: any Error) async {}
+    public func unregister() async {}
 
     public func foregroundPresentation(for _: PushNotification) -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }
 
-    public func route(for _: PushNotification) -> Route? {
-        nil
+    public func route(for notification: PushNotification) -> Route? {
+        notification.event?.destination
     }
 }

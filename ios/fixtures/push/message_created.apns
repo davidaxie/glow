@@ -1,0 +1,14 @@
+{
+  "Simulator Target Bundle": "com.davidxie.glow",
+  "aps": {
+    "alert": {
+      "body": "New message"
+    },
+    "sound": "default",
+    "category": "MESSAGE",
+    "thread-id": "match:f1c70000-0000-4000-8000-000000000001",
+    "interruption-level": "active"
+  },
+  "type": "message.created",
+  "matchId": "f1c70000-0000-4000-8000-000000000001"
+}

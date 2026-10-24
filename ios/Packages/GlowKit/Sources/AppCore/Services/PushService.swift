@@ -1,8 +1,7 @@
 import Foundation
 import UserNotifications
 
-// Owner from Wave 1: B5 (Push). A3 wrote this first shape; B5 may change this file and
-// Mocks/PreviewPushService.swift together.
+// Owner: B5 (Push). This file and Mocks/PreviewPushService.swift change together.
 
 public enum PushAuthorization: Hashable, Sendable {
     case notDetermined
@@ -24,15 +23,29 @@ public struct PushNotification: Hashable, Sendable {
         self.categoryIdentifier = categoryIdentifier
         self.payload = payload
     }
+
+    /// The event this notification is about, from its `type` plus `matchId` or `roomId`.
+    /// Nil for anything that isn't one of ours.
+    public var event: RealtimeEvent? {
+        RealtimeEvent(notificationPayload: payload)
+    }
 }
 
 /// Apple push: permission, device token registration, and notification taps to Routes.
+///
+/// The live service registers the notification categories at launch, asks Apple for a device
+/// token whenever permission is granted, and uploads it to `POST /api/devices` while someone is
+/// signed in (sandbox for Xcode builds, production for TestFlight).
 public protocol PushService: Sendable {
     func authorization() async -> PushAuthorization
+    /// Shows the system prompt (B1's notifications step), then registers for pushes if allowed.
     func requestAuthorization() async throws -> PushAuthorization
     /// Called by the app delegate with the APNs device token.
     func didRegister(deviceToken: Data) async
     func didFailToRegister(_ error: any Error) async
+    /// Removes this phone's token from the server, so the signed-in person's pushes stop
+    /// arriving here. Call it before signing out, while the session can still reach the API.
+    func unregister() async
     /// How to show a notification that arrives while the app is open.
     func foregroundPresentation(for notification: PushNotification) -> UNNotificationPresentationOptions
     /// Where a tapped notification should take the person, if anywhere.

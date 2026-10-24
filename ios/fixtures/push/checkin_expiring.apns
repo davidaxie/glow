@@ -1,0 +1,14 @@
+{
+  "Simulator Target Bundle": "com.davidxie.glow",
+  "aps": {
+    "alert": {
+      "body": "Your check-in ends soon."
+    },
+    "sound": "default",
+    "category": "CHECKIN",
+    "thread-id": "room:de000000-0000-4000-8000-000000000001",
+    "interruption-level": "active"
+  },
+  "type": "checkin.expiring",
+  "roomId": "de000000-0000-4000-8000-000000000001"
+}

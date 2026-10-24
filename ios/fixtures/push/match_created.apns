@@ -4,8 +4,11 @@
     "alert": {
       "body": "Someone you noticed noticed you back."
     },
-    "sound": "default"
+    "sound": "default",
+    "category": "MATCH",
+    "thread-id": "match:f1c70000-0000-4000-8000-000000000001",
+    "interruption-level": "active"
   },
   "type": "match.created",
-  "match_id": "00000000-0000-4000-8000-000000000001"
+  "matchId": "f1c70000-0000-4000-8000-000000000001"
 }
