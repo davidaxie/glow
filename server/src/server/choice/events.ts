@@ -7,7 +7,10 @@
 import { notify, type UserEvent } from './deps';
 import type { Settled } from './shapes';
 
-export type Outgoing = { readonly to: readonly string[]; readonly event: UserEvent };
+/** A `user:{id}` event about a match: only its type and the match ID. */
+export type MatchUserEvent = Extract<UserEvent, { matchId: string }>;
+
+export type Outgoing = { readonly to: readonly string[]; readonly event: MatchUserEvent };
 
 /**
  * The events for timeouts a function applied on the spot (docs/CONTRACTS.md, "Settled
@@ -25,7 +28,7 @@ export function settledEvents(settled: readonly Settled[]): Outgoing[] {
 
 /** Merges the list so each person gets each event once, grouped by event. */
 export function merge(outgoing: readonly Outgoing[]): Outgoing[] {
-  const groups = new Map<string, { event: UserEvent; people: Set<string> }>();
+  const groups = new Map<string, { event: MatchUserEvent; people: Set<string> }>();
   for (const { to, event } of outgoing) {
     const key = `${event.type}|${event.matchId.toLowerCase()}`;
     const group = groups.get(key) ?? { event, people: new Set<string>() };

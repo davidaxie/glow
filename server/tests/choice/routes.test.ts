@@ -242,7 +242,7 @@ describe('POST /api/matches/{id}/choice · Just chat', () => {
     expect(sentEvents(notify)).toEqual([
       { type: 'match.choice', matchId: MATCH, to: [ME, THEM].sort() },
     ]);
-    expect(rateLimit).toHaveBeenCalledWith(ME, 'api');
+    expect(rateLimit).not.toHaveBeenCalled(); // the route helper's own api limit is enough
     expect(uuidsIn(res.body)).not.toContain(THEM);
   });
 

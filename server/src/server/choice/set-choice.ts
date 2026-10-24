@@ -76,9 +76,12 @@ export function afterGlow(outcome: StartGlowOutcome, match: MatchDetail): Choice
 export const setChoiceFor: RouteHandler<'setChoice'> = async ({ user, params, body }) => {
   const db = serviceDb();
   const matchId = params.id;
-  // Find runs a location check, so it gets the join policy (For B8 in docs/HANDOFFS.md).
-  await rateLimit(user.id, body.choice === 'find' ? 'join' : 'api');
-  if (body.choice === 'find') await checkFindLocation(db, user.id, matchId, body.location);
+  if (body.choice === 'find') {
+    // The route helper already counted this request against `api`. Find also runs a location
+    // check, so it counts against `join` too, like joining a room (C2-D5).
+    await rateLimit(user.id, 'join');
+    await checkFindLocation(db, user.id, matchId, body.location);
+  }
 
   const row = await setChoiceRow(db, user.id, matchId, body.choice);
   await send(choiceEvents(user.id, matchId, row));

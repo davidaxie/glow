@@ -11,7 +11,6 @@
 import type { MatchDetail } from '@/contracts';
 import type { RouteHandler } from '@/server/http';
 import { serviceDb, type Db } from './db';
-import { rateLimit } from './deps';
 import { send, settledEvents } from './events';
 import { getMatchRow } from './rpc';
 import { publicMatch } from './shapes';
@@ -24,7 +23,6 @@ export async function loadMatch(db: Db, userId: string, matchId: string): Promis
 }
 
 export const getMatchFor: RouteHandler<'getMatch'> = async ({ user, params }) => {
-  await rateLimit(user.id, 'api');
   const match = await loadMatch(serviceDb(), user.id, params.id);
   return { status: 200, body: match };
 };
