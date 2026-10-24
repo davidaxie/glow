@@ -1,0 +1,6 @@
+# Every agent appends to these two files, so merge them by keeping both sides' lines
+# (git's built-in union driver). Local rebases and merges then resolve them on their own.
+# GitHub's merge button doesn't use merge drivers, so if GitHub reports a conflict only in
+# these files, rebase locally (AGENTS.md).
+docs/HANDOFFS.md merge=union
+docs/DECISIONS.md merge=union

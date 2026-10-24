@@ -52,12 +52,12 @@ Agents: A1 Integrator and repo, A2 Contracts and database, A3 iPhone app skeleto
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| Repo root files (`package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.gitignore`, `.editorconfig`, `.nvmrc`, `.prettierrc.json`, `.prettierignore`) | A1 | A2 may add codegen devDependencies to the root `package.json` (pre-approved). Any agent's PR may update `pnpm-lock.yaml` for its own dependencies. |
+| Repo root files (`package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.gitignore`, `.gitattributes`, `.editorconfig`, `.nvmrc`, `.prettierrc.json`, `.prettierignore`) | A1 | A2 may add codegen devDependencies to the root `package.json` (pre-approved). Any agent's PR may update `pnpm-lock.yaml` for its own dependencies. |
 | `AGENTS.md` | A1 | |
 | `.swiftlint.yml`, `.swiftformat` | A1 | Built by A3 in Wave 0 |
 | `docs/` | A1 | Except the files below |
 | `docs/SPEC.md`, `docs/BUILD_PLAN.md`, `docs/briefs/` | A1 | Exported verbatim from the doc. The spec changes only in a `contract-change` PR. |
-| `docs/HANDOFFS.md`, `docs/DECISIONS.md` | A1 (structure) | Every agent writes its own section and adds its own decisions |
+| `docs/HANDOFFS.md`, `docs/DECISIONS.md` | A1 (structure) | Every agent writes its own section and adds its own decisions. `.gitattributes` merges both with git's union driver, so a local rebase or merge keeps everyone's lines without a conflict. GitHub's merge button ignores it: if GitHub shows a conflict only in these two files, rebase locally. After a union merge, check your own section still reads in order. |
 | `docs/CONTRACTS.md` | A2 | |
 | `docs/RELEASE.md` | B9 | |
 | `docs/SECURITY_REVIEW.md` | D2 | |
