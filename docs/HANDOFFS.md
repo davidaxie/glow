@@ -38,6 +38,7 @@ Things only David can do. None of these block Wave 0 work locally.
 16. **Admin accounts** (from B7). There's no screen to make someone an admin, on purpose. When the Supabase cloud project exists, each organizer signs up in the app once, then add them in the SQL editor: `insert into public.admins (user_id) select id from auth.users where email = 'organizer@example.com';`. Locally, `admin@glow.test` is already an admin.
 17. **Email for admin sign-in codes** (from B7, shared with B1). Admins sign in to the admin web with a 6-digit email code from Supabase Auth. Supabase's built-in email sender is limited to a few emails an hour, which won't survive an event: in the cloud project, set up custom SMTP (Auth, then SMTP settings) with any provider, and make sure the email template includes `{{ .Token }}`.
 18. **Print the posters on the day** (from B7). The poster PDF is US Letter, black on white. Print it at 100% (no "fit to page" shrink) so the QR code stays at least 4 inches wide. Posters only let people in while "Printed posters" is on for that room.
+16. **Point `xcode-select` at Xcode** (from B3). The Claude Code iOS Simulator tool refuses to run while `xcode-select` points at the Command Line Tools, so agents can't tap through the app with it. Run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` once. Until then agents drive screens with XCUITest and `scripts/sim.sh shot`, which works but is slower.
 
 ## Requests
 
@@ -46,6 +47,12 @@ Things only David can do. None of these block Wave 0 work locally.
 _From B6, 2026-10-24._
 
 1. **DesignSystem strings** (for D4, later): when D4 adds a string catalog to DesignSystem, its target needs `resources: [.process("Resources")]` in `Package.swift`.
+_From B3, 2026-10-24._ PR [#7](https://github.com/davidaxie/glow/pull/7).
+
+1. **`Cache-Control` on images.** `server/next.config.ts` adds `Cache-Control: no-store, max-age=0` to every `/api` response, so the image routes go out with that instead of the contract's exact `no-store` (`CacheControlNoStore` is `enum: [no-store]`). Both forbid caching, so nothing leaks; it's only a contract mismatch a strict checker (D2) would flag. Either let the contract's enum allow `no-store, max-age=0`, or skip the header rule for responses that already set one.
+2. **Explicit package dependencies.** `Imaging` imports `HTTPTypes` and `OpenAPIRuntime` (for `GlowAPI.send`), and `FeatureCheckIn` imports `OpenAPIRuntime` (for `Base64EncodedData`). They build today through `APIClient`; if you'd like every import declared, add `openAPIRuntime` and `httpTypes` to `core` and `feature` in `Package.swift`.
+3. **After check-in.** `CheckInView` sends `.roomHome(roomID)` when the card is made, which pushes on top of `.checkIn`, so Back returns to the finished check-in. Consider a way for a Route to replace the top of the stack (or have the Router drop `.checkIn` when `.roomHome` for the same room is pushed).
+4. **Fixture README.** PR #7 corrects one line of `ios/fixtures/faces/README.md` (yours): `faces-group-of-3.jpg` shows 6 faces, two crews of three.
 
 _From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
 
@@ -227,6 +234,8 @@ _From B7, 2026-10-24._ Two things the admin web relies on:
 
 1. **Screen tokens.** Done: since #10, the display page uses your `displayToken` from `@/server/qr`. A live join with the display's current token through your `joinRoom` answered 200 (and a made-up token 404), and a test runs your `verifyRoomToken` on the display's token.
 2. **Demo mode skips.** The room page shows how many location checks were skipped today in a demo mode room, by counting `location_checks` rows with `result = 'demo_skip'` since the start of the room's day. Please write one per skip (A2's note), with `purpose` `join` or `find`.
+_From B3, 2026-10-24._ After a passed join, send `navigate(.checkIn(roomID, JoinTicket(ticket)))`. B3's check-in calls your `verifyJoinTicket(ticket, { userId, roomId })` and turns null into 422 `join_ticket_invalid` (the screen then offers "Back to rooms", `navigate(.rooms)`). Until your PR merges, `server/src/server/images/deps.ts` stubs it with your exact signature. If you export a way to issue a ticket (for tests), B3's route tests switch to it when the stub goes.
+_From B3, 2026-10-24._ After a passed join, send `navigate(.checkIn(roomID, JoinTicket(ticket)))`. B3's check-in calls your `verifyJoinTicket(ticket, { userId, roomId })` from `@/server/rooms` and turns null into 422 `join_ticket_invalid` (the screen then offers "Back to rooms", `navigate(.rooms)`). B3's route tests mint tickets with your `issueJoinTicket`.
 
 _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/route.ts` exists as a 501 stub for `getRoomState`; it's yours (listed in your `AGENTS.md` row), so replace the stub. 2: done. 3: `server/src/env.ts` has two optional variables, both validated and optional everywhere: `TESTFLIGHT_URL` (must be `https://testflight.apple.com/...`) and `APPLE_APP_ID` (`TEAMID.bundle.id`, like `ABCDE12345.com.davidxie.glow`). Please use `APPLE_APP_ID` for the link file rather than `APNS_TEAM_ID` plus `APNS_BUNDLE_ID`: the APNS variables only exist together with the push key, so a preview without push couldn't serve the link file. Read them with `getEnv()`.
 
@@ -275,11 +284,45 @@ _From B8, 2026-10-24, PR #22._ The purge cron deletes any `room-cards` object wi
 
 ### For B7
 
+_From B3, 2026-10-24._ `watermark(jpeg, viewerCode)` from `@/server/images` draws the admin's viewer code across a photo (the same faint tiled pattern every image gets) and returns a metadata-free JPEG, for `adminCardImage` and `adminPhotoImage`. Serve with `Cache-Control: no-store`.
+
 _From B8, 2026-10-24, PR #22._ (1) Reports: `create_report` stores the reported person, room, reason, trimmed details and, for match or chat reports, `evidence` (their last 20 messages). The reporter has already blocked them. Reports are deleted with either account (D23). (2) Capture flags: accounts with 3 or more `abuse_signals` in the last 24 hours (`select user_id, count(*) from abuse_signals where created_at > now() - interval '24 hours' group by user_id having count(*) >= 3`); the server logs `safety.capture_review` when someone reaches 3 (B8-D7). (3) Held profile photos (`moderation_status = 'held'`) are people who may be under 18, from `moderateImage('profile', …)`; they're never served until approved.
 
 ### For C1
 
+_From B3, 2026-10-24, also for C2._ Show card photos and match photos with the loader in Imaging (your modules already depend on it). It fetches through the API with the bearer token, never caches, and offers no save, share or drag:
+
+```swift
+import Imaging
+
+PrivateImageView(.card(signedURL: card.image.url), label: "Today's look") { error in
+    if error == .notFound { await model.refreshDeck() } // links last 60 s and are viewer-bound
+}
+PrivateImageView(.matchPhoto(matchID, index: 0), label: "Photo 1 of 3")
+
+// Or, without the view:
+let photo = try await dependencies.imaging.loadPrivateImage(.card(signedURL: url)) // PrivateImage (UIImage)
+```
+
+Errors are `PrivateImageError` (`.notFound` for expired, someone else's, ended or missing; `.invalidSource` if a link isn't a relative `/api/cards/{id}/image?exp&sig`). In previews and tests, `Dependencies.preview(imaging: PreviewImagingService(load: .placeholder))` or `.fail(.notFound)`.
+
 _From B8, 2026-10-24, PR #22._ From a card, open `navigate(.block(.card(cardID)))` or `navigate(.report(.card(cardID)))`; both sheets are B8's. After a block the card leaves both decks on the next fetch, and the room gets `deck.changed`; drop the card locally at once too. Screenshots and recordings of the deck: `POST /api/abuse/capture` with `{ kind: 'screenshot' | 'recording', roomId }` (always 204, rate limited to 60 an hour).
+
+### For B4
+
+_From B3, 2026-10-24._ Sign each deck card's image link with `cardImageLink(cardId, viewerId)` from `@/server/images`: it returns the contract's `SignedImage` (`url`, `expiresAt`), a 60-second link that only works for that viewer. `GET /api/cards/{cardId}/image` then checks `card_visible_to`, so a card serves only while the deck may show it (and only after `get_deck` has recorded the view).
+
+### For D1
+
+_From B3, 2026-10-24._ For the end-to-end run:
+
+- Check in with `ios/fixtures/photos/outfit-real-*.jpg` (real people, neck down). Vision doesn't see A3's synthetic drawings as people, so those four ask for a retake, by design.
+- Debug Simulator builds take `-GlowDebugCheckInPhoto <absolute path>`, which adds a **Use test photo** button (`checkin.debugPhoto`) so UI tests skip the out-of-process photo picker. Identifiers: `checkin.choosePhoto`, `checkin.usePhoto`, `checkin.retake`, `checkin.top.<color>`, `checkin.submit`, `checkin.notice`, `checkin.rejoin`. Chips for hair and extras are found by their label (`Short`, `Glasses`).
+- `create_checkin` needs a passing join check from B2's join route in the last 10 minutes.
+
+### For D4
+
+_From B3, 2026-10-24._ Every word of check-in is in `FeatureCheckIn/CheckInCopy.swift` (retake messages per moderation reason, tag names) and the step views. No String Catalog yet.
 
 ### For C4
 
@@ -322,6 +365,32 @@ _From B2, 2026-10-24._ Two server variables, both optional and read with `getEnv
 _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVELOPMENT_TEAM` is empty, `CODE_SIGN_STYLE = Automatic`), so set the team there. `GLOW_WEB_DOMAIN` (same file) is {DOMAIN}. Release `SUPABASE_URL` and `SUPABASE_ANON_KEY` are empty in `Release.xcconfig`: pass them, and `POSTHOG_KEY` (and `SENTRY_DSN` once Sentry is back, D36), as xcodebuild settings from CI. `aps-environment` is `development` in Debug and `production` in Release. App Privacy answers should match `ios/Glow/PrivacyInfo.xcprivacy` (D43).
 
 ## Status
+
+### B3 · Check-in and private images
+
+_2026-10-24, Wave 1._ PR [#7](https://github.com/davidaxie/glow/pull/7) on `w1/b3-checkin`, plus the fixtures in PR [#18](https://github.com/davidaxie/glow/pull/18) (merged). Decisions B3-D1 to B3-D9.
+
+**Built**
+
+- **On the phone (Imaging).** `CardPhotoPipeline`: decode with the orientation applied and at most 1920 px, Vision face rectangles grown 30% on every side, a strong Gaussian blur then coarse pixelation in each box, a second face check that blurs any survivor and refuses to upload if one survives twice, the person check (a face or a human rectangle), and a JPEG at quality 0.8 in sRGB with every metadata segment stripped by `JPEGSanitizer` (B3-D4, B3-D5). `PrivateImageLoader` and `PrivateImageView` for card and match photos, no caching (B3-D8). `ImagingModule.live` is the real service.
+- **Check-in screens (FeatureCheckIn).** Camera with a neck-down framing guide (AVFoundation, in memory only); the photo picker in Debug Simulator builds; "This is what others will see"; the tag picker (top color required, hair length, hair color, extras) with B6's chips; upload; a retake message for each moderation reason; "Back to rooms" when the join ticket has expired. The original photo is dropped as soon as the blurred copy exists, and only `PreparedCardPhoto` can be uploaded (P3).
+- **Server (`server/src/server/images`).** `POST /api/rooms/{id}/checkin`: rate limit, join ticket, B8's moderation on the bytes as uploaded (fails closed), a server-side re-encode with no metadata (B3-D3), `room-cards/{roomId}/{cardId}.jpg`, `create_checkin`, replaced photos deleted at once (B3-D9). `GET /api/cards/{cardId}/image`: HMAC link bound to the viewer and 60 seconds, `card_visible_to`, a faint tiled watermark of the viewer's code drawn with a built-in pixel font (B3-D7), `no-store`. `GET /api/matches/{id}/photos/{n}`: `match_photo_path`, watermarked too (B3-D2). Every refusal is the same 404 (P11).
+
+**Proof**
+
+- Server: 60 Vitest tests in `server/tests/images/` (signed links, watermark incl. the [snapshot](../server/tests/images/__snapshots__/watermarked-card.jpg), upload clean-up, every route's 401/404/422/503 path). Against the local Supabase: check-in 201, own card 200 with the watermark, the same link from someone else 404, a valid link for someone the deck never showed it to 404, an expired link 404, the anon key can't read `room-cards`, and an old card's link 404 after a new check-in.
+- iPhone: 22 `ImagingTests` (every face fixture comes out blurred and Vision finds no face afterwards, the detail in each face box drops by over 80%, no EXIF/GPS/TIFF survives, orientation, size, drawings refused, the loader's link checks) and 11 `FeatureCheckInTests` (the upload carries exactly the blurred, metadata-free photo; each rejection reason gives a retake; expired ticket; outage keeps the photo; tags).
+- Screens on Glow A (B3), against the local server: [capture](shots/checkin-1-capture-A.png), [blur preview](shots/checkin-2-preview-A.png), [preview with no face](shots/checkin-2b-preview-no-face-A.png), [tags](shots/checkin-3-tags-A.png), [tags picked](shots/checkin-3-tags-picked-A.png), [checked in](shots/checkin-4-done-A.png), [face_visible retake](shots/checkin-5-rejected-face-visible-A.png), and at the largest accessibility text size: [capture](shots/checkin-1-capture-largest-text-A.png), [preview](shots/checkin-2-preview-largest-text-A.png), [tags](shots/checkin-3-tags-largest-text-A.png). Recording: [checkin-flow-A.mp4](shots/checkin-flow-A.mp4) (23 s). The retake shot used a local, uncommitted server change that rejects every photo, because B8's dev fake only rejects marked fixtures and the app strips the marker.
+
+**Still mocked**: nothing. Check-in uses B2's `verifyJoinTicket` (`@/server/rooms`), B8's moderation, A1's per-route rate limit and A2's database functions; the route tests mint tickets with B2's `issueJoinTicket`.
+
+**Next wave needs**
+
+- **C1, C2:** `PrivateImageView` and `loadPrivateImage` (For C1 and C2, above).
+- **B4:** `cardImageLink` for deck cards (For B4).
+- **B7:** `watermark()` for the admin image routes (For B7).
+- **D1:** the test-photo launch argument and identifiers (For D1).
+- **D2:** to try: a link replayed by another account, an expired or stretched `exp`, a forged `sig`, a link for a card the deck never showed, `room-cards` with the anon key, EXIF or GPS in an upload (the server strips it), and a face that survives the phone's blur (moderation's `face_visible`).
 
 ### B9 · Release and TestFlight
 
