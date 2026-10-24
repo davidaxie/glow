@@ -244,6 +244,31 @@ struct DeckModelTests {
         #expect(!deck.cards.contains { $0.id == card.id })
     }
 
+    // MARK: Block and report (B8)
+
+    /// C1-D6: a card I block or report leaves my deck at once, even before the block lands.
+    @Test func blockingFromACardDropsItAtOnce() async throws {
+        let clock = TestClock(testNow)
+        let service = FixtureDeckService(count: 24, now: { clock.now })
+        let deck = DeckModel(roomID: testRoom, service: service, refreshInterval: .zero, now: { clock.now })
+        await deck.apply(.none)
+        let card = try #require(deck.cards.first?.id)
+        deck.open(card)
+
+        deck.hideForSafety(card)
+        #expect(!deck.cards.contains { $0.id == card })
+        #expect(deck.enlarged == nil)
+
+        // The server hasn't processed the block yet: still hidden.
+        await deck.refresh()
+        #expect(!deck.cards.contains { $0.id == card })
+
+        // The sheet was cancelled: after a minute, a refresh brings it back.
+        clock.advance(61)
+        await deck.refresh()
+        #expect(deck.cards.contains { $0.id == card })
+    }
+
     // MARK: Capture (P12)
 
     @Test func aRecordingIsReportedOncePerCapture() async throws {

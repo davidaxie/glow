@@ -11,9 +11,35 @@ struct CardDetailView: View {
     /// The tap was mutual: hand off to FeatureMatch's takeover.
     let onMutual: @MainActor (MatchID) -> Void
 
+    @Environment(\.navigate) private var navigate
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
+                if let card = model.enlargedCard {
+                    Menu {
+                        Button(role: .destructive) {
+                            model.hideForSafety(card.id)
+                            navigate(.block(.card(card.id)))
+                        } label: {
+                            Label(DeckCopy.block, systemImage: "hand.raised")
+                        }
+                        Button {
+                            model.hideForSafety(card.id)
+                            navigate(.report(.card(card.id)))
+                        } label: {
+                            Label(DeckCopy.report, systemImage: "exclamationmark.bubble")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.glow(.headline))
+                            .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
+                            .foregroundStyle(.glowTextPrimary)
+                            .background(.glowSurfaceRaised, in: RoundedRectangle(cornerRadius: GlowRadius.control, style: .continuous))
+                    }
+                    .accessibilityLabel(Text(DeckCopy.more))
+                    .accessibilityIdentifier("deck.detail.more")
+                }
                 Spacer()
                 Button {
                     model.close()
@@ -21,8 +47,10 @@ struct CardDetailView: View {
                     Image(systemName: "xmark")
                         .font(.glow(.headline))
                         .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
+                        .foregroundStyle(.glowTextPrimary)
+                        .background(.glowSurfaceRaised, in: RoundedRectangle(cornerRadius: GlowRadius.control, style: .continuous))
                 }
-                .buttonStyle(.glow(.secondary, size: .compact))
+                .buttonStyle(.plain)
                 .accessibilityLabel(Text(DeckCopy.close))
                 .accessibilityIdentifier("deck.detail.close")
             }

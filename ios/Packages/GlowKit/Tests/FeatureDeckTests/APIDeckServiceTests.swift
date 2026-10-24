@@ -7,7 +7,10 @@ import Testing
 /// The live service against canned server answers: what it sends, and what it makes of replies.
 struct APIDeckServiceTests {
     @Test func deckSendsTheFiltersInTheContractsShape() async throws {
-        let transport = RecordingTransport(["getDeck": .init(status: 200, json: deckJSON(cards: [cardJSON(1)], hasMore: true, nextOffset: 10))])
+        let transport = RecordingTransport(["getDeck": .init(
+            status: 200,
+            json: deckJSON(cards: [cardJSON(1)], hasMore: true, nextOffset: 10),
+        )])
         let service = APIDeckService(api: api(transport))
         var filters = NoticedFilters()
         filters.topColors = [.blue, .green]
@@ -40,7 +43,10 @@ struct APIDeckServiceTests {
     /// P1 on the phone too: the generated decoder refuses any field the contract doesn't have, so a
     /// deck reply carrying a user ID (or anything else) is thrown away, never shown.
     @Test func aDeckReplyWithAUserIDIsRefused() async throws {
-        let leaky = cardJSON(1).replacingOccurrences(of: #""tappedByMe":false"#, with: #""tappedByMe":false,"userId":"7e570000-0000-4000-8000-000000000001""#)
+        let leaky = cardJSON(1).replacingOccurrences(
+            of: #""tappedByMe":false"#,
+            with: #""tappedByMe":false,"userId":"7e570000-0000-4000-8000-000000000001""#,
+        )
         let transport = RecordingTransport(["getDeck": .init(status: 200, json: deckJSON(cards: [leaky]))])
         await #expect(throws: DeckFailure.unexpected) {
             try await APIDeckService(api: api(transport)).deck(testRoom, filters: .none, offset: 0)
@@ -64,7 +70,10 @@ struct APIDeckServiceTests {
     }
 
     @Test func tapErrorsMapToWhatTheScreenSays() async {
-        let limit = RecordingTransport(["createTap": .init(status: 409, json: #"{"error":{"code":"tap_limit_reached","message":"No taps left."}}"#)])
+        let limit = RecordingTransport(["createTap": .init(
+            status: 409,
+            json: #"{"error":{"code":"tap_limit_reached","message":"No taps left."}}"#,
+        )])
         await #expect(throws: DeckFailure.tapLimitReached) {
             try await APIDeckService(api: api(limit)).tap(CardID(rawValue: FixtureDeckService.fixtureUUID(3)), in: testRoom)
         }

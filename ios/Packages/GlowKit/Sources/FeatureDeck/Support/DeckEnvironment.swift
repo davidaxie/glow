@@ -17,11 +17,13 @@ extension EnvironmentValues {
     /// Hide the deck whenever the app isn't active, so the app switcher's snapshot never holds
     /// anyone's look (C1-D4). Snapshot tests turn it off: they render outside any scene.
     @Entry var deckHidesWhenInactive = true
+    /// What time it is, for "time left". Snapshot tests fix it.
+    @Entry var deckClock: @Sendable () -> Date = { Date() }
 }
 
+@MainActor
 extension Dependencies {
     /// The deck service for this environment: an injected one, a Debug fixture, or the live API.
-    @MainActor
     func deckService(override: (any DeckService)?) -> any DeckService {
         if let override {
             return override
@@ -34,7 +36,6 @@ extension Dependencies {
         return APIDeckService(api: api)
     }
 
-    @MainActor
     func deckImageLoader(override: (any CardImageLoading)?) -> any CardImageLoading {
         if let override {
             return override

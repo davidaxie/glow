@@ -22,14 +22,14 @@ struct DeckSnapshotTests {
     func choosing(_ size: DynamicTypeSize) async {
         let model = makeModel(FixtureDeckService(now: { testNow }))
         model.preview(phase: .choosing)
-        snapshot(deck(model), "choosing", size)
+        await snapshot(deck(model), "choosing", size)
     }
 
     @Test(arguments: deckSnapshotSizes)
     func loading(_ size: DynamicTypeSize) async {
         let model = makeModel(FixtureDeckService(now: { testNow }))
         model.preview(phase: .loading)
-        snapshot(deck(model), "loading", size)
+        await snapshot(deck(model), "loading", size)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -37,7 +37,7 @@ struct DeckSnapshotTests {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
         await model.start(showMe: nil)
         await model.apply(.none)
-        snapshot(deck(model), "grid", size, wait: 0.6)
+        await snapshot(deck(model), "grid", size, wait: 0.6)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -52,7 +52,7 @@ struct DeckSnapshotTests {
         model.requestTap(card.id)
         _ = await model.confirmTap()
         model.toast = nil
-        snapshot(deck(model), "grid-filtered-tapped", size, wait: 0.6)
+        await snapshot(deck(model), "grid-filtered-tapped", size, wait: 0.6)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -60,8 +60,8 @@ struct DeckSnapshotTests {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
         await model.start(showMe: nil)
         await model.apply(.none)
-        model.open(try #require(model.cards.dropFirst().first?.id))
-        snapshot(deck(model), "enlarged", size, wait: 0.6)
+        try model.open(#require(model.cards.dropFirst().first?.id))
+        await snapshot(deck(model), "enlarged", size, wait: 0.6)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -72,7 +72,7 @@ struct DeckSnapshotTests {
         let card = try #require(model.cards.dropFirst().first?.id)
         model.open(card)
         model.requestTap(card)
-        snapshot(deck(model), "confirm", size, wait: 0.6)
+        await snapshot(deck(model), "confirm", size, wait: 0.6)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -82,7 +82,7 @@ struct DeckSnapshotTests {
         let card = try #require(model.cards.dropFirst().first)
         model.preview(phase: .loaded, cards: model.cards, tapsLeft: 0, viewsLeft: 40)
         model.open(card.id)
-        snapshot(deck(model), "no-taps-left", size, wait: 0.6)
+        await snapshot(deck(model), "no-taps-left", size, wait: 0.6)
     }
 
     @Test(arguments: [
@@ -94,7 +94,7 @@ struct DeckSnapshotTests {
     func empty(_ scenario: (FixtureDeckService.Scenario, String), _ size: DynamicTypeSize) async {
         let model = makeModel(FixtureDeckService(scenario: scenario.0, now: { testNow }))
         await model.apply(.none)
-        snapshot(deck(model), scenario.1, size)
+        await snapshot(deck(model), scenario.1, size)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -103,14 +103,14 @@ struct DeckSnapshotTests {
         var noticed = NoticedFilters()
         noticed.extras = Set(CardExtra.allCases)
         await model.apply(noticed)
-        snapshot(deck(model), "empty-no-match", size)
+        await snapshot(deck(model), "empty-no-match", size)
     }
 
     @Test(arguments: deckSnapshotSizes)
     func failed(_ size: DynamicTypeSize) async {
         let model = makeModel(FixtureDeckService(now: { testNow }))
         model.preview(phase: .failed(.offline))
-        snapshot(deck(model), "failed-offline", size)
+        await snapshot(deck(model), "failed-offline", size)
     }
 
     /// P12: while the screen is recorded or mirrored, the deck isn't drawn at all.
@@ -118,7 +118,7 @@ struct DeckSnapshotTests {
     func hiddenWhileRecorded(_ size: DynamicTypeSize) async {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
         await model.apply(.none)
-        snapshot(deck(model).environment(\.isSceneCaptured, true), "hidden-recording", size, wait: 0.6)
+        await snapshot(deck(model).environment(\.isSceneCaptured, true), "hidden-recording", size, wait: 0.6)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -126,17 +126,17 @@ struct DeckSnapshotTests {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
         await model.apply(.none)
         model.screenshotTaken()
-        snapshot(deck(model), "screenshot-note", size, wait: 0.6)
+        await snapshot(deck(model), "screenshot-note", size, wait: 0.6)
     }
 
     @Test(arguments: deckSnapshotSizes)
-    func whatDidYouNotice(_ size: DynamicTypeSize) {
+    func whatDidYouNotice(_ size: DynamicTypeSize) async {
         var noticed = NoticedFilters()
         noticed.genders = [.woman]
         noticed.topColors = [.green]
         noticed.extras = [.glasses]
         let sheet = NoticeSheet(showMe: [.woman, .man], initial: noticed) { _ in }
-        snapshot(sheet, "what-did-you-notice", size)
+        await snapshot(sheet, "what-did-you-notice", size)
     }
 
     // MARK: Room home
@@ -150,11 +150,11 @@ struct DeckSnapshotTests {
         (.failed, "room-failed"),
         (.loading, "room-loading"),
     ], deckSnapshotSizes)
-    func roomHome(_ state: (RoomStateCase, String), _ size: DynamicTypeSize) {
+    func roomHome(_ state: (RoomStateCase, String), _ size: DynamicTypeSize) async {
         let model = RoomHomeModel(roomID: testRoom, service: FixtureDeckService(now: { testNow }))
         model.preview(state.0.phase, paused: state.0 == .paused)
         let view = NavigationStack { RoomHomeScreen(model: model) }
-        snapshot(view, state.1, size)
+        await snapshot(view, state.1, size)
     }
 
     // MARK: Helpers
@@ -163,7 +163,7 @@ struct DeckSnapshotTests {
         case checkedIn, paused, checkinEnded, cardRemoved, roomEnded, failed, loading
 
         var phase: RoomHomeModel.Phase {
-            let now = Date()
+            let now = testNow
             func snapshot(status: Components.Schemas.RoomStatus = .live, checkin: RoomSnapshot.Checkin?) -> RoomHomeModel.Phase {
                 .loaded(RoomSnapshot(
                     name: "Glow demo room (test data)",
@@ -175,7 +175,11 @@ struct DeckSnapshotTests {
                     viewsLeftToday: 37,
                 ))
             }
-            let open = RoomSnapshot.Checkin(joinedAt: now.addingTimeInterval(-600), expiresAt: now.addingTimeInterval(2 * 3600 + 41 * 60 + 30), visible: true)
+            let open = RoomSnapshot.Checkin(
+                joinedAt: now.addingTimeInterval(-600),
+                expiresAt: now.addingTimeInterval(2 * 3600 + 41 * 60 + 30),
+                visible: true,
+            )
             switch self {
             case .checkedIn, .paused: return snapshot(checkin: open)
             case .checkinEnded: return snapshot(checkin: nil)
@@ -195,6 +199,8 @@ struct DeckSnapshotTests {
         NavigationStack { DeckScreen(model: model, checkInAgain: .scanner) }
     }
 
+    /// Hosts the view in a window for `wait` seconds, so its photos load (asynchronously, like the
+    /// real loader), then snapshots it. (SnapshotTesting's `.wait` strategy hangs under Swift Testing.)
     private func snapshot(
         _ view: some View,
         _ name: String,
@@ -202,24 +208,32 @@ struct DeckSnapshotTests {
         wait: TimeInterval = 0.2,
         fileID: StaticString = #fileID,
         filePath: StaticString = #filePath,
-        testName: String = #function,
+        testName _: String = #function,
         line: UInt = #line,
         column: UInt = #column,
-    ) {
+    ) async {
         let host = view
             .environment(\.dynamicTypeSize, size)
             .environment(\.colorScheme, .dark)
             .environment(\.deckHidesWhenInactive, false)
             .environment(\.deckImageLoader, FixtureCardImageLoader())
+            .environment(\.deckClock) { testNow }
             .environment(\.dependencies, .preview())
         let traits = UITraitCollection { traits in
             traits.displayScale = 1
             traits.userInterfaceStyle = .dark
             traits.preferredContentSizeCategory = size == .large ? .large : .accessibilityExtraExtraExtraLarge
         }
+        let controller = UIHostingController(rootView: host)
+        controller.overrideUserInterfaceStyle = .dark
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = controller
+        window.isHidden = false
+        controller.view.layoutIfNeeded()
+        try? await Task.sleep(for: .seconds(wait))
         assertSnapshot(
-            of: UIHostingController(rootView: host),
-            as: .wait(for: wait, on: .image(on: .iPhone13, precision: 0.99, perceptualPrecision: 0.98, traits: traits)),
+            of: controller,
+            as: .image(on: .iPhone13, precision: 0.99, perceptualPrecision: 0.98, traits: traits),
             named: "\(name)-\(size == .large ? "default" : "ax5")",
             fileID: fileID,
             file: filePath,

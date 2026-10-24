@@ -11,6 +11,7 @@ struct RoomHomeScreen: View {
 
     @Environment(\.navigate) private var navigate
     @Environment(\.dependencies) private var dependencies
+    @Environment(\.deckClock) private var clock
 
     var body: some View {
         Group {
@@ -62,8 +63,8 @@ struct RoomHomeScreen: View {
     private func loaded(_ snapshot: RoomSnapshot) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: GlowSpacing.md) {
-                TimelineView(.periodic(from: .now, by: 30)) { context in
-                    RoomStatusCard(snapshot: snapshot, now: context.date, checkInAgain: checkInAgain(snapshot))
+                TimelineView(.periodic(from: .now, by: 30)) { _ in
+                    RoomStatusCard(snapshot: snapshot, now: clock(), checkInAgain: checkInAgain(snapshot))
                 }
                 RoomVisibilityCard(model: model) { visible in
                     if await model.setVisible(visible) {
@@ -81,12 +82,12 @@ struct RoomHomeScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: GlowSpacing.xs) {
-                TimelineView(.periodic(from: .now, by: 30)) { context in
+                TimelineView(.periodic(from: .now, by: 30)) { _ in
                     Button(DeckCopy.seeLooks) {
                         navigate(.deck(model.roomID))
                     }
                     .buttonStyle(.glowPrimary)
-                    .disabled(!snapshot.isCheckedIn(at: context.date) || model.paused)
+                    .disabled(!snapshot.isCheckedIn(at: clock()) || model.paused)
                     .accessibilityIdentifier("room.seeLooks")
                 }
                 Button(DeckCopy.leave) {
@@ -123,7 +124,7 @@ struct RoomHomeScreen: View {
         if model.snapshot?.isCheckedIn(at: .now) == true {
             try? await realtime.join(room: room)
         }
-        for await event in realtime.events() where event.roomID == room && event.kind == .checkinExpiring {
+        for await event in realtime.events(for: room) where event.kind == .checkinExpiring {
             await model.load()
         }
     }

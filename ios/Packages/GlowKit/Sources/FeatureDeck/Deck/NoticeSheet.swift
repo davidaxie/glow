@@ -42,7 +42,12 @@ struct NoticeSheet: View {
                 NoticeSection(title: DeckCopy.noticeTop, options: TopColor.allCases, selection: $draft.topColors, id: "top") {
                     NoticeOption(title: DeckCopy.name($0), swatch: GlowSwatch(rawValue: $0.rawValue))
                 }
-                NoticeSection(title: DeckCopy.noticeHairLength, options: HairLength.allCases, selection: $draft.hairLengths, id: "hairLength") {
+                NoticeSection(
+                    title: DeckCopy.noticeHairLength,
+                    options: HairLength.allCases,
+                    selection: $draft.hairLengths,
+                    id: "hairLength",
+                ) {
                     NoticeOption(title: DeckCopy.name($0))
                 }
                 NoticeSection(title: DeckCopy.noticeHairColor, options: HairColor.allCases, selection: $draft.hairColors, id: "hairColor") {

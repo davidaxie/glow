@@ -50,6 +50,12 @@ struct DeckScreen: View {
             .task(id: scenePhase) {
                 await refreshWhileActive()
             }
+            .task {
+                // Events sent while the connection was down are gone: refetch on every reconnect.
+                for await state in dependencies.realtime.connectionStates().dropFirst() where state == .connected {
+                    model.deckChanged()
+                }
+            }
     }
 
     /// `deck.changed`: someone here paused, left or blocked. Their card goes within seconds (P8).
@@ -57,7 +63,7 @@ struct DeckScreen: View {
         let realtime = dependencies.realtime
         let room = model.roomID
         try? await realtime.join(room: room)
-        for await event in realtime.events() where event.kind == .deckChanged && event.roomID == room {
+        for await event in realtime.events(for: room) where event.kind == .deckChanged {
             model.deckChanged()
         }
     }
@@ -146,7 +152,7 @@ struct DeckScreen: View {
         .accessibilityIdentifier("deck.grid")
     }
 
-    @ViewBuilder private var footer: some View {
+    private var footer: some View {
         VStack(spacing: GlowSpacing.sm) {
             if model.isLoadingMore {
                 ProgressView().tint(.glowTextSecondary)
@@ -172,10 +178,12 @@ struct DeckScreen: View {
             model.isNoticeSheetOpen = true
         } label: {
             HStack(spacing: GlowSpacing.xs) {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .accessibilityHidden(true)
+                if !typeSize.isAccessibilitySize {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .accessibilityHidden(true)
+                }
                 Text(model.filters.isEmpty ? DeckCopy.changeNoticed : DeckSummary.text(model.filters))
-                    .lineLimit(1)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
                 if !model.filters.isEmpty {
                     Text(DeckCopy.editNoticed)
                         .foregroundStyle(.glowAccent)

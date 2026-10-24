@@ -64,9 +64,11 @@ final class DeckModel {
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var lastRefresh: ContinuousClock.Instant?
+    @ObservationIgnored private var backoffUntil: ContinuousClock.Instant?
     @ObservationIgnored private var firstShownAt: Date?
     @ObservationIgnored private var reportedRecording = false
     @ObservationIgnored private var started = false
+    @ObservationIgnored private var locallyHidden: [CardID: Date] = [:]
 
     /// - Parameter refreshInterval: the least time between two live refreshes, so a burst of
     ///   `deck.changed` costs one refetch (and stays inside B8's deck rate limit) while still landing
@@ -178,13 +180,18 @@ final class DeckModel {
     }
 
     private func runScheduledRefresh() async {
+        var wait = Duration.zero
         if let lastRefresh {
-            let wait = refreshInterval - (ContinuousClock.now - lastRefresh)
-            if wait > .zero {
-                try? await Task.sleep(for: wait)
-            }
+            wait = refreshGap - (ContinuousClock.now - lastRefresh)
         }
-        await reload(showingProgress: false)
+        if let backoffUntil {
+            wait = max(wait, backoffUntil - ContinuousClock.now)
+        }
+        if wait > .zero {
+            try? await Task.sleep(for: wait)
+        }
+        backoffUntil = nil
+        await reload(showingProgress: false, quietly: true)
         refreshTask = nil
         if refreshQueued {
             refreshQueued = false
@@ -192,8 +199,16 @@ final class DeckModel {
         }
     }
 
-    /// Fetches as many pages as are showing, from the start, and replaces the cards.
-    private func reload(showingProgress: Bool) async {
+    /// The least time between two live refetches: `refreshInterval`, and 1.2 s per page beyond
+    /// that, so even a constant stream of events stays under B8's 60 deck requests a minute (C1-D5).
+    private var refreshGap: Duration {
+        guard refreshInterval > .zero else { return .zero }
+        return max(refreshInterval, .milliseconds(1200) * max(1, pagesLoaded))
+    }
+
+    /// Fetches as many pages as are showing, from the start, and replaces the cards. `quietly` is a
+    /// live refetch the person didn't ask for: a rate limit there waits and tries again, silently.
+    private func reload(showingProgress: Bool, quietly: Bool = false) async {
         generation += 1
         let generation = generation
         lastRefresh = ContinuousClock.now
@@ -221,6 +236,11 @@ final class DeckModel {
             }
         } catch {
             guard generation == self.generation, error != .cancelled else { return }
+            if quietly, error == .rateLimited || error == .offline, !cards.isEmpty {
+                backoffUntil = ContinuousClock.now + .seconds(5)
+                refreshQueued = true
+                return
+            }
             if cards.isEmpty || showingProgress {
                 phase = .failed(error)
             } else {
@@ -230,7 +250,7 @@ final class DeckModel {
             return
         }
         guard let lastPage else { return }
-        cards = merged(collected)
+        cards = merged(collected.filter { !isLocallyHidden($0.id) })
         nextOffset = next
         pagesLoaded = cards.isEmpty ? 0 : pagesWanted
         viewsLeftToday = lastPage.viewsLeftToday
@@ -301,6 +321,25 @@ final class DeckModel {
 
     func cancelTap() {
         confirming = nil
+    }
+
+    /// Block or report from a card: the card leaves my deck at once, before B8's sheet even sends
+    /// (C1-D6). The server's block removes it for good; if the sheet is cancelled, it comes back on a
+    /// refresh after a minute.
+    func hideForSafety(_ card: CardID) {
+        locallyHidden[card] = now().addingTimeInterval(60)
+        cards.removeAll { $0.id == card }
+        confirming = nil
+        enlarged = nil
+    }
+
+    private func isLocallyHidden(_ card: CardID) -> Bool {
+        guard let until = locallyHidden[card] else { return false }
+        if until > now() {
+            return true
+        }
+        locallyHidden[card] = nil
+        return false
     }
 
     /// Sends the secret tap. Returns the match when it's mutual, for the hand-off to FeatureMatch.
