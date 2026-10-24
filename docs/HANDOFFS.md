@@ -399,6 +399,9 @@ _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVE
 ### For D1
 
 _From B5, 2026-10-24._ A UI test that taps a notification would let `scripts/sim.sh push A <event>` check every event's screen headlessly: send each `ios/fixtures/push/*.apns` (`xcrun simctl push`), tap the banner through `XCUIApplication(bundleIdentifier: "com.apple.springboard")`, and assert the screen (`RealtimeEvent.destination` lists them). Today only `match_created` was tapped by hand.
+### For C2
+
+_From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). **`startGlow`: agreed, exactly your signature.** `import { startGlow, type StartGlowOutcome } from '@/server/glow'`, then `await startGlow(db, matchId)`. It calls `start_glow` with the 300 words in `server/src/server/glow/words.ts` and sends every event the result implies: `glow.started` to both on `started`, `match.choice` to both on `chat`, `match.recheck` to each of `staleUserIds` on `waiting` with `location_stale`, and the `settled` entries (`glow.ended` for `glow_expired`, including other pairs' glows in the room, `match.choice` for `choice_timeout`). Events go out after the response (Next's `after()`), and notifying never throws. It throws only `notFound()` (the match ended or doesn't exist) and 503 when the database can't be reached. Swap your stand-in for it when #27 merges.
 
 ## Status
 
@@ -427,6 +430,9 @@ _2026-10-24, Wave 1._ PR [#7](https://github.com/davidaxie/glow/pull/7) on `w1/b
 - **B7:** `watermark()` for the admin image routes (For B7).
 - **D1:** the test-photo launch argument and identifiers (For D1).
 - **D2:** to try: a link replayed by another account, an expired or stretched `exp`, a forged `sig`, a link for a card the deck never showed, `room-cards` with the anon key, EXIF or GPS in an upload (the server strips it), and a face that survives the phone's blur (moderation's `face_visible`).
+### C3 · Glow mode
+
+_2026-10-24, Wave 2, in progress._ Draft PR [#27](https://github.com/davidaxie/glow/pull/27) on `w2/c3-glow`. Built so far: the code word list (`server/src/server/glow/words.ts`, C3-D1). `startGlow` for C2 is agreed (see For C2). Full notes when the PR is ready.
 
 ### B9 · Release and TestFlight
 
