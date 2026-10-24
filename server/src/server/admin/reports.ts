@@ -5,6 +5,7 @@
 import type { AdminReport, ReportStatus } from '@/contracts';
 import { badRequest, notFound } from '@/server/http';
 import { logger } from '@/server/log';
+import { CAPTURE_REVIEW_THRESHOLD, CAPTURE_REVIEW_WINDOW_SECONDS } from '@/server/safety/capture';
 import { hideAndNotify } from './cards';
 import { deps } from './context';
 import type { ReportRecord } from './repo';
@@ -93,4 +94,25 @@ export async function resolveReport(
   const after = await repo.findReport(id);
   if (!after) throw notFound();
   return toAdminReport(after);
+}
+
+export type CaptureFlag = { readonly viewerCode: string; readonly count: number };
+
+/**
+ * People B8 flagged for review: CAPTURE_REVIEW_THRESHOLD or more screenshots or recordings
+ * of the deck in CAPTURE_REVIEW_WINDOW (B8-D7). Named by watermark code only.
+ */
+export async function captureFlags(): Promise<CaptureFlag[]> {
+  const { repo, now } = deps();
+  const since = new Date(now() - CAPTURE_REVIEW_WINDOW_SECONDS * 1000).toISOString();
+  const flags = await repo.captureFlags(since, CAPTURE_REVIEW_THRESHOLD);
+  return flags.map((f) => ({ viewerCode: f.viewerCode, count: f.count }));
+}
+
+/** Bans a person named by their watermark code, so no user ID ever reaches the browser. */
+export async function banByViewerCode(viewerCode: string, adminId: string): Promise<void> {
+  if (!/^[A-HJ-NP-Z2-9]{8}$/.test(viewerCode)) throw notFound();
+  const userId = await deps().repo.personByViewerCode(viewerCode);
+  if (!userId) throw notFound();
+  await banPerson(userId, adminId);
 }

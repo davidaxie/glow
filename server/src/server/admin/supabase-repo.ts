@@ -536,6 +536,53 @@ export function supabaseRepo(db: Db = serviceDb()): AdminRepo {
       check('profile_photos.delete', error);
     },
 
+    async captureFlags(since, threshold) {
+      const counts = new Map<string, number>();
+      let after = '';
+      // Page through by ID: PostgREST caps a read at max_rows.
+      for (;;) {
+        let query = db
+          .from('abuse_signals')
+          .select('id, user_id')
+          .gte('created_at', since)
+          .order('id', { ascending: true })
+          .limit(PAGE);
+        if (after) query = query.gt('id', after);
+        const { data, error } = await query;
+        check('abuse_signals.select', error);
+        const rows = data ?? [];
+        for (const row of rows) counts.set(row.user_id, (counts.get(row.user_id) ?? 0) + 1);
+        if (rows.length < PAGE) break;
+        after = rows[rows.length - 1]!.id;
+      }
+      const flagged = [...counts].filter(([, n]) => n >= threshold);
+      if (flagged.length === 0) return [];
+      const { data, error } = await db
+        .from('profiles')
+        .select('id, viewer_code')
+        .in(
+          'id',
+          flagged.map(([id]) => id),
+        )
+        .is('banned_at', null);
+      check('profiles.viewer_codes', error);
+      const codes = new Map((data ?? []).map((p) => [p.id, p.viewer_code]));
+      return flagged
+        .filter(([id]) => codes.has(id))
+        .map(([userId, count]) => ({ userId, viewerCode: codes.get(userId)!, count }))
+        .sort((a, b) => b.count - a.count);
+    },
+
+    async personByViewerCode(code) {
+      const { data, error } = await db
+        .from('profiles')
+        .select('id')
+        .eq('viewer_code', code)
+        .maybeSingle();
+      check('profiles.by_viewer_code', error);
+      return data?.id ?? null;
+    },
+
     async markBanned(userId) {
       const { data, error } = await db
         .from('profiles')

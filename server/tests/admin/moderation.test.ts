@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { zAdminCard, zAdminReport } from '@/contracts';
 import { cardImage, listCards, removeCard } from '@/server/admin/cards';
 import { setAdminDepsForTests } from '@/server/admin/context';
-import { banPerson, listReports, resolveReport } from '@/server/admin/reports';
+import {
+  banByViewerCode,
+  banPerson,
+  captureFlags,
+  listReports,
+  resolveReport,
+} from '@/server/admin/reports';
 import { HttpError } from '@/server/http';
 import {
   ADMIN_ID,
@@ -195,5 +201,34 @@ describe('ban', () => {
     setup();
     expect(await status(banPerson(ADMIN_ID, ADMIN_ID))).toBe(400);
     expect(await status(banPerson(randomUUID(), ADMIN_ID))).toBe(404);
+  });
+});
+
+describe('screenshot flags', () => {
+  it('lists people with 3 or more captures in 24 hours, by watermark code only', async () => {
+    const at = (h: number) =>
+      new Date(Date.parse('2026-10-24T19:00:00.000Z') - h * 3600_000).toISOString();
+    const { repo } = setup((r) => {
+      r.captures.push(
+        { userId: PERSON_ID, at: at(1) },
+        { userId: PERSON_ID, at: at(2) },
+        { userId: PERSON_ID, at: at(3) },
+        { userId: OTHER_ID, at: at(1) },
+        { userId: OTHER_ID, at: at(2) },
+        { userId: OTHER_ID, at: at(30) },
+      );
+    });
+    const flags = await captureFlags();
+    expect(flags).toEqual([{ viewerCode: 'YTVFCREQ', count: 3 }]);
+    expect(JSON.stringify(flags)).not.toContain(PERSON_ID);
+    await banByViewerCode('YTVFCREQ', ADMIN_ID);
+    expect(repo.people.get(PERSON_ID)?.bannedAt).not.toBeNull();
+    expect(await captureFlags()).toEqual([]);
+  });
+
+  it('is 404 for a code nobody has', async () => {
+    setup();
+    expect(await status(banByViewerCode('ZZZZZZZZ', ADMIN_ID))).toBe(404);
+    expect(await status(banByViewerCode('not a code', ADMIN_ID))).toBe(404);
   });
 });

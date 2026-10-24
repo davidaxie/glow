@@ -169,6 +169,15 @@ export interface AdminRepo {
   /** Deletes the stored image and the row. */
   deletePhoto(photo: PhotoRecord): Promise<void>;
 
+  // Screenshot and recording flags (B8's abuse_signals)
+  /** People with at least `threshold` captures since `since`, most first. Unbanned only. */
+  captureFlags(
+    since: string,
+    threshold: number,
+  ): Promise<{ userId: string; viewerCode: string; count: number }[]>;
+  /** The person behind a watermark code, or null. */
+  personByViewerCode(code: string): Promise<string | null>;
+
   // Bans
   /** Sets profiles.banned_at (once). False if there's no such person. */
   markBanned(userId: string): Promise<boolean>;

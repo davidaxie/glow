@@ -1,10 +1,11 @@
 // Owner: B7. The reports queue, oldest first. People appear only as watermark codes.
 import Link from 'next/link';
 import { zReportStatus, type ReportStatus } from '@/contracts';
-import { listReports } from '@/server/admin/reports';
+import { captureFlags, listReports } from '@/server/admin/reports';
 import { listRooms } from '@/server/admin/rooms';
 import { adminPage, adminTitle } from '@/server/admin/web';
 import { formatTime } from '../../_components/format';
+import { FlagActions } from '../../_components/FlagActions';
 import { ReportActions } from '../../_components/ReportActions';
 
 export const generateMetadata = adminTitle('Reports');
@@ -38,7 +39,11 @@ export default async function ReportsPage({
   await adminPage();
   const parsed = zReportStatus.safeParse((await searchParams).status);
   const status: ReportStatus = parsed.success ? parsed.data : 'open';
-  const [reports, rooms] = await Promise.all([listReports(status), listRooms()]);
+  const [reports, rooms, flags] = await Promise.all([
+    listReports(status),
+    listRooms(),
+    status === 'open' ? captureFlags() : Promise.resolve([]),
+  ]);
   const roomNames = new Map(rooms.map((r) => [r.id, r.name]));
   const roomZones = new Map(rooms.map((r) => [r.id, r.timezone]));
 
@@ -56,6 +61,27 @@ export default async function ReportsPage({
           </Link>
         ))}
       </nav>
+      {flags.length > 0 ? (
+        <section className="ga-card ga-stack" aria-labelledby="flags">
+          <h2 id="flags" style={{ margin: 0 }}>
+            Repeated screenshots
+          </h2>
+          <p className="ga-small ga-muted" style={{ margin: 0 }}>
+            People who screenshotted or recorded the deck 3 or more times in the last 24 hours.
+          </p>
+          <ul className="ga-list">
+            {flags.map((flag) => (
+              <li key={flag.viewerCode} className="ga-row ga-row--between">
+                <span>
+                  <span className="ga-code">{flag.viewerCode}</span>{' '}
+                  <span className="ga-muted">· {flag.count} captures</span>
+                </span>
+                <FlagActions viewerCode={flag.viewerCode} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {reports.length === 0 ? (
         <p className="ga-muted">{status === 'open' ? 'Nothing to review. ' : ''}No reports here.</p>
       ) : (

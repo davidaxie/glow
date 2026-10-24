@@ -629,7 +629,7 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 
 ### B7-D6 · Admins see photos only when they ask, watermarked with their own code
 
-**Choice.** The cards page lists tags and watermark codes; each photo loads only when the admin taps "Show photo", watermarked with the admin's own viewer code, logged (`admin.card_viewed`, IDs only), and delivered as a data URL from a server action, so there is no image URL to cache, share or replay. Reports and cards name people only by watermark code, never by user ID.
+**Choice.** The cards page lists tags and watermark codes; each photo loads only when the admin taps "Show photo", watermarked with the admin's own viewer code, logged (`admin.card_viewed`, IDs only), and delivered as a data URL from a server action, so there is no image URL to cache, share or replay. Reports, cards and screenshot flags name people only by watermark code, never by user ID; banning a flagged person sends the watermark code, and the server looks the person up.
 
 ### B7-D7 · Live numbers have no tap count, and the rest are shown as they are
 

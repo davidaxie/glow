@@ -119,6 +119,7 @@ export class FakeRepo implements AdminRepo {
   matches = new Map<string, { roomId: string; userIds: [string, string]; ended: boolean }>();
   activity: { roomId: string; kind: keyof ActivityTotals; n: number; at: string }[] = [];
   demoSkips: { roomId: string; at: string }[] = [];
+  captures: { userId: string; at: string }[] = [];
   calls: string[] = [];
   now = () => Date.parse('2026-10-24T19:00:00.000Z');
 
@@ -302,6 +303,23 @@ export class FakeRepo implements AdminRepo {
     this.profileImages.delete(photo.path);
     this.deletedProfileImages.push(photo.path);
     this.profilePhotos.delete(photo.id);
+  }
+  async captureFlags(since: string, threshold: number) {
+    const counts = new Map<string, number>();
+    for (const c of this.captures) {
+      if (c.at >= since) counts.set(c.userId, (counts.get(c.userId) ?? 0) + 1);
+    }
+    return [...counts]
+      .filter(([id, n]) => n >= threshold && !this.people.get(id)?.bannedAt)
+      .map(([userId, count]) => ({
+        userId,
+        viewerCode: this.people.get(userId)?.viewerCode ?? '',
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+  async personByViewerCode(code: string) {
+    return [...this.people].find(([, p]) => p.viewerCode === code)?.[0] ?? null;
   }
   async markBanned(userId: string) {
     this.calls.push('markBanned');

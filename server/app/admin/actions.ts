@@ -17,7 +17,7 @@ import { cardImage, removeCard } from '@/server/admin/cards';
 import { photoImage, reviewPhoto } from '@/server/admin/photos';
 import { posterPdf } from '@/server/admin/poster';
 import { qrSvg, type QrSvg } from '@/server/admin/qr-code';
-import { resolveReport } from '@/server/admin/reports';
+import { banByViewerCode, resolveReport } from '@/server/admin/reports';
 import {
   createRoom,
   getRoomRecord,
@@ -262,6 +262,18 @@ export async function reviewPhotoAction(photoId: string, decision: unknown): Pro
   return attempt('reviewPhoto', admin, async () => {
     const body = parseInput(zAdminPhotoReview, { decision });
     await reviewPhoto(parseInput(zId, photoId), body.decision, admin.userId);
+    return null;
+  });
+}
+
+// ---------------------------------------------------------------- screenshot flags
+
+const zViewerCode = z.string().regex(/^[A-HJ-NP-Z2-9]{8}$/);
+
+export async function banFlaggedAction(viewerCode: string): Promise<ActionResult> {
+  const admin = await adminAction();
+  return attempt('banFlagged', admin, async () => {
+    await banByViewerCode(parseInput(zViewerCode, viewerCode), admin.userId);
     return null;
   });
 }
