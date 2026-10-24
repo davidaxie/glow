@@ -120,21 +120,27 @@ struct GlowOnView: View {
 
     var body: some View {
         GlowSurface(session.hue, isPulsing: frozenAt == nil, controlsScreen: controlsScreen) {
-            GeometryReader { proxy in
-                ScrollView {
-                    VStack(spacing: GlowSpacing.lg) {
-                        topBar
-                        Spacer(minLength: GlowSpacing.md)
-                        word
-                        spot
-                        Spacer(minLength: GlowSpacing.md)
-                        actions
-                    }
+            VStack(spacing: 0) {
+                topBar
                     .padding(.horizontal, GlowSpacing.screenMargin)
-                    .padding(.vertical, GlowSpacing.md)
-                    .frame(minHeight: proxy.size.height)
+                    .padding(.top, GlowSpacing.xs)
+                // The word and the spot scroll at large text sizes; the actions below never do, so
+                // We met is always on screen.
+                GeometryReader { proxy in
+                    ScrollView {
+                        VStack(spacing: GlowSpacing.lg) {
+                            word
+                            spot
+                        }
+                        .padding(.horizontal, GlowSpacing.screenMargin)
+                        .padding(.vertical, GlowSpacing.md)
+                        .frame(minHeight: proxy.size.height)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
                 }
-                .scrollBounceBehavior(.basedOnSize)
+                actions
+                    .padding(.horizontal, GlowSpacing.screenMargin)
+                    .padding(.bottom, GlowSpacing.xs)
             }
         }
     }
@@ -235,6 +241,7 @@ struct GlowCountdown: View {
     let start: Date
     let end: Date
     let frozenAt: Date?
+    @Environment(\.glowHue) private var hue
 
     var body: some View {
         Label {
@@ -251,7 +258,7 @@ struct GlowCountdown: View {
         .glowFont(.headline)
         .padding(.horizontal, GlowSpacing.sm)
         .padding(.vertical, GlowSpacing.xxs)
-        .overlay(Capsule().strokeBorder(lineWidth: 1.5))
+        .background((hue ?? .pearl).ink.color.opacity(0.1), in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Time left"))
     }
