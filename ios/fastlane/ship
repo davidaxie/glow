@@ -5,6 +5,7 @@
 #                                      push the tag; the "Release iOS" workflow builds and uploads it
 #   ios/fastlane/ship <lane> [k:v...]  run a fastlane lane on this Mac (check, verify_release, beta,
 #                                      external, status, privacy, privacy_answers)
+#   ios/fastlane/ship test             unit tests for the lanes' helpers (ios/fastlane/test)
 #
 # Lanes run with the gems in ios/fastlane/Gemfile.lock, installed into ios/build/bundle.
 # Works with macOS's bash 3.2.
@@ -18,7 +19,7 @@ ROOT="$(dirname "$IOS")"
 die() { printf 'ship: %s\n' "$*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -50,12 +51,14 @@ release() {
   echo "Its summary shows the build number. Then add it to docs/HANDOFFS.md (B9)."
 }
 
-lane() {
-  local ruby bindir bundle
+bundler_env() {
+  local ruby bindir
   ruby="$(find_ruby)"
   bindir="$(dirname "$ruby")"
   if [ -x "$bindir/bundle" ]; then bundle=("$bindir/bundle"); else bundle=("$ruby" -S bundle); fi
 
+  # bundle exec runs `ruby` from PATH, which may be macOS's 2.6, so put this Ruby first.
+  export PATH="$bindir:$PATH"
   export BUNDLE_GEMFILE="$FASTLANE_DIR/Gemfile"
   export BUNDLE_PATH="$IOS/build/bundle"
   export FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 FASTLANE_OPT_OUT_USAGE=YES
@@ -66,6 +69,16 @@ lane() {
     echo "Installing fastlane into ios/build/bundle (once)..."
     "${bundle[@]}" install --quiet
   fi
+}
+
+run_tests() {
+  bundler_env
+  cd "$FASTLANE_DIR"
+  exec "${bundle[@]}" exec ruby -e 'Dir["test/*_test.rb"].sort.each { |f| require File.expand_path(f) }'
+}
+
+lane() {
+  bundler_env
   cd "$IOS"
   exec "${bundle[@]}" exec fastlane "$@"
 }
@@ -73,6 +86,7 @@ lane() {
 case "${1:-}" in
   "" | -h | --help | help) usage 0 ;;
   release) release ;;
+  test) run_tests ;;
   check | verify_release | beta | external | status | privacy | privacy_answers) lane "$@" ;;
   *) printf 'ship: unknown command %s\n\n' "$1" >&2; usage 1 ;;
 esac

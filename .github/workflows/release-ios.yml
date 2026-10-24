@@ -1,0 +1,146 @@
+# Owner: B9. Ships Glow to TestFlight with the lanes in ios/fastlane. See docs/RELEASE.md.
+#
+# - A tag runs the beta lane: build number + 1, archive, check, upload. `ios/fastlane/ship release`
+#   pushes a beta-* tag, and A1's end-of-wave tags (wave-1-done, ...) ship too.
+# - Actions → Release iOS → Run workflow runs beta, external (send a build to beta review) or status.
+# - Pull requests that touch release files get the checks that need no Apple account.
+#
+# Until the Apple secrets exist, the TestFlight job skips cleanly with a notice naming them.
+name: Release iOS
+
+on:
+  push:
+    tags: ['beta-*', 'wave-*-done']
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: Lane to run
+        type: choice
+        options: [beta, external, status]
+        default: beta
+      build:
+        description: 'external only: the build number to send (default: the latest)'
+        required: false
+        default: ''
+  pull_request:
+    paths:
+      - .github/workflows/release-ios.yml
+      - ios/fastlane/**
+      - ios/project.yml
+      - ios/Glow/Config/**
+      - ios/Glow/Glow.entitlements
+      - ios/Glow/Info.plist
+      - ios/Glow/PrivacyInfo.xcprivacy
+      - ios/GlowLiveActivity/Info.plist
+
+concurrency:
+  # Releases never cancel each other (an upload might be half done); PR checks do.
+  group: release-ios-${{ github.event_name == 'pull_request' && github.ref || 'ship' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  BUNDLE_GEMFILE: ${{ github.workspace }}/ios/fastlane/Gemfile
+  FASTLANE_SKIP_UPDATE_CHECK: '1'
+  FASTLANE_HIDE_CHANGELOG: '1'
+  FASTLANE_OPT_OUT_USAGE: 'YES'
+  LC_ALL: en_US.UTF-8
+  LANG: en_US.UTF-8
+
+jobs:
+  check:
+    name: Release checks (no Apple account needed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Lane helper tests
+        working-directory: ios/fastlane
+        run: bundle exec ruby -e 'Dir["test/*_test.rb"].sort.each { |f| require File.expand_path(f) }'
+
+      # Privacy answers match the manifest, beta texts fit, settings agree. Lists what beta still
+      # needs without failing on it.
+      - name: fastlane check
+        working-directory: ios
+        run: bundle exec fastlane check
+
+  testflight:
+    name: TestFlight · ${{ inputs.lane || 'beta' }}
+    if: github.event_name != 'pull_request'
+    needs: check
+    # beta builds with Xcode; external and status only talk to App Store Connect.
+    runs-on: ${{ (inputs.lane == 'external' || inputs.lane == 'status') && 'ubuntu-24.04' || 'macos-26' }}
+    timeout-minutes: 60
+    env:
+      LANE: ${{ inputs.lane || 'beta' }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY: ${{ secrets.ASC_KEY }}
+      DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+      DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+      PROFILE_APP_BASE64: ${{ secrets.PROFILE_APP_BASE64 }}
+      PROFILE_LIVE_ACTIVITY_BASE64: ${{ secrets.PROFILE_LIVE_ACTIVITY_BASE64 }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY }}
+      POSTHOG_KEY: ${{ secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN || vars.SENTRY_DSN }}
+      GLOW_REVIEW_FIRST_NAME: ${{ secrets.GLOW_REVIEW_FIRST_NAME }}
+      GLOW_REVIEW_LAST_NAME: ${{ secrets.GLOW_REVIEW_LAST_NAME }}
+      GLOW_REVIEW_EMAIL: ${{ secrets.GLOW_REVIEW_EMAIL }}
+      GLOW_REVIEW_PHONE: ${{ secrets.GLOW_REVIEW_PHONE }}
+      GLOW_FEEDBACK_EMAIL: ${{ secrets.GLOW_FEEDBACK_EMAIL }}
+      GLOW_REVIEW_VIDEO_URL: ${{ vars.GLOW_REVIEW_VIDEO_URL }}
+      GLOW_PRIVACY_POLICY_URL: ${{ vars.GLOW_PRIVACY_POLICY_URL }}
+      GLOW_BUILD_NUMBER: ${{ inputs.lane == 'external' && inputs.build || '' }}
+    steps:
+      - name: Is the Apple account set up?
+        id: ready
+        run: |
+          missing=""
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No App Store Connect API key yet (missing:$missing), so nothing ships. blocked: needs Apple Developer account. See docs/RELEASE.md."
+            echo "Skipped: blocked, needs Apple Developer account (missing:$missing)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.ready.outputs.ok == 'true'
+
+      - name: XcodeGen
+        if: steps.ready.outputs.ok == 'true' && runner.os == 'macOS'
+        run: |
+          brew install xcodegen
+          xcodebuild -version
+
+      - uses: ruby/setup-ruby@v1
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      # The lane names anything else that's missing (team ID, domain, signing assets, Supabase).
+      - name: fastlane ${{ inputs.lane || 'beta' }}
+        if: steps.ready.outputs.ok == 'true'
+        working-directory: ios
+        run: bundle exec fastlane "$LANE"
+
+      - name: Keep the build logs
+        if: failure() && steps.ready.outputs.ok == 'true' && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-logs
+          path: ~/Library/Logs/gym/
+          if-no-files-found: ignore

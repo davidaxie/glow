@@ -294,7 +294,8 @@ def generate_project
 end
 
 def connect_api_key
-  common = { key_id: ENV.fetch('ASC_KEY_ID').strip, issuer_id: ENV.fetch('ASC_ISSUER_ID').strip,
+  stop_unless_clear(GlowRelease.api_key_problems(ENV))
+  common ={ key_id: ENV.fetch('ASC_KEY_ID').strip, issuer_id: ENV.fetch('ASC_ISSUER_ID').strip,
              duration: 1200, in_house: false }
   path = ENV['ASC_KEY_PATH'].to_s
   if path.empty?
@@ -341,17 +342,8 @@ end
 # Release values that aren't in git go in through an xcconfig passed to xcodebuild, so they never
 # touch the repo and don't show up in the printed command.
 def write_overrides(dir, build)
-  values = { 'CURRENT_PROJECT_VERSION' => build.to_s }
-  %w[SUPABASE_URL SUPABASE_ANON_KEY POSTHOG_KEY SENTRY_DSN].each do |name|
-    value = ENV[name].to_s.strip
-    next if value.empty?
-    UI.user_error!("#{name} must be one line without $(") if value.include?("\n") || value.include?('$(')
-
-    values[name] = value
-  end
   path = File.join(dir, 'release-overrides.xcconfig')
-  # In xcconfig files `//` starts a comment, so URLs are written as https:/$()/host.
-  File.write(path, values.map { |key, value| "#{key} = #{value.gsub('//', '/$()/')}\n" }.join)
+  File.write(path, GlowRelease.overrides_xcconfig(build, ENV))
   File.chmod(0o600, path)
   path
 end

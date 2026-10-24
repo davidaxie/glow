@@ -295,6 +295,27 @@ module GlowRelease
   end
 
   # ---------------------------------------------------------------------------------------------
+  # Build overrides
+
+  # Values from the environment that the Release build needs but git doesn't hold.
+  OVERRIDES = %w[SUPABASE_URL SUPABASE_ANON_KEY POSTHOG_KEY SENTRY_DSN].freeze
+
+  # The xcconfig `beta` hands xcodebuild with -xcconfig: the build number plus OVERRIDES. It
+  # outranks every other setting, for the app and the extension alike. In xcconfig files `//`
+  # starts a comment, so URLs are written as https:/$()/host.
+  def overrides_xcconfig(build, env)
+    values = { 'CURRENT_PROJECT_VERSION' => Integer(build.to_s, 10).to_s }
+    OVERRIDES.each do |name|
+      value = env[name].to_s.strip
+      next if value.empty?
+      raise ArgumentError, "#{name} must be one line, without $( or ;" if value.match?(/[\n;]|\$\(/)
+
+      values[name] = value
+    end
+    values.map { |key, value| "#{key} = #{value.gsub('//', '/$()/')}\n" }.join
+  end
+
+  # ---------------------------------------------------------------------------------------------
   # The built app
 
   # What a Release build must never carry. Each is [label, pattern]. Plain prefixes like
