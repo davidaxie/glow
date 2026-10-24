@@ -42,7 +42,7 @@ export const testLogin: RouteHandler<'testLogin'> = async ({ body }) => {
   const anon = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  const verified = await anon.auth.verifyOtp({ type: 'magiclink', token_hash: tokenHash });
+  const verified = await anon.auth.verifyOtp({ type: 'email', token_hash: tokenHash });
   const session = verified.data.session;
   if (verified.error || !session || !verified.data.user) {
     logger.error('dev.test_login_failed', { step: 'verify', status: verified.error?.status ?? 0 });

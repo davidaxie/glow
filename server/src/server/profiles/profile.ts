@@ -24,7 +24,11 @@ export const updateProfile: RouteHandler<'updateProfile'> = async ({ user, body 
   }
 
   const date = parseIsoDate(body.birthdate);
-  if (!date || body.birthdate < EARLIEST_BIRTHDATE || body.birthdate > todayInLastTimezone(new Date())) {
+  if (
+    !date ||
+    body.birthdate < EARLIEST_BIRTHDATE ||
+    body.birthdate > todayInLastTimezone(new Date())
+  ) {
     // Not a real date, or impossibly early or late. Field path only, never the value (P10).
     throw badRequest('The body is not valid.', [
       issue('body.birthdate', 'invalid_value', 'That date is not possible.'),

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { OnboardingStep } from '@/contracts';
-import { approvedCount, canFinish, deriveStep, profileComplete } from '@/server/profiles/onboarding';
+import {
+  approvedCount,
+  canFinish,
+  deriveStep,
+  profileComplete,
+} from '@/server/profiles/onboarding';
 
 const done = { profileComplete: true, approvedPhotos: 1 };
 
@@ -18,9 +23,12 @@ describe('onboarding state machine', () => {
     // Finished stays finished.
     ['complete', true, 0, 'complete'],
     ['complete', false, 0, 'complete'],
-  ])('from %s with profile=%s and %i approved photos goes to %s', (stored, profile, photos, next) => {
-    expect(deriveStep(stored, { profileComplete: profile, approvedPhotos: photos })).toBe(next);
-  });
+  ])(
+    'from %s with profile=%s and %i approved photos goes to %s',
+    (stored, profile, photos, next) => {
+      expect(deriveStep(stored, { profileComplete: profile, approvedPhotos: photos })).toBe(next);
+    },
+  );
 
   it('never reaches complete on its own: the notifications step has to finish it', () => {
     expect(deriveStep('notifications', done)).toBe('notifications');
@@ -40,11 +48,18 @@ describe('onboarding state machine', () => {
         { moderation_status: 'rejected' },
       ]),
     ).toBe(0);
-    expect(approvedCount([{ moderation_status: 'approved' }, { moderation_status: 'held' }])).toBe(1);
+    expect(approvedCount([{ moderation_status: 'approved' }, { moderation_status: 'held' }])).toBe(
+      1,
+    );
   });
 
   it('needs every profile field', () => {
-    const full = { first_name: 'Robin', birthdate: '1999-04-12', gender: 'woman', show_me: ['man'] };
+    const full = {
+      first_name: 'Robin',
+      birthdate: '1999-04-12',
+      gender: 'woman',
+      show_me: ['man'],
+    };
     expect(profileComplete(full)).toBe(true);
     expect(profileComplete({ ...full, first_name: null })).toBe(false);
     expect(profileComplete({ ...full, birthdate: null })).toBe(false);

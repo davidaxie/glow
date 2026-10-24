@@ -96,7 +96,10 @@ export async function storeStep(
  *   import { assertOnboardingComplete } from '@/server/profiles';
  *   await assertOnboardingComplete(user.id);
  */
-export async function assertOnboardingComplete(userId: string, db: Db = serviceDb()): Promise<void> {
+export async function assertOnboardingComplete(
+  userId: string,
+  db: Db = serviceDb(),
+): Promise<void> {
   const { data, error } = await db
     .from('profiles')
     .select('onboarding_step')

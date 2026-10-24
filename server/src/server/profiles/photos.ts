@@ -153,7 +153,12 @@ export const addProfilePhoto: RouteHandler<'addProfilePhoto'> = async ({ user, b
   });
   return {
     status: 201,
-    body: toMyPhoto({ id: photoId, position: body.position, moderation_status: verdict.decision, path }),
+    body: toMyPhoto({
+      id: photoId,
+      position: body.position,
+      moderation_status: verdict.decision,
+      path,
+    }),
   };
 };
 
@@ -191,10 +196,7 @@ export const getMyPhoto: RouteHandler<'getMyPhoto'> = async ({ user, params }) =
 export const lastPhoto = () =>
   conflict('last_photo', 'Add another photo before removing this one.');
 
-export const deleteProfilePhoto: RouteHandler<'deleteProfilePhoto'> = async ({
-  user,
-  params,
-}) => {
+export const deleteProfilePhoto: RouteHandler<'deleteProfilePhoto'> = async ({ user, params }) => {
   await rateLimit(user.id, 'photos');
   const db = serviceDb();
   const [photo, profile, photos] = await Promise.all([

@@ -20,7 +20,10 @@ import { approvedCount, canFinish, onboardingIncomplete, profileComplete } from 
 export async function finishOnboarding(db: Db, userId: string): Promise<Me> {
   const [profile, photos] = await Promise.all([readProfile(db, userId), readPhotos(db, userId)]);
   if (profile.onboarding_step !== 'complete') {
-    const facts = { profileComplete: profileComplete(profile), approvedPhotos: approvedCount(photos) };
+    const facts = {
+      profileComplete: profileComplete(profile),
+      approvedPhotos: approvedCount(photos),
+    };
     if (!canFinish(facts)) throw onboardingIncomplete();
     const { error } = await db
       .from('profiles')
