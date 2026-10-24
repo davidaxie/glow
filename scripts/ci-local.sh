@@ -9,8 +9,9 @@
 # It uses your agent slot (scripts/agent-env.sh): your own server port, your own Simulator
 # ("Glow A (B1)") and your own Supabase stack (--own-db --reset, so the database matches
 # this branch's migrations). Nothing shared is touched. At the end, even on failure, it shuts
-# your Simulator down and frees its slot (at most 3 are booted on this Mac), and stops your own
-# Supabase stack unless you pass --keep-db (at most 4 run at once).
+# your Simulator down and frees its slot (at most 3 are booted on this Mac). Your own Supabase
+# stack is stopped as soon as the Ubuntu job ends, unless you pass --keep-db (at most 6 run at
+# once), and if the cap is reached it waits for a free one.
 #
 # The last line is the summary to paste into your PR, for example:
 #   ci-local B1 3f2a9c1 (rebased on main 9de2799): ubuntu pass, macos pass, 14m02s
@@ -43,6 +44,9 @@ if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
   exit 2
 fi
 head="$(git rev-parse --short HEAD)"
+# Free Simulator slots left behind by runs that died (an outage, a crash), and shut their
+# Simulators down, before taking anything ourselves.
+scripts/sim.sh slots >/dev/null 2>&1 || true
 git fetch -q origin main 2>/dev/null || true
 main="$(git rev-parse --short origin/main 2>/dev/null || echo unknown)"
 if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
@@ -86,11 +90,26 @@ trap cleanup EXIT
 
 # --- Ubuntu job -----------------------------------------------------------------------------
 say "Ubuntu job (server and database), as agent $AGENT"
-eval "$(scripts/agent-env.sh "$AGENT" --own-db --reset 2>"$LOGS/own-db.log")" || {
+# Capture first, so a failure isn't hidden by eval. Exit 3 means the Mac already runs the most
+# agent stacks allowed (AGENTS.md); wait for one to stop (a local sleep), for up to 30 minutes.
+db_waited=0
+while :; do
+  db_code=0
+  db_env="$(scripts/agent-env.sh "$AGENT" --own-db --reset 2>"$LOGS/own-db.log")" || db_code=$?
+  [ "$db_code" -eq 3 ] || break
+  if [ $((db_waited % 300)) -eq 0 ]; then
+    echo "  waiting for an own-stack slot: $(tail -1 "$LOGS/own-db.log" | sed 's/^agent-env: //')"
+  fi
+  [ "$db_waited" -lt 1800 ] || break
+  sleep 30
+  db_waited=$((db_waited + 30))
+done
+if [ "$db_code" -ne 0 ]; then
   cat "$LOGS/own-db.log" >&2
   echo "ci-local: couldn't start your own Supabase stack." >&2
   exit 1
-}
+fi
+eval "$db_env"
 DB_STARTED=1
 echo "  own stack: $SUPABASE_URL, server port: $PORT"
 # The local stack's Postgres has no TLS, and `supabase gen types --db-url` tries TLS first.
@@ -153,6 +172,12 @@ run ubuntu "Install" pnpm install --frozen-lockfile &&
   run ubuntu "A missing variable stops the server" env_check &&
   run ubuntu "Smoke test every endpoint" smoke &&
   run ubuntu "pgTAP" supabase test db --workdir "$GLOW_SUPABASE_WORKDIR"
+
+# The macOS job doesn't use the database, so give the stack slot back now.
+if [ "$DB_STARTED" -eq 1 ] && [ "$KEEP_DB" -eq 0 ]; then
+  scripts/agent-env.sh "$AGENT" --stop-db >/dev/null 2>&1 || true
+  DB_STARTED=0
+fi
 
 # --- macOS job ------------------------------------------------------------------------------
 if [ "$IOS" -eq 1 ] && [ "$ubuntu" = pass ]; then
