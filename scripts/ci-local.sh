@@ -8,10 +8,11 @@
 #
 # It uses your agent slot (scripts/agent-env.sh): your own server port, your own Simulator
 # ("Glow A (B1)") and your own Supabase stack (--own-db --reset, so the database matches
-# this branch's migrations). Nothing shared is touched. At the end, even on failure, it shuts
-# your Simulator down and frees its slot (at most 3 are booted on this Mac). Your own Supabase
-# stack is stopped as soon as the Ubuntu job ends, unless you pass --keep-db (at most 6 run at
-# once), and if the cap is reached it waits for a free one.
+# this branch's migrations). Nothing shared is touched. Its Simulator, xcodebuild runs and own
+# stack come from the Mac's shared slot pool (mac-slots: one pool for every project; `mac-slots
+# status`), and it waits when the pool is full. At the end, even on failure, it shuts your
+# Simulator down and frees its slot. Your own stack is stopped as soon as the Ubuntu job ends,
+# unless you pass --keep-db.
 #
 # The last line is the summary to paste into your PR, for example:
 #   ci-local B1 3f2a9c1 (rebased on main 9de2799): ubuntu pass, macos pass, 14m02s
@@ -37,6 +38,9 @@ done
 LOGS="$ROOT/.agent-state/ci-local"
 mkdir -p "$LOGS"
 started=$(date +%s)
+# This run owns every slot it takes (Simulator, xcodebuild, own database stack), so they're freed
+# when it ends, however it ends.
+export GLOW_SLOT_OWNER_PID=$$
 say() { printf '\n==> %s\n' "$*"; }
 
 if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
@@ -92,11 +96,12 @@ trap cleanup EXIT
 say "Ubuntu job (server and database), as agent $AGENT"
 # Capture first, so a failure isn't hidden by eval. Exit 3 means the Mac already runs the most
 # agent stacks allowed (AGENTS.md); wait for one to stop (a local sleep), for up to 30 minutes.
+echo "  starting your own stack (it waits for a free database slot when the Mac's pool is full)"
 db_waited=0
 while :; do
   db_code=0
   db_env="$(scripts/agent-env.sh "$AGENT" --own-db --reset 2>"$LOGS/own-db.log")" || db_code=$?
-  [ "$db_code" -eq 3 ] || break
+  [ "$db_code" -eq 3 ] || break # 3: the fallback's own-stack cap; with mac-slots it waits inside
   if [ $((db_waited % 300)) -eq 0 ]; then
     echo "  waiting for an own-stack slot: $(tail -1 "$LOGS/own-db.log" | sed 's/^agent-env: //')"
   fi
@@ -184,8 +189,8 @@ if [ "$IOS" -eq 1 ] && [ "$ubuntu" = pass ]; then
   say "macOS job (iOS build and tests) on $GLOW_SIM_A"
   macos=pass
   export GLOW_CI=1
-  # This run owns its Simulator slot: if it dies, the next sim.sh frees the slot.
-  export GLOW_SLOT_OWNER_PID=$$
+  # The Simulator slot is owned by this run (GLOW_SLOT_OWNER_PID, above): if it dies, the next
+  # sim.sh or mac-slots frees the slot, and sim.sh shuts the Simulator down.
   SIM_USED=1
   run macos "SwiftFormat and SwiftLint" scripts/sim.sh lint &&
     run macos "xcodegen is deterministic" scripts/sim.sh verify-project &&
