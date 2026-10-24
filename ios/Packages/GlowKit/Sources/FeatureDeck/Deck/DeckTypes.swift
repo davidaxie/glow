@@ -80,12 +80,6 @@ struct RoomSnapshot: Hashable, Sendable {
         var expiresAt: Date
         /// False after the room's hosts removed my card.
         var visible: Bool
-
-        init(joinedAt: Date, expiresAt: Date, visible: Bool) {
-            self.joinedAt = joinedAt
-            self.expiresAt = expiresAt
-            self.visible = visible
-        }
     }
 
     var name: String

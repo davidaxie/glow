@@ -62,8 +62,16 @@ struct CardDetailView: View {
                         DeckCardImage(url: card.imageURL, contentMode: .fit) {
                             model.imageUnavailable(card.id)
                         }
+                        .overlay {
+                            if let code = model.viewerCode {
+                                GlowWatermark(code)
+                            }
+                        }
                         .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous))
+                        .glowHiddenWhenCaptured()
+                        .accessibilityElement(children: .ignore)
                         .accessibilityLabel(Text(DeckCopy.describe(card.tags)))
+                        .accessibilityAddTraits(.isImage)
                         DeckTagRow(tags: card.tags)
                     }
                     .padding(.horizontal, GlowSpacing.screenMargin)

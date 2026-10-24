@@ -16,7 +16,7 @@ struct NoticedFilters: Hashable, Sendable {
 
     /// Nothing picked: everyone who fits me.
     var isEmpty: Bool {
-        count == 0
+        genders.isEmpty && topColors.isEmpty && hairLengths.isEmpty && hairColors.isEmpty && extras.isEmpty
     }
 
     /// How many values are picked across every part.

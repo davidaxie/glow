@@ -25,10 +25,16 @@ final class RecordingTransport: ClientTransport, @unchecked Sendable {
         var json: String?
     }
 
-    private let state: OSAllocatedUnfairLock<(answers: [String: [Answer]], sent: [Sent], received: [Data])>
+    private struct State {
+        var answers: [String: [Answer]]
+        var sent: [Sent] = []
+        var received: [Data] = []
+    }
+
+    private let state: OSAllocatedUnfairLock<State>
 
     init(_ answers: [String: [Answer]]) {
-        state = OSAllocatedUnfairLock(uncheckedState: (answers, [], []))
+        state = OSAllocatedUnfairLock(uncheckedState: State(answers: answers))
     }
 
     convenience init(_ answers: [String: Answer]) {

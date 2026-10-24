@@ -69,7 +69,6 @@ enum DeckCopy {
     static let deckTitle = String(localized: "Today's looks")
     static let changeNoticed = String(localized: "What did you notice?")
     static let editNoticed = String(localized: "Change")
-    static let everyone = String(localized: "Everyone here")
     static let loadMoreFailed = String(localized: "Couldn't load more looks.")
     static let deckFailed = String(localized: "Couldn't load the looks.")
     static let offline = String(localized: "You're offline. Looks come back when you're connected.")
@@ -99,7 +98,6 @@ enum DeckCopy {
     static let cardGone = String(localized: "That look isn't in the deck anymore.")
     static let tapFailed = String(localized: "Couldn't send that. Try again in a moment.")
     static let slowDown = String(localized: "Slow down a little and try again.")
-    static let noticedBadge = String(localized: "You tapped")
     static let imageFailed = String(localized: "Couldn't load this look")
     static let loadingLook = String(localized: "Loading look")
 

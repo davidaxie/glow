@@ -94,8 +94,9 @@ struct NoticeOption {
     var systemImage: String?
 }
 
-/// A titled group of toggle chips. Several can be picked; none means any.
-struct NoticeSection<Option: Hashable & RawRepresentable>: View where Option.RawValue == String {
+/// A titled group of B6's toggle chips (`GlowTagPicker`). Several can be picked; none means any.
+/// The group is `deck.notice.{id}` for UI tests; its chips are found by their names.
+struct NoticeSection<Option: Hashable>: View {
     let title: String
     let options: [Option]
     @Binding var selection: Set<Option>
@@ -103,26 +104,10 @@ struct NoticeSection<Option: Hashable & RawRepresentable>: View where Option.Raw
     let option: (Option) -> NoticeOption
 
     var body: some View {
-        VStack(alignment: .leading, spacing: GlowSpacing.sm) {
-            Text(title)
-                .glowFont(.headline)
-                .foregroundStyle(.glowTextPrimary)
-                .accessibilityAddTraits(.isHeader)
-            GlowFlowLayout {
-                ForEach(options, id: \.self) { value in
-                    let look = option(value)
-                    GlowChip(look.title, systemImage: look.systemImage, swatch: look.swatch, isSelected: selection.contains(value)) {
-                        if selection.contains(value) {
-                            selection.remove(value)
-                        } else {
-                            selection.insert(value)
-                        }
-                    }
-                    .accessibilityIdentifier("deck.notice.\(id).\(value.rawValue)")
-                }
-            }
+        GlowTagPicker(LocalizedStringKey(title), options: options, selection: $selection) { value in
+            let look = option(value)
+            return GlowTag(look.title, systemImage: look.systemImage, swatch: look.swatch)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("deck.notice.\(id)")
     }
 }

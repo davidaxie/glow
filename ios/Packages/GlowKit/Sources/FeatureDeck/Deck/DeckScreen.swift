@@ -131,7 +131,7 @@ struct DeckScreen: View {
                         Button {
                             model.open(card.id)
                         } label: {
-                            DeckTile(card: card) { model.imageUnavailable(card.id) }
+                            DeckTile(card: card, viewerCode: model.viewerCode) { model.imageUnavailable(card.id) }
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("deck.card.\(card.id.rawValue)")

@@ -74,19 +74,9 @@ struct APIDeckService: DeckService {
         switch output {
         case let .ok(ok):
             guard let result = try? ok.body.json else { throw .unexpected }
-            let left = max(0, result.tapsLeftToday)
-            switch result.result {
-            case .sent:
-                return .sent(tapsLeftToday: left)
-            case .mutual:
-                guard let raw = result.matchId, let match = MatchID(validating: raw) else { throw .unexpected }
-                return .mutual(match, tapsLeftToday: left)
-            }
+            return try Self.outcome(result)
         case let .conflict(conflict):
-            if (try? conflict.body.json.error.code) == .tapLimitReached {
-                throw .tapLimitReached
-            }
-            throw .unexpected
+            throw (try? conflict.body.json.error.code) == .tapLimitReached ? .tapLimitReached : .unexpected
         case .notFound:
             throw .notFound
         case .tooManyRequests:
@@ -95,6 +85,18 @@ struct APIDeckService: DeckService {
             throw .signedOut
         case .badRequest, .default:
             throw .unexpected
+        }
+    }
+
+    /// Sent says only what's left; mutual carries the match. Nothing about the other person (P5).
+    private static func outcome(_ result: Components.Schemas.TapResult) throws(DeckFailure) -> TapOutcome {
+        let left = max(0, result.tapsLeftToday)
+        switch result.result {
+        case .sent:
+            return .sent(tapsLeftToday: left)
+        case .mutual:
+            guard let raw = result.matchId, let match = MatchID(validating: raw) else { throw .unexpected }
+            return .mutual(match, tapsLeftToday: left)
         }
     }
 

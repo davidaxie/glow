@@ -68,7 +68,7 @@ public struct DeckView: View {
         }
         .task {
             let me = await dependencies.session.currentProfile()
-            await model?.start(showMe: me.map { Set($0.profile.showMe) })
+            await model?.start(showMe: me.map { Set($0.profile.showMe) }, viewerCode: me?.profile.viewerCode)
             if let slug = model?.roomSlug {
                 checkInAgain = .joinRoom(RoomLink(slug: slug, token: nil))
             }

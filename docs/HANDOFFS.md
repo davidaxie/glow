@@ -789,7 +789,40 @@ _2026-10-24, Wave 1._ PR [#16](https://github.com/davidaxie/glow/pull/16) on `w1
 **Decisions**: B7-D1 to B7-D11.
 ### C1 · Deck experience
 
-_2026-10-24, Wave 2, in progress._ Branch `w2/c1-deck`. FeatureDeck: room home, What did you notice, the deck, tapping, empty states, capture privacy (P12) and live updates (P8). Full notes land here when the PR is ready.
+_2026-10-24, Wave 2._ PR [#25](https://github.com/davidaxie/glow/pull/25) on `w2/c1-deck` (FeatureDeck only). The Debug launch route and the deck UI tests are in a small `cross-owner` PR for A1 and D1 (see For A1).
+
+**Built** (`ios/Packages/GlowKit/Sources/FeatureDeck`)
+
+- **Room home** (`RoomHomeView(roomID:)`): the room's name, my check-in and time left (refreshed every 30 s and on `checkin.expiring`), a Visible toggle (`POST /api/me/pause`, which pauses me in every room, C1-D9), See today's looks, Check in again (`.joinRoom(RoomLink(slug:, token: nil))`, C1-D8), and Leave (confirm, `POST /api/rooms/{id}/leave`, leave the room channel, back to Rooms). States: checked in, card removed by hosts, check-in ended, room ended or paused, loading, failed.
+- **What did you notice** (a sheet the deck opens first): who (only genders in my show me; left out when there's one), top color, hair length, hair color and extras, B6's `GlowTagPicker`, all optional. Show looks, Skip (show everyone), Clear. Nothing is fetched until it's answered (C1-D1).
+- **The deck** (`DeckView(roomID:)`): a two-column grid of B6's `GlowCardTile` (one column at accessibility text sizes), my viewer code drawn over every photo as well as the server's watermark (C1-D10), pull to refresh, paging as you scroll (DECK_PAGE_SIZE), "N new looks left today" at the end, and What did you notice in a bar under the thumb.
+- **The enlarged card**: a pager over the deck with the whole photo (so the watermark shows), its tags, That's them, and Block or Report (B8's sheets; the card leaves my deck at once, C1-D6). That's them opens "That's them? They won't know unless they tap you too." with taps left today. Sent stays secret; mutual sends `navigate(.mutual(matchID))`; no taps left, card gone, rate limited and offline each say so gently.
+- **Empty states**: nobody fits (change what you noticed), quiet, check-in ended (check in again), paused (be visible), today's views used up.
+- **Privacy (P12)**: while `isSceneCaptured` (recording, mirroring, AirPlay) or when the app isn't active, the whole deck isn't drawn and a cover says "Looks are hidden" (C1-D2, C1-D4); photos also hide themselves. A capture is reported once as `recording`, each screenshot as `screenshot` with a gentle note (C1-D3), to `POST /api/abuse/capture`.
+- **Live updates (P8)**: `deck.changed` for the room (`events(for: roomID)`) refetches every page showing, coalesced (C1-D5); also on reconnect, on return to the foreground, and every 30 s. A card that left closes if it was open.
+- `APIDeckService` (the generated client: `getRoomState`, `getDeck`, `createTap`, `leaveRoom`, `setPaused`, `logCapture`), `FixtureDeckService` (a made-up room for previews, tests and Debug launches), and `DeckCopy` (every string).
+
+**Tests** (`Tests/FeatureDeckTests`, Swift Testing): 39 logic tests (the service against canned replies, including that a deck reply with any extra field such as `userId` is refused; the model's paging, filters, every empty reason, live refetch and coalescing, taps, block, capture; the room home; filters; the fixture room) and 46 snapshots: every deck and room home state at the default and the largest text size, in `__Snapshots__/DeckSnapshotTests/`.
+
+**Proof**
+
+- **Traffic check (P1)**: a seeded room of 200 made-up `@glow.test` people on the local Supabase, then every call the deck screens make (room state, deck pages with and without filters, a one-sided tap, a mutual tap, a capture report) against the real local server (B2's and B4's routes): 18 responses, 37 KB, scanned for all 201 user IDs, first names, emails and the fields `userId`, `email`, `firstName`, `cardPath`: **0 leaks**. The target filters (green, short, blonde, glasses) returned exactly 1 card: the target.
+- **P8 on the real server**: with the viewer on the room's private channel, `deck.changed` arrived 33 ms after someone left, 20 ms after someone paused and 32 ms after someone blocked the viewer, and each was gone from the viewer's next deck within 54 ms. FeatureDeck refetches on the first event at once.
+- **The find test** (UI test in the cross-owner PR): in the 200-person fixture room, pick green, short, blonde and glasses, apply, open the target and tap That's them. See the PR for the time.
+- **P12 UI test** (same PR): with `-GlowDebugFakeScreenCapture YES` the cover shows and no card is on screen; without it, cards show.
+- Screenshots and a recording: see the PR.
+
+**Still mocked**
+
+- Card photos load through FeatureDeck's `APICardImageLoader`, a stand-in with B3's rules (relative card image links only, through `GlowAPI`, nothing cached). When B3's PR #7 merges, `DeckCardImage` switches to `PrivateImageView(.card(signedURL:))` and the stand-in goes.
+- The preview session has no access token, so in the Simulator the live deck can't reach the server until B1's session (PR #6) lands. `-GlowDebugDeckFixture` runs every screen on a made-up room meanwhile.
+
+**Next wave needs**
+
+- **D1**: launch arguments (Debug only) `-GlowDebugDeckFixture 200` (or `quiet`, `checkinEnded`, `paused`, `viewLimitReached`), `-GlowDebugFakeScreenCapture YES`, and `-GlowDebugRoute deck:<room>` / `room:<room>` (cross-owner PR). Identifiers: `screen.FeatureDeck.roomHome`, `room.status`, `room.visible`, `room.seeLooks`, `room.leave`, `room.leave.confirm`, `room.checkInAgain`, `room.tapsLeft`; `screen.FeatureDeck.deck`, `deck.notice` (the sheet), `deck.notice.who|top|hairLength|hairColor|extras` (chips inside by name), `deck.notice.apply`, `deck.notice.clear`, `deck.skip`, `deck.notice.open`, `deck.grid`, `deck.card.<card id>`, `deck.viewsLeft`, `deck.detail`, `deck.detail.thatsThem`, `deck.detail.more`, `deck.detail.close`, `deck.confirm`, `deck.confirm.tap`, `deck.confirm.cancel`, `deck.confirm.tapsLeft`, `deck.empty.<reason>`, `deck.empty.checkInAgain`, `deck.empty.beVisible`, `deck.hidden`. The fixture room's target card is `aaaaaaaa-0000-4000-8000-000000000079`.
+- **D2**: the capture cover is C1-D2 and C1-D4; capture reports carry only kind and room. The traffic check script is attached to PR #25 for `scripts/e2e/`.
+- **C2**: a mutual tap sends `navigate(.mutual(matchID))` after closing the enlarged card. If FeatureMatch also opens the takeover on `match.created`, both land on the same cover.
+- **D4**: every string FeatureDeck shows is in `Copy/DeckCopy.swift`, grouped by screen (room home, What did you notice, deck, enlarged card and tapping, empty states, privacy, tag names, VoiceOver descriptions). Card descriptions for VoiceOver are built from tags only ("Green top, short blonde hair, glasses, headphones"). Plurals are hand-made (`tapsLeft`, `viewsLeft`, `timeLeft`) and want a string catalog with plural variants. `GlowCardTile`'s "Noticed" badge is B6's string.
 
 ### B6 · Design system
 

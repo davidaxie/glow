@@ -1140,3 +1140,11 @@ It stops the same address and the same Apple ID, and nothing else. A new address
 **Choice.** The room home's Visible toggle calls `POST /api/me/pause`, which pauses the person in every room, and says "Paused. Nobody sees you, and you don't see anyone." See today's looks is disabled while paused, and the deck's paused state offers Be visible.
 
 **Why.** It's one flag on the profile (B8), and saying what it really does beats a per-room switch that isn't.
+
+### C1-D10 · The phone draws my viewer code over every card too
+
+**Question.** The brief says the watermark is visible. The server prints the viewer's code faintly into every card photo (spec), but a tile crops the photo, and a screenshot of a tile might miss it.
+
+**Choice.** Every tile and the enlarged card also draw B6's `GlowWatermark` with my own `viewerCode` over the photo, on the phone. The enlarged card shows the whole photo (`.fit`), so the server's watermark shows in full there.
+
+**Why.** A screenshot of any part of the deck carries the code of the person who took it. It's my own code on my own screen, so it reveals nothing about anyone else.

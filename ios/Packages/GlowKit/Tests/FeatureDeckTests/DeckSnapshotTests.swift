@@ -35,7 +35,7 @@ struct DeckSnapshotTests {
     @Test(arguments: deckSnapshotSizes)
     func grid(_ size: DynamicTypeSize) async {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
-        await model.start(showMe: nil)
+        await model.start(showMe: nil, viewerCode: "YTVFCREQ")
         await model.apply(.none)
         await snapshot(deck(model), "grid", size, wait: 0.6)
     }
@@ -43,7 +43,7 @@ struct DeckSnapshotTests {
     @Test(arguments: deckSnapshotSizes)
     func gridFilteredWithATap(_ size: DynamicTypeSize) async throws {
         let model = makeModel(FixtureDeckService(count: 200, now: { testNow }))
-        await model.start(showMe: nil)
+        await model.start(showMe: nil, viewerCode: "YTVFCREQ")
         var noticed = NoticedFilters()
         noticed.topColors = [.green]
         noticed.hairLengths = [.short]
@@ -58,7 +58,7 @@ struct DeckSnapshotTests {
     @Test(arguments: deckSnapshotSizes)
     func enlarged(_ size: DynamicTypeSize) async throws {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
-        await model.start(showMe: nil)
+        await model.start(showMe: nil, viewerCode: "YTVFCREQ")
         await model.apply(.none)
         try model.open(#require(model.cards.dropFirst().first?.id))
         await snapshot(deck(model), "enlarged", size, wait: 0.6)
@@ -67,7 +67,7 @@ struct DeckSnapshotTests {
     @Test(arguments: deckSnapshotSizes)
     func confirmTap(_ size: DynamicTypeSize) async throws {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
-        await model.start(showMe: nil)
+        await model.start(showMe: nil, viewerCode: "YTVFCREQ")
         await model.apply(.none)
         let card = try #require(model.cards.dropFirst().first?.id)
         model.open(card)

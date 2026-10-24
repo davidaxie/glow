@@ -23,17 +23,20 @@ final class DeckModel {
 
     let roomID: RoomID
     private(set) var phase: Phase = .choosing
-    private(set) var cards: [DeckCard] = []
+    var cards: [DeckCard] = []
     private(set) var filters: NoticedFilters = .none
     /// Genders I may filter by: my show me, in a stable order.
     private(set) var showMe: [Gender] = Gender.allCases
     private(set) var viewsLeftToday: Int?
-    private(set) var tapsLeftToday: Int?
+    var tapsLeftToday: Int?
     /// The room's slug, for Check in again.
     private(set) var roomSlug: String?
+    /// My own viewer code, drawn faintly over every card on the phone too (C1-D10), so a screenshot
+    /// can be traced even where the server's watermark is cropped out.
+    private(set) var viewerCode: String?
     private(set) var isLoadingMore = false
     private(set) var loadMoreFailed = false
-    private(set) var isTapping = false
+    var isTapping = false
     var isNoticeSheetOpen = false
     /// The enlarged card, if one is open.
     var enlarged: CardID?
@@ -53,9 +56,9 @@ final class DeckModel {
         confirming.flatMap { id in cards.first { $0.id == id } }
     }
 
-    @ObservationIgnored private let service: any DeckService
-    @ObservationIgnored private let analytics: any Analytics
-    @ObservationIgnored private let now: @Sendable () -> Date
+    @ObservationIgnored let service: any DeckService
+    @ObservationIgnored let analytics: any Analytics
+    @ObservationIgnored let now: @Sendable () -> Date
     @ObservationIgnored private let refreshInterval: Duration
     @ObservationIgnored private let logger = Logger(subsystem: Log.subsystem, category: "deck")
     @ObservationIgnored private var nextOffset: Int?
@@ -65,10 +68,10 @@ final class DeckModel {
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var lastRefresh: ContinuousClock.Instant?
     @ObservationIgnored private var backoffUntil: ContinuousClock.Instant?
-    @ObservationIgnored private var firstShownAt: Date?
-    @ObservationIgnored private var reportedRecording = false
+    @ObservationIgnored var firstShownAt: Date?
+    @ObservationIgnored var reportedRecording = false
     @ObservationIgnored private var started = false
-    @ObservationIgnored private var locallyHidden: [CardID: Date] = [:]
+    @ObservationIgnored var locallyHidden: [CardID: Date] = [:]
 
     /// - Parameter refreshInterval: the least time between two live refreshes, so a burst of
     ///   `deck.changed` costs one refetch (and stays inside B8's deck rate limit) while still landing
@@ -90,10 +93,11 @@ final class DeckModel {
     // MARK: Starting
 
     /// Opens What did you notice the first time, and fetches taps left today.
-    func start(showMe: Set<Gender>?) async {
+    func start(showMe: Set<Gender>?, viewerCode: String? = nil) async {
         if let showMe, !showMe.isEmpty {
             self.showMe = Gender.allCases.filter(showMe.contains)
         }
+        self.viewerCode = viewerCode
         guard !started else { return }
         started = true
         analytics.track(AnalyticsEvent("deck_opened"))
@@ -168,7 +172,7 @@ final class DeckModel {
         }
     }
 
-    private func scheduleRefresh() {
+    func scheduleRefresh() {
         guard phase != .choosing else { return }
         if refreshTask != nil {
             refreshQueued = true
@@ -208,7 +212,7 @@ final class DeckModel {
 
     /// Fetches as many pages as are showing, from the start, and replaces the cards. `quietly` is a
     /// live refetch the person didn't ask for: a rate limit there waits and tries again, silently.
-    private func reload(showingProgress: Bool, quietly: Bool = false) async {
+    func reload(showingProgress: Bool, quietly: Bool = false) async {
         generation += 1
         let generation = generation
         lastRefresh = ContinuousClock.now
@@ -235,21 +239,32 @@ final class DeckModel {
                 offset = more
             }
         } catch {
-            guard generation == self.generation, error != .cancelled else { return }
-            if quietly, error == .rateLimited || error == .offline, !cards.isEmpty {
-                backoffUntil = ContinuousClock.now + .seconds(5)
-                refreshQueued = true
-                return
-            }
-            if cards.isEmpty || showingProgress {
-                phase = .failed(error)
-            } else {
-                // Keep what's showing; the next event or pull tries again.
-                toast = GlowToastMessage(error == .offline ? DeckCopy.offline : DeckCopy.deckFailed, kind: .error)
-            }
+            guard generation == self.generation else { return }
+            reloadFailed(error, showingProgress: showingProgress, quietly: quietly)
             return
         }
         guard let lastPage else { return }
+        show(collected, next: next, pages: pagesWanted, last: lastPage)
+    }
+
+    /// A refetch didn't work. A quiet one that was rate limited or offline waits and tries again;
+    /// otherwise the deck says so, keeping what's showing when it can.
+    private func reloadFailed(_ error: DeckFailure, showingProgress: Bool, quietly: Bool) {
+        guard error != .cancelled else { return }
+        if quietly, error == .rateLimited || error == .offline, !cards.isEmpty {
+            backoffUntil = ContinuousClock.now + .seconds(5)
+            refreshQueued = true
+            return
+        }
+        if cards.isEmpty || showingProgress {
+            phase = .failed(error)
+        } else {
+            toast = GlowToastMessage(error == .offline ? DeckCopy.offline : DeckCopy.deckFailed, kind: .error)
+        }
+    }
+
+    /// Shows freshly fetched pages.
+    private func show(_ collected: [DeckCard], next: Int?, pages pagesWanted: Int, last lastPage: DeckPage) {
         cards = merged(collected.filter { !isLocallyHidden($0.id) })
         nextOffset = next
         pagesLoaded = cards.isEmpty ? 0 : pagesWanted
@@ -311,135 +326,6 @@ final class DeckModel {
     func close() {
         confirming = nil
         enlarged = nil
-    }
-
-    /// "That's them": asks to confirm.
-    func requestTap(_ card: CardID) {
-        guard cards.contains(where: { $0.id == card }) else { return }
-        confirming = card
-    }
-
-    func cancelTap() {
-        confirming = nil
-    }
-
-    /// Block or report from a card: the card leaves my deck at once, before B8's sheet even sends
-    /// (C1-D6). The server's block removes it for good; if the sheet is cancelled, it comes back on a
-    /// refresh after a minute.
-    func hideForSafety(_ card: CardID) {
-        locallyHidden[card] = now().addingTimeInterval(60)
-        cards.removeAll { $0.id == card }
-        confirming = nil
-        enlarged = nil
-    }
-
-    private func isLocallyHidden(_ card: CardID) -> Bool {
-        guard let until = locallyHidden[card] else { return false }
-        if until > now() {
-            return true
-        }
-        locallyHidden[card] = nil
-        return false
-    }
-
-    /// Sends the secret tap. Returns the match when it's mutual, for the hand-off to FeatureMatch.
-    func confirmTap() async -> MatchID? {
-        guard let card = confirming, !isTapping else { return nil }
-        isTapping = true
-        defer { isTapping = false }
-        do {
-            let outcome = try await service.tap(card, in: roomID)
-            tapsLeftToday = outcome.tapsLeftToday
-            if let index = cards.firstIndex(where: { $0.id == card }) {
-                cards[index].tappedByMe = true
-            }
-            confirming = nil
-            let seconds = firstShownAt.map { Int(now().timeIntervalSince($0).rounded()) } ?? 0
-            switch outcome {
-            case .sent:
-                analytics.track(AnalyticsEvent("deck_tap", ["result": "sent", "seconds": .int(seconds)]))
-                toast = GlowToastMessage(DeckCopy.tapSent, kind: .success)
-                return nil
-            case let .mutual(match, _):
-                analytics.track(AnalyticsEvent("deck_tap", ["result": "mutual", "seconds": .int(seconds)]))
-                enlarged = nil
-                return match
-            }
-        } catch {
-            switch error {
-            case .tapLimitReached:
-                tapsLeftToday = 0
-                confirming = nil
-                toast = GlowToastMessage(DeckCopy.noTapsLeft)
-            case .notFound:
-                confirming = nil
-                enlarged = nil
-                toast = GlowToastMessage(DeckCopy.cardGone)
-                scheduleRefresh()
-            case .rateLimited:
-                toast = GlowToastMessage(DeckCopy.slowDown, kind: .error)
-            case .offline:
-                toast = GlowToastMessage(DeckCopy.offline, kind: .error)
-            case .cancelled:
-                break
-            case .signedOut, .unexpected:
-                toast = GlowToastMessage(DeckCopy.tapFailed, kind: .error)
-            }
-            return nil
-        }
-    }
-
-    /// The paused empty state's "Be visible".
-    func becomeVisible() async -> Bool {
-        do {
-            let paused = try await service.setPaused(false)
-            guard !paused else { return false }
-            await reload(showingProgress: true)
-            return true
-        } catch {
-            toast = GlowToastMessage(DeckCopy.pauseFailed, kind: .error)
-            return false
-        }
-    }
-
-    // MARK: Capture (P12)
-
-    /// The screen started being recorded or mirrored while the deck is open. Reported once per
-    /// capture, as a recording (B8 can't tell the two apart either, C1-D3).
-    func captureChanged(isCaptured: Bool) {
-        guard isCaptured else {
-            reportedRecording = false
-            return
-        }
-        guard !reportedRecording else { return }
-        reportedRecording = true
-        enlarged = nil
-        confirming = nil
-        analytics.track(AnalyticsEvent("deck_capture", ["kind": "recording"]))
-        let service = service
-        let room = roomID
-        Task { await service.reportCapture(.recording, in: room) }
-    }
-
-    /// A screenshot was taken while the deck was open: a gentle note, and a report.
-    func screenshotTaken() {
-        toast = GlowToastMessage(DeckCopy.screenshotNote, duration: .seconds(5))
-        analytics.track(AnalyticsEvent("deck_capture", ["kind": "screenshot"]))
-        let service = service
-        let room = roomID
-        Task { await service.reportCapture(.screenshot, in: room) }
-    }
-
-    // MARK: Helpers
-
-    private static func literal(_ reason: DeckEmptyReason) -> AnalyticsValue {
-        switch reason {
-        case .quiet: "quiet"
-        case .noMatch: "no_match"
-        case .viewLimitReached: "view_limit_reached"
-        case .paused: "paused"
-        case .checkinEnded: "checkin_ended"
-        }
     }
 
     /// For snapshot tests and previews: puts the model straight into a state.
