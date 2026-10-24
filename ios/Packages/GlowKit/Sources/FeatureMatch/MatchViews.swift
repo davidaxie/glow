@@ -69,6 +69,7 @@ struct MatchHost: View {
                             navigate(route)
                         }
                     }
+                    .task { await autoChooseForRecording(model) }
             }
         }
         .onAppear {
@@ -76,11 +77,28 @@ struct MatchHost: View {
                 model = MatchModel(
                     matchID: matchID,
                     client: MatchClients.resolve(clientOverride, dependencies),
-                    location: dependencies.location,
+                    location: MatchClients.location(clientOverride, dependencies),
                     analytics: dependencies.analytics,
                 )
             }
         }
+    }
+}
+
+extension MatchHost {
+    /// Debug fixtures only (`-GlowMatchFixturesChoose`, C2-D9): choose by itself after a moment,
+    /// so the Simulator can record the whole flow without touch. Does nothing anywhere else.
+    private func autoChooseForRecording(_ model: MatchModel) async {
+        #if DEBUG
+            guard dependencies.config.environment == .debug, clientOverride == nil,
+                  let choice = FixtureMatchClient.launchAutoChoice
+            else { return }
+            try? await Task.sleep(for: .seconds(style == .takeover ? 5.5 : 3))
+            switch choice {
+            case .find: await model.chooseFind()
+            case .chat: await model.chooseChat()
+            }
+        #endif
     }
 }
 
@@ -177,7 +195,8 @@ struct MatchDetails: View {
                         .foregroundStyle(.glowTextSecondary)
                 }
                 .multilineTextAlignment(.center)
-                .padding(.top, GlowSpacing.xl)
+                // In the takeover, clear of the close button.
+                .padding(.top, showsHeadline ? GlowSize.minimumTapTarget + GlowSpacing.md : GlowSpacing.xl)
 
                 MatchPhotoCarousel(model: model, snapshot: snapshot)
 

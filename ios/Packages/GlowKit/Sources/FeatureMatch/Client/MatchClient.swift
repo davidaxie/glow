@@ -96,6 +96,17 @@ enum MatchClients {
         #endif
         return APIMatchClient(api: dependencies.api)
     }
+
+    /// The location service for Find. The Debug fixtures never touch the network, so they never
+    /// ask for a real location either (C2-D9).
+    static func location(_ override: (any MatchClient)?, _ dependencies: Dependencies) -> any LocationService {
+        #if DEBUG
+            if override == nil, dependencies.config.environment == .debug, FixtureMatchClient.launchFixtures != nil {
+                return PreviewLocationService()
+            }
+        #endif
+        return dependencies.location
+    }
 }
 
 // MARK: - The API

@@ -19,6 +19,14 @@ struct MutualMomentOpener: ViewModifier {
 
     func body(content: Content) -> some View {
         content.task {
+            #if DEBUG
+                // Debug fixtures for the list (C2-D9): open the Matches tab at launch.
+                if dependencies.config.environment == .debug, clientOverride == nil,
+                   let scenario = FixtureMatchClient.launchScenario, scenario == .list || scenario == .empty
+                {
+                    navigate(.matches)
+                }
+            #endif
             let client = MatchClients.resolve(clientOverride, dependencies)
             for await event in dependencies.matchEvents(client) where event.kind == .created {
                 dependencies.analytics.track(AnalyticsEvent("match_takeover_opened", ["via": "realtime"]))

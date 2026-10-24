@@ -110,10 +110,17 @@ public final class FixtureMatchClient: MatchClient {
 
     #if DEBUG
         /// The Debug launch fixtures, from `-GlowMatchFixtures <scenario>`, or nil.
-        static let launchFixtures: FixtureMatchClient? = UserDefaults.standard
+        static let launchFixtures: FixtureMatchClient? = launchScenario.map { FixtureMatchClient($0) }
+
+        static let launchScenario: Scenario? = UserDefaults.standard
             .string(forKey: "GlowMatchFixtures")
             .flatMap(Scenario.init(rawValue:))
-            .map { FixtureMatchClient($0) }
+
+        /// For recordings without touch: `-GlowMatchFixturesChoose find` (or `chat`) makes the
+        /// match screen choose by itself a few seconds after it shows. Fixtures only.
+        static let launchAutoChoice: MatchSnapshot.Choice? = launchScenario == nil ? nil : UserDefaults.standard
+            .string(forKey: "GlowMatchFixturesChoose")
+            .flatMap(MatchSnapshot.Choice.init(rawValue:))
     #endif
 
     // MARK: What tests can check
