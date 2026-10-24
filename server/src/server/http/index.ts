@@ -3,6 +3,7 @@ export {
   HttpError,
   badRequest,
   conflict,
+  unprocessable,
   notFound,
   notImplemented,
   rateLimited,

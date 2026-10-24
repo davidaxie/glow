@@ -161,6 +161,8 @@ All IDs are random UUIDs. A card's ID is its check-in's ID, so a card never carr
 | blocks | blocker\_id, blocked\_id, created\_at | Always checked in both directions |
 | reports | id, reporter\_id, reported\_id, context (card, match or chat), context\_id, reason, details, status, created\_at |  |
 | abuse\_signals | id, user\_id, room\_id, kind (screenshot, recording), created\_at | Repeated screenshots flag the account for review |
+| location\_checks | id, user\_id, room\_id, purpose (join or find), result (pass, fail or demo\_skip), accuracy\_bucket, created\_at | Never coordinates (P2). Proves a recent pass before a glow, and logs demo-mode skips. Purged after 24 hours. |
+| room\_activity | id, room\_id, kind, n, created\_at | Anonymous, append-only counters for the admin metrics page. No user IDs. |
 
 ## Database functions
 
@@ -174,6 +176,16 @@ The rules that must never break live in Postgres, so a bug in a route can't skip
 | `record_tap(viewer, room, checkin)` | Checks the card is in the viewer's deck and the daily cap, saves the tap, and makes a match if the other person already tapped back | An advisory lock on the pair, so two taps at the same moment make exactly one match |
 | `set_choice(user, match, choice)` | Saves Find or Chat and returns what happens next | Find only proceeds when both chose it before the deadline |
 | `start_glow(match)` | Picks a color, code word and meeting spot that no other active glow in the room is using | A unique partial index backs this up |
+| `glow_met(user, match)` | Records We met, and ends the glow as met once both have tapped it | The chat stays open |
+| `cancel_glow(user, match)` | Cancels the glow, or switches to chat | Ends it for both people |
+| `get_match(user, match)` | One match, after applying the choice and glow timeouts | Not found unless the person is in it and it hasn't ended |
+| `list_matches(user)` | The person's matches that haven't ended, newest first | Timeouts are applied first |
+| `match_photo_path(viewer, match, n)` | The other person's nth approved profile photo | Only while the match hasn't ended |
+| `get_room_state(user, room)` | The room, the person's open check-in, and taps and views left today | Only the person's own data |
+| `unmatch(user, match)` | Ends the match for both people and deletes its messages | Either person can end it |
+| `block_user(user, context, context_id)` | Blocks the person behind a card, match or chat ID, and ends any match between them | A card can only be blocked if the deck showed it |
+| `create_report(reporter, context, context_id, reason, details)` | Reports and blocks, keeping the reported person's last messages as evidence | A report is also a block |
+| `send_message(sender, match, body, client_id)` | Adds a chat message once choosing is over | A retry with the same client ID returns the first message |
 | `purge_expired()` | Deletes expired check-ins, old taps, ended glows and old card views, and returns the photo paths to delete | Called by the cron route every 5 minutes |
 
 ## API contract
@@ -185,11 +197,13 @@ Every request sends the Supabase access token as a Bearer token, and the server 
 | `GET /api/me` | My profile, photos and onboarding step | B1 |
 | `PUT /api/me/profile` | Save first name, birthday, gender and who I want to see | B1 |
 | `POST /api/me/photos`, `DELETE /api/me/photos/:id` | Add (moderated) or remove a profile photo | B1 |
+| `GET /api/me/photos/:id` | One of my own profile photos, through the API (there are no storage links) | B1 |
 | `POST /api/dev/test-login` | Debug-only sign-in for Simulator tests. Refused unless `ALLOW_TEST_LOGIN` is set. | B1 |
 | `POST /api/me/pause` | Pause or resume being visible | B8 |
 | `DELETE /api/me` | Delete my account and all my data | B8 |
 | `POST /api/devices`, `DELETE /api/devices/:id` | Register or remove a push token | B5 |
 | `POST /api/rooms/resolve` | Room code, or slug plus QR token, returns the room's name and end time | B2 |
+| `GET /api/rooms/:id` | The room, my check-in there, and what I have left today | B2 |
 | `POST /api/rooms/:id/join` | Token plus one location fix returns a 10-minute join ticket | B2 |
 | `POST /api/rooms/:id/leave` | End my check-in now and delete my card | B2 |
 | `POST /api/rooms/:id/checkin` | Join ticket plus blurred photo plus tags creates my card | B3 |
@@ -207,7 +221,7 @@ Every request sends the Supabase access token as a Bearer token, and the server 
 | `POST /api/reports` | Report someone (this also blocks them) | B8 |
 | `POST /api/abuse/capture` | Log a screenshot or screen recording of the deck | B8 |
 | `GET /api/cron/purge` | Expiry cleanup, protected by the cron secret | B8 |
-| `/api/admin/*` | Rooms, meeting spots, posters, display tokens, reports, metrics, demo mode | B7 |
+| `/api/admin/*` | Rooms, meeting spots, posters, display tokens, cards, reports, metrics, demo mode | B7 |
 | `GET /.well-known/apple-app-site-association` | The file that lets QR links open the app | B2 |
 | `GET /r/:slug` | Web page for people who don't have Glow yet, with the TestFlight link | B2 |
 
@@ -219,6 +233,7 @@ The server sends every event two ways: over Realtime to the person's private cha
 | --- | --- | --- | --- |
 | `match.created` | The second tap lands | Both people | Someone you noticed noticed you back. |
 | `match.choice` | The other person chooses | The other person | No push |
+| `match.ended` | The match ends for both people: unmatch, block or account deletion | Both people | No push |
 | `glow.started` | Both chose Find | Both people | Time to find each other. (time sensitive) |
 | `glow.ended` | Both met, someone canceled, or time ran out | Both people | No push |
 | `message.created` | A new chat message arrives | The recipient | New message |

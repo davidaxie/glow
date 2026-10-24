@@ -19,6 +19,7 @@
     "env:setup": "scripts/env-setup.sh",
     "dev:token": "scripts/dev-token.sh",
     "smoke": "scripts/smoke.sh",
+    "stubs": "node scripts/stub-routes.mjs",
     "codegen": "scripts/codegen.sh",
     "db:start": "scripts/db.sh start",
     "db:stop": "scripts/db.sh stop",

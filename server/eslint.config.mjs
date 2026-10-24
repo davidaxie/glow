@@ -25,7 +25,7 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: ['**/contract-placeholder', '**/http/operations'],
+              group: ['**/http/operations'],
               message: 'Import from @/server/http. The operation registry is internal to it.',
             },
           ],

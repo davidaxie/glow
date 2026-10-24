@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it, vi } from 'vitest';
-import { HttpError, notFound, notImplemented, route } from '@/server/http';
+import { HttpError, conflict, notFound, notImplemented, route, unprocessable } from '@/server/http';
 import { fakeAccessToken, mockVerify, USER_ID } from './helpers/auth';
 
 vi.mock('@/server/auth/verify', async (importOriginal) => {
@@ -99,7 +99,7 @@ describe('route helper', () => {
     await mockVerify();
     const forbidden = await call(
       testRoute('echo', () => {
-        throw new HttpError(403, 'forbidden', 'This match belongs to someone else.');
+        throw new HttpError(403, 'not_found', 'This match belongs to someone else.');
       }),
       jsonBody({ ...COORDS, note: 'x' }),
     );
@@ -111,6 +111,30 @@ describe('route helper', () => {
     );
     expect(forbidden.status).toBe(404);
     expect(await forbidden.text()).toBe(await missing.text());
+  });
+
+  it('sends 409 and 422 with their contract code and reason', async () => {
+    await mockVerify();
+    const unprocessableRes = await call(
+      testRoute('echo', () => {
+        throw unprocessable('photo_rejected', 'Try another photo.', { reason: 'face_visible' });
+      }),
+      jsonBody({ ...COORDS, note: 'x' }),
+    );
+    expect(unprocessableRes.status).toBe(422);
+    expect(await unprocessableRes.json()).toEqual({
+      error: { code: 'photo_rejected', message: 'Try another photo.', reason: 'face_visible' },
+    });
+    const conflictRes = await call(
+      testRoute('echo', () => {
+        throw conflict('tap_limit_reached', 'No taps left today.');
+      }),
+      jsonBody({ ...COORDS, note: 'x' }),
+    );
+    expect(conflictRes.status).toBe(409);
+    expect(await conflictRes.json()).toEqual({
+      error: { code: 'tap_limit_reached', message: 'No taps left today.' },
+    });
   });
 
   it('answers 400 with field paths but never echoes what was sent', async () => {
