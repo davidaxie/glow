@@ -97,12 +97,12 @@ Agents: A1 Integrator and repo, A2 Contracts and database, A3 iPhone app skeleto
 | `server/tests/` | A1 | Except `server/tests/security/` (D2). Owners put tests in `server/tests/{module}/` or next to their module. |
 | `server/src/contracts/` | A2 | Generated. Never hand-edit. |
 | `server/app/api/me/route.ts` | Shared | `GET` is B1's export line, `DELETE` is B8's. Each keeps its handler in its own module. |
-| `server/app/api/me/**` (profile, photos), `server/app/api/dev/test-login/`, `server/src/server/profiles/` | B1 | Not `pause` and not `DELETE /api/me` |
+| `server/app/api/me/**` (profile, photos, `onboarding/complete`), `server/app/api/dev/test-login/`, `server/src/server/profiles/` | B1 | Not `pause` and not `DELETE /api/me` |
 | `server/app/api/rooms/resolve/`, `server/app/api/rooms/[id]/route.ts` (`GET /api/rooms/:id`), `server/app/api/rooms/[id]/join/`, `server/app/api/rooms/[id]/leave/`, `server/app/r/[slug]/`, `server/app/.well-known/apple-app-site-association/`, `server/src/server/rooms/`, `server/src/server/geo/`, `server/src/server/qr/` | B2 | |
 | `server/app/api/rooms/[id]/checkin/`, `server/app/api/cards/[cardId]/image/`, `server/app/api/matches/[id]/photos/[n]/`, `server/src/server/images/` | B3 | |
 | `server/app/api/rooms/[id]/deck/`, `server/app/api/rooms/[id]/taps/`, `server/app/api/matches/route.ts` (`GET /api/matches`), `server/src/server/deck/`, `server/src/server/taps/`, `server/src/server/matches/` | B4 | `matches` covers creation and listing |
 | `server/app/api/devices/**`, `server/src/server/notify/` | B5 | |
-| `server/app/admin/**`, `server/app/display/[slug]/`, `server/app/api/admin/**`, `server/src/server/admin/` | B7 | |
+| `server/app/admin/**`, `server/app/display/[slug]/`, `server/app/api/admin/**` (rooms, cards, `photos`, reports), `server/src/server/admin/` | B7 | |
 | `server/app/api/blocks/`, `server/app/api/reports/`, `server/app/api/me/pause/`, `DELETE` in `server/app/api/me/route.ts`, `server/app/api/abuse/capture/`, `server/app/api/cron/purge/`, `server/src/server/moderation/`, `server/src/server/safety/`, `server/src/server/ratelimit/` | B8 | |
 | `server/app/api/matches/[id]/route.ts` (`GET /api/matches/:id`), `server/app/api/matches/[id]/choice/`, `server/src/server/choice/` | C2 | |
 | `server/app/api/matches/[id]/glow/**`, `server/src/server/glow/` (including `words.ts`) | C3 | |
@@ -193,7 +193,9 @@ Up to nine agents build and test on the same Mac at once. Each works in its own 
 2. **Boot only Glow A** (`scripts/sim.sh setup A`) unless the test needs both people. Each booted Simulator costs memory and CPU every other agent shares.
 3. **Never run `supabase db reset`, `supabase stop` or `supabase start` on the shared `glow` stack** (API 54421, DB 54422). Other agents are using it. `pnpm db:reset` and `pnpm db:stop` refuse when `GLOW_AGENT_ID` is set. If you add a migration or need a reset, take your own stack: `eval "$(scripts/agent-env.sh <ID> --own-db)"` copies your worktree's `supabase/` into `.agent-state/<id>/`, starts it as `glow-<id>` on your own port block, and exports its `SUPABASE_URL` and keys (your server and `sim.sh build` use them). `--own-db --reset` reapplies your migrations and seed; `scripts/agent-env.sh <ID> --stop-db` stops it. `pnpm db:*` follows `GLOW_SUPABASE_WORKDIR`, so it targets your stack.
 4. **Clean up** with `scripts/sim.sh teardown` (and `--stop-db` if you took a stack) when your work is merged.
-5. **Prove iOS work locally while your PR is a draft.** CI skips the macOS job on drafts to save macOS minutes (D91), so run `scripts/sim.sh build`, `test` and `lint` yourself and attach `scripts/sim.sh shot` screenshots to the PR. The macOS job runs once you mark the PR ready for review, if it touches `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh`, and on every push to main.
+5. **Never poll GitHub in a loop.** Every agent shares one GitHub token, and a polling loop trips GitHub's rate limit for everyone. To wait for CI, run one `gh pr checks <n> --watch --interval 60` in the background and let it tell you when it's done, or check once after doing other work. Never more than one watcher at a time.
+6. **Decision IDs carry your agent ID:** `## B2-D1 · {short title}` in `docs/DECISIONS.md`, numbered within your own decisions, so parallel PRs never collide. `D1` to `D56` keep their numbers.
+7. **Prove iOS work locally while your PR is a draft.** CI skips the macOS job on drafts to save macOS minutes (A1-D2), so run `scripts/sim.sh build`, `test` and `lint` yourself and attach `scripts/sim.sh shot` screenshots to the PR. The macOS job runs once you mark the PR ready for review, if it touches `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh`, and on every push to main.
 
 | Agents | Server port | Own Supabase API (`--own-db`) |
 | --- | --- | --- |
@@ -240,7 +242,7 @@ The helper reads the operation from the generated contract and, before your hand
 ## Pull requests and integration
 
 - Branch `w{wave}/{agent id}-{short name}`, draft PR in your first hour, push often.
-- CI has two jobs. **Ubuntu** runs on every push: install, the codegen staleness check, typecheck, lint, Prettier, Vitest, `next build`, a smoke test of every endpoint (signed out and signed in), and pgTAP on a local Supabase. **macOS** runs SwiftFormat, SwiftLint, the xcodegen determinism check, then the iOS build and tests on a Simulator, on every push to main and on ready-for-review PRs that touch the app, the contract or the iOS scripts (D91). Keep your PR a draft until it's done.
+- CI has two jobs. **Ubuntu** runs on every push: install, the codegen staleness check, typecheck, lint, Prettier, Vitest, `next build`, a smoke test of every endpoint (signed out and signed in), and pgTAP on a local Supabase. **macOS** runs SwiftFormat, SwiftLint, the xcodegen determinism check, then the iOS build and tests on a Simulator, on every push to main and on ready-for-review PRs that touch the app, the contract or the iOS scripts (A1-D2). Keep your PR a draft until it's done.
 - A PR is ready when every box of the spec's definition of done is ticked: no warnings under Swift 6 strict concurrency and the server typechecks; SwiftLint, SwiftFormat, ESLint and Prettier pass; new logic has tests and CI is green; new screens have Simulator screenshots, a recording, VoiceOver labels and a Dynamic Type check; no privacy invariant is weakened; `docs/HANDOFFS.md` is updated.
 - A1 reviews every PR against this file and merges with a squash, in the order in Build plan. A PR that breaks main gets reverted first and fixed second.
 - Contract changes: a PR labeled `contract-change` that updates `contracts/openapi.yaml`, regenerates both clients with `pnpm codegen` and updates `docs/SPEC.md`. A1 approves and regenerates clients on main after merging.

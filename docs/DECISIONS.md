@@ -4,7 +4,7 @@ When the spec is unclear, agents pick the option that protects privacy more and 
 
 Format: `## D{n} · {agent} · {short title}`, then the question, the choice, and why.
 
-From Wave 1, agents work in parallel, so each takes its own block of numbers instead of the next one: B2 D46–D50, B8 D70–D72, A1 D90–D99 so far. Pick an unused block of ten and keep to it. If two PRs still collide, A1 renumbers the later one when merging and fixes its references.
+From Wave 1, agents work in parallel, so decision IDs carry the agent: write `## {agent id}-D{n} · {short title}`, numbered within your own decisions (`B2-D1`, `B2-D2`, ...), so two PRs never pick the same number. `D1` to `D56` keep their numbers (A2's Checkpoint 1 PR owns `D46` to `D56`).
 
 ## D1 · A1 · Which server variables are required where
 
@@ -283,18 +283,18 @@ On Vercel the server also refuses a localhost or non-https `SUPABASE_URL`, the l
 
 **Why.** A real QR scan hands a universal link straight to the app, with no prompt, so this is closer to the real thing than the prompt is.
 
-## D90 · A1 · Parallel agents share one Mac without sharing state
+## A1-D1 · Parallel agents share one Mac without sharing state
 
 **Question.** Nine Wave 1 agents build and test on the same Mac at once. Simulators are global to the Mac, port 3000 can only be taken once, and `supabase db reset` on the one local stack would wipe everyone's data.
 
 **Choice.** `scripts/agent-env.sh <ID>` gives each agent its own Simulator names (`Glow A (B1)`), server port (3090 plus a fixed index: B1 3101 to B9 3109, C1 3111 to C4 3114, D1 3121 to D5 3125) and API URL, which `sim.sh` bakes into the Debug app. Everyone shares the `glow` Supabase stack for reads and writes through the API; anyone who needs to change the schema or reset takes their own stack with `--own-db` (a copy of their worktree's `supabase/`, project `glow-<id>`, ports 55000 plus 10 times the index). `pnpm db:reset` and `pnpm db:stop` refuse on the shared stack when `GLOW_AGENT_ID` is set, and `sim.sh teardown` won't delete the shared default Simulators without `--yes`.
 
-## D91 · A1 · macOS CI runs where it pays
+## A1-D2 · macOS CI runs where it pays
 
 **Question.** macOS minutes cost ten times Linux minutes on a private repo, and nine agents pushing drafts would run the iOS job hundreds of times.
 
 **Choice.** The macOS job runs on every push to main, and on a PR only once it's ready for review and changes `ios/`, `contracts/`, `scripts/sim.sh`, `scripts/codegen.sh`, the Swift lint configs or the CI workflow itself. While a PR is a draft, its owner proves iOS work locally with `scripts/sim.sh build`, `test` and `lint`. Main stays fully covered, so anything that slips through is caught on merge and reverted (Build plan: "reverted first and fixed second"). The codegen tool and Swift packages are cached.
 
-## D92 · A1 · Error codes come only from the contract
+## A1-D3 · Error codes come only from the contract
 
 **Choice.** `HttpError` takes only codes from the contract's `ErrorCode` enum (a type error otherwise), with `conflict(code, message)` for 409 and `unprocessable(code, message, { reason })` for 422. The app can rely on every code it might see being in `openapi.yaml`.
