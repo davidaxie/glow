@@ -43,7 +43,11 @@ export async function removeObjects(bucket: Bucket, paths: readonly string[]): P
   return removed;
 }
 
-type Listed = { readonly name: string; readonly createdAt: number | null; readonly folder: boolean };
+type Listed = {
+  readonly name: string;
+  readonly createdAt: number | null;
+  readonly folder: boolean;
+};
 
 /** Lists one level of a bucket. Folders come back with no id. */
 async function list(bucket: Bucket, prefix: string, max: number): Promise<Listed[]> {

@@ -32,7 +32,8 @@ export class World {
     const email = `b8-${tag()}@glow.test`;
     const password = `pw-${randomUUID()}`;
     const created = await this.db.auth.admin.createUser({ email, password, email_confirm: true });
-    if (created.error || !created.data.user) throw new Error(`createUser: ${created.error?.message}`);
+    if (created.error || !created.data.user)
+      throw new Error(`createUser: ${created.error?.message}`);
     const id = created.data.user.id;
     this.people.push(id);
     const profile = await this.db
@@ -50,7 +51,8 @@ export class World {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const session = await anon.auth.signInWithPassword({ email, password });
-    if (session.error || !session.data.session) throw new Error(`sign in: ${session.error?.message}`);
+    if (session.error || !session.data.session)
+      throw new Error(`sign in: ${session.error?.message}`);
     return { id, email, token: session.data.session.access_token } satisfies Person;
   }
 

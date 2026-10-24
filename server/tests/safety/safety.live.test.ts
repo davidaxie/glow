@@ -127,7 +127,10 @@ describe.skipIf(!LIVE)('blocks (P7)', () => {
     const c = await world.person();
     const cCard = await world.checkIn(c, roomId);
     const { block } = await routes();
-    const unseen = await call(block, '/api/blocks', a.token, { context: 'card', contextId: cCard.id });
+    const unseen = await call(block, '/api/blocks', a.token, {
+      context: 'card',
+      contextId: cCard.id,
+    });
     expect(unseen.status).toBe(404);
     const made = await call(block, '/api/blocks', a.token, {
       context: 'match',
@@ -151,7 +154,11 @@ describe.skipIf(!LIVE)('reports', () => {
       [a, 'hello from a'],
       [b, 'second from b'],
     ] as const) {
-      await world.db.rpc('send_message', { p_sender_id: sender.id, p_match_id: matchId, p_body: body });
+      await world.db.rpc('send_message', {
+        p_sender_id: sender.id,
+        p_match_id: matchId,
+        p_body: body,
+      });
     }
     const { report } = await routes();
     const res = await call(report, '/api/reports', a.token, {
@@ -221,7 +228,9 @@ describe.skipIf(!LIVE)('capture logging', () => {
     const { roomId, a } = await pair();
     const { capture } = await routes();
     const other = randomUUID();
-    expect((await call(capture, '/api/abuse/capture', a.token, { kind: 'screenshot', roomId })).status).toBe(204);
+    expect(
+      (await call(capture, '/api/abuse/capture', a.token, { kind: 'screenshot', roomId })).status,
+    ).toBe(204);
     expect(
       (await call(capture, '/api/abuse/capture', a.token, { kind: 'recording', roomId: other }))
         .status,
@@ -249,19 +258,36 @@ describe.skipIf(!LIVE)('delete account', () => {
     // Everything else a person can leave behind.
     const photoId = randomUUID();
     const photoPath = `${a.id}/${photoId}.jpg`;
-    const jpeg = Buffer.from(await (await import('sharp')).default({
-      create: { width: 8, height: 10, channels: 3, background: '#888' },
-    }).jpeg().toBuffer());
-    await world.db.storage.from('profile-photos').upload(photoPath, jpeg, { contentType: 'image/jpeg' });
+    const jpeg = Buffer.from(
+      await (
+        await import('sharp')
+      )
+        .default({
+          create: { width: 8, height: 10, channels: 3, background: '#888' },
+        })
+        .jpeg()
+        .toBuffer(),
+    );
+    await world.db.storage
+      .from('profile-photos')
+      .upload(photoPath, jpeg, { contentType: 'image/jpeg' });
     await world.db
       .from('profile_photos')
-      .insert({ id: photoId, user_id: a.id, path: photoPath, position: 0, moderation_status: 'approved' });
+      .insert({
+        id: photoId,
+        user_id: a.id,
+        path: photoPath,
+        position: 0,
+        moderation_status: 'approved',
+      });
     await world.db.from('devices').insert({
       user_id: a.id,
       apns_token: 'ab'.repeat(32),
       apns_environment: 'sandbox',
     });
-    await world.db.from('abuse_signals').insert({ user_id: a.id, room_id: roomId, kind: 'screenshot' });
+    await world.db
+      .from('abuse_signals')
+      .insert({ user_id: a.id, room_id: roomId, kind: 'screenshot' });
     const c = await world.person('man', ['woman']);
     const cCard = await world.checkIn(c, roomId);
     await world.deck(a, roomId);
@@ -272,12 +298,30 @@ describe.skipIf(!LIVE)('delete account', () => {
       p_reason: 'spam',
     });
 
+    // Every uuid column of every table (from PostgREST's own schema), for every ID of theirs.
+    // First prove the scan sees them everywhere they are.
+    const ids = [a.id, aCard.id, photoId, matchId];
+    const before = await rowsMentioning(live, ids);
+    expect(before).toEqual(
+      expect.arrayContaining([
+        'profiles',
+        'profile_photos',
+        'devices',
+        'checkins',
+        'card_views',
+        'taps',
+        'matches',
+        'messages',
+        'reports',
+        'abuse_signals',
+        'location_checks',
+      ]),
+    );
+
     const { deleteMe } = await routes();
     const res = await call(deleteMe, '/api/me', a.token);
     expect(res.status).toBe(204);
 
-    // Every uuid column of every table (from PostgREST's own schema), for every ID of theirs.
-    const ids = [a.id, aCard.id, photoId, matchId];
     const leftovers = await rowsMentioning(live, ids);
     expect(leftovers).toEqual([]);
 
@@ -333,9 +377,7 @@ describe.skipIf(!LIVE)('purge (P9)', () => {
     const warnings = sent.user.filter(
       (s) => s.event.type === 'checkin.expiring' && s.userIds.includes(a.id),
     );
-    expect(warnings).toEqual([
-      { userIds: [a.id], event: { type: 'checkin.expiring', roomId } },
-    ]);
+    expect(warnings).toEqual([{ userIds: [a.id], event: { type: 'checkin.expiring', roomId } }]);
   });
 
   it('sweeps photos whose row is gone, but not ones still being uploaded', async () => {
