@@ -1,8 +1,12 @@
-# Owner: A1. Two jobs on every PR and on main. Both must be green to merge.
+# Owner: A1. Ubuntu runs on every push to a PR and on main. macOS minutes cost 10x on a
+# private repo, so the macOS job runs on main, and on PRs only once they're ready for
+# review and touch the app, the contract or the iOS scripts. While a PR is a draft, prove
+# iOS work locally with scripts/sim.sh (AGENTS.md).
 name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   workflow_dispatch:
@@ -13,6 +17,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   ubuntu:
@@ -32,29 +37,23 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Look for A2's database and codegen
-        id: parts
-        run: |
-          if [ -f supabase/config.toml ]; then echo "supabase=true" >> "$GITHUB_OUTPUT"; else
-            echo "supabase=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::supabase/config.toml isn't on this branch yet, so pgTAP and the signed-in smoke test are skipped."
-          fi
-          if [ -f scripts/codegen.sh ]; then echo "codegen=true" >> "$GITHUB_OUTPUT"; else
-            echo "codegen=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::scripts/codegen.sh isn't on this branch yet, so the codegen staleness check is skipped."
-          fi
-
       - uses: supabase/setup-cli@v3
-        if: steps.parts.outputs.supabase == 'true'
         with:
           version: 2.122.0
 
       - name: Start local Supabase
-        if: steps.parts.outputs.supabase == 'true'
         run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta
 
+      # codegen.sh builds swift-openapi-generator from source the first time (about 4.5
+      # minutes) and keeps it here.
+      - name: Codegen tool cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/glow-codegen
+          key: glow-codegen-${{ runner.os }}-${{ hashFiles('scripts/codegen.sh') }}
+          restore-keys: glow-codegen-${{ runner.os }}-
+
       - name: Codegen is up to date
-        if: steps.parts.outputs.codegen == 'true'
         run: |
           scripts/codegen.sh
           if ! git diff --exit-code --stat; then
@@ -100,80 +99,95 @@ jobs:
           pnpm --filter server exec next start -p 3000 > /tmp/server.log 2>&1 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3000/ && break; sleep 1; done
           scripts/smoke.sh
-          if [ "${{ steps.parts.outputs.supabase }}" = "true" ]; then
-            GLOW_TOKEN="$(scripts/dev-token.sh)" scripts/smoke.sh
-          fi
+          GLOW_TOKEN="$(scripts/dev-token.sh)" scripts/smoke.sh
 
       - name: pgTAP
-        if: steps.parts.outputs.supabase == 'true'
         run: supabase test db
 
       - name: Server log
         if: failure()
         run: cat /tmp/server.log || true
 
+  changes:
+    name: Does this need the macOS job?
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ios: ${{ steps.decide.outputs.ios }}
+    steps:
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$DRAFT" = true ]; then
+            echo "ios=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Draft PR, so the macOS job waits until it's ready for review. Prove iOS work locally with scripts/sim.sh."
+            exit 0
+          fi
+          files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')"
+          pattern='^(ios/|contracts/|scripts/sim\.sh$|scripts/codegen\.sh$|\.swiftlint\.yml$|\.swiftformat$|\.github/workflows/ci\.yml$)'
+          if printf '%s\n' "$files" | grep -qE "$pattern"; then
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No changes to ios/, contracts/ or the iOS scripts, so the macOS job is skipped."
+          fi
+
   macos:
     name: macOS · iOS build and tests
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
     timeout-minutes: 60
+    env:
+      GLOW_CI: '1'
     steps:
       - uses: actions/checkout@v7
 
-      - name: Look for A3's iOS project
-        id: ios
-        run: |
-          if [ -f ios/project.yml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::ios/project.yml isn't on this branch yet, so the iOS build and tests are skipped."
-          fi
-
       - name: Tools
-        if: steps.ios.outputs.present == 'true'
         run: |
-          brew install xcodegen swiftlint swiftformat || brew upgrade swiftformat
+          brew install xcodegen swiftlint swiftformat jq || brew upgrade swiftformat
           xcodebuild -version
           xcodegen --version
           swiftlint version
           swiftformat --version
 
-      - name: SwiftLint
-        if: steps.ios.outputs.present == 'true' && hashFiles('.swiftlint.yml') != ''
-        run: swiftlint lint --strict --reporter github-actions-logging
+      - name: Swift package cache
+        uses: actions/cache@v6
+        with:
+          path: ios/build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('ios/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
 
-      - name: SwiftFormat
-        if: steps.ios.outputs.present == 'true' && hashFiles('.swiftformat') != ''
-        run: swiftformat --lint .
+      - name: SwiftFormat and SwiftLint
+        run: scripts/sim.sh lint
 
-      - name: Generate the Xcode project
-        if: steps.ios.outputs.present == 'true'
-        run: xcodegen generate --spec ios/project.yml
+      - name: xcodegen is deterministic and no .xcodeproj is in git
+        run: scripts/sim.sh verify-project
 
-      - name: Build and test on a Simulator
-        if: steps.ios.outputs.present == 'true'
-        env:
-          GLOW_CI: '1'
-        run: |
-          if [ -x scripts/sim.sh ]; then
-            scripts/sim.sh setup
-            scripts/sim.sh build
-            scripts/sim.sh test
-          else
-            echo "::warning::scripts/sim.sh isn't here yet, so CI calls xcodebuild directly."
-            project="$(ls -d ios/*.xcodeproj | head -n1)"
-            xcodebuild test \
-              -project "$project" \
-              -scheme Glow \
-              -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
-              -resultBundlePath build/Glow.xcresult \
-              CODE_SIGNING_ALLOWED=NO
-          fi
+      - name: Boot Glow A
+        run: scripts/sim.sh setup A
+
+      - name: Build
+        run: scripts/sim.sh build
+
+      - name: Unit and UI tests on Glow A
+        run: scripts/sim.sh test
 
       - name: Keep the test results
-        if: failure() && steps.ios.outputs.present == 'true'
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: ios-test-results
           path: |
-            build/*.xcresult
-            ios/build/**/*.xcresult
+            ios/build/results/*.xcresult
+            ios/build/logs/*.log
           if-no-files-found: ignore

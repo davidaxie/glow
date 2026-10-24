@@ -193,7 +193,7 @@ Up to nine agents build and test on the same Mac at once. Each works in its own 
 2. **Boot only Glow A** (`scripts/sim.sh setup A`) unless the test needs both people. Each booted Simulator costs memory and CPU every other agent shares.
 3. **Never run `supabase db reset`, `supabase stop` or `supabase start` on the shared `glow` stack** (API 54421, DB 54422). Other agents are using it. `pnpm db:reset` and `pnpm db:stop` refuse when `GLOW_AGENT_ID` is set. If you add a migration or need a reset, take your own stack: `eval "$(scripts/agent-env.sh <ID> --own-db)"` copies your worktree's `supabase/` into `.agent-state/<id>/`, starts it as `glow-<id>` on your own port block, and exports its `SUPABASE_URL` and keys (your server and `sim.sh build` use them). `--own-db --reset` reapplies your migrations and seed; `scripts/agent-env.sh <ID> --stop-db` stops it. `pnpm db:*` follows `GLOW_SUPABASE_WORKDIR`, so it targets your stack.
 4. **Clean up** with `scripts/sim.sh teardown` (and `--stop-db` if you took a stack) when your work is merged.
-5. **Prove iOS work locally while your PR is a draft.** Run `scripts/sim.sh build`, `test` and `lint`, and attach `scripts/sim.sh shot` screenshots to the PR.
+5. **Prove iOS work locally while your PR is a draft.** CI skips the macOS job on drafts to save macOS minutes (D47), so run `scripts/sim.sh build`, `test` and `lint` yourself and attach `scripts/sim.sh shot` screenshots to the PR. The macOS job runs once you mark the PR ready for review, if it touches `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh`, and on every push to main.
 
 | Agents | Server port | Own Supabase API (`--own-db`) |
 | --- | --- | --- |
@@ -240,7 +240,7 @@ The helper reads the operation from the generated contract and, before your hand
 ## Pull requests and integration
 
 - Branch `w{wave}/{agent id}-{short name}`, draft PR in your first hour, push often.
-- CI runs two jobs on every PR and on main. **Ubuntu**: install, typecheck, lint, Prettier, Vitest, `next build`, a smoke test of every endpoint, the codegen staleness check, and pgTAP on a local Supabase. **macOS**: SwiftLint, SwiftFormat, xcodegen, then the iOS build and tests on a Simulator.
+- CI has two jobs. **Ubuntu** runs on every push: install, the codegen staleness check, typecheck, lint, Prettier, Vitest, `next build`, a smoke test of every endpoint (signed out and signed in), and pgTAP on a local Supabase. **macOS** runs SwiftFormat, SwiftLint, the xcodegen determinism check, then the iOS build and tests on a Simulator, on every push to main and on ready-for-review PRs that touch the app, the contract or the iOS scripts (D47). Keep your PR a draft until it's done.
 - A PR is ready when every box of the spec's definition of done is ticked: no warnings under Swift 6 strict concurrency and the server typechecks; SwiftLint, SwiftFormat, ESLint and Prettier pass; new logic has tests and CI is green; new screens have Simulator screenshots, a recording, VoiceOver labels and a Dynamic Type check; no privacy invariant is weakened; `docs/HANDOFFS.md` is updated.
 - A1 reviews every PR against this file and merges with a squash, in the order in Build plan. A PR that breaks main gets reverted first and fixed second.
 - Contract changes: a PR labeled `contract-change` that updates `contracts/openapi.yaml`, regenerates both clients with `pnpm codegen` and updates `docs/SPEC.md`. A1 approves and regenerates clients on main after merging.
