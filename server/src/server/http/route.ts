@@ -196,7 +196,10 @@ async function readLimited(req: Request, limit: number): Promise<Uint8Array<Arra
     if (done) break;
     size += value.byteLength;
     if (size > limit) {
-      await reader.cancel();
+      // Stop reading and let go, rather than cancel(): on Node 24, cancelling a body
+      // that undici is still producing raises an unhandled rejection, and an unhandled
+      // rejection can stop the process. The unread rest is dropped with the request.
+      reader.releaseLock();
       throw tooLarge();
     }
     chunks.push(value);
