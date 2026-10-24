@@ -164,6 +164,7 @@ struct JoinProgressView: View {
                 Text(caption)
                     .glowFont(.footnote)
                     .foregroundStyle(.glowTextSecondary)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
             .padding(24)
@@ -202,6 +203,7 @@ struct JoinMessageView<Actions: View>: View {
                 Text(caption)
                     .glowFont(.footnote)
                     .foregroundStyle(.glowTextSecondary)
+                    .multilineTextAlignment(.center)
                 VStack(spacing: 12) {
                     actions
                 }
