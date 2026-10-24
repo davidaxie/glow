@@ -1,4 +1,5 @@
-// Owner: B4. Replace `notImplemented` with a handler that lives in `server/src/server/deck`.
-import { notImplemented, route } from '@/server/http';
+// Owner: B4. The handler lives in `server/src/server/deck`.
+import { getDeckRoute } from '@/server/deck/get-deck';
+import { route } from '@/server/http';
 
-export const POST = route('getDeck', notImplemented);
+export const POST = route('getDeck', getDeckRoute);

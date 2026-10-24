@@ -1,4 +1,5 @@
-// Owner: B4. Replace `notImplemented` with a handler that lives in `server/src/server/matches`.
-import { notImplemented, route } from '@/server/http';
+// Owner: B4. The handler lives in `server/src/server/matches`.
+import { route } from '@/server/http';
+import { listMatchesRoute } from '@/server/matches/list-matches';
 
-export const GET = route('listMatches', notImplemented);
+export const GET = route('listMatches', listMatchesRoute);

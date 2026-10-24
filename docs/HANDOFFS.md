@@ -81,6 +81,12 @@ _A1's answers, 2026-10-24._ 1: done, `route()` calls `limitRequest(operationId, 
 _From B2, 2026-10-24._ Branch `w1/b2-rooms`.
 
 _All three answered in A1's #13, thanks._ 1: the ownership row covers `server/app/api/rooms/[id]/route.ts`, and B2 took over the stub. 2: B2 reads `TESTFLIGHT_URL` for the `/r/{slug}` page and `APPLE_APP_ID` for the link file (B2-D3). 3: B2 builds on the generated registry.
+_From B4, 2026-10-24._ PR [#9](https://github.com/davidaxie/glow/pull/9).
+
+1. **Integration tests in CI.** B4's integration tests (`server/tests/{deck,taps,matches}/*.integration.test.ts`) run inside `pnpm test` whenever `CI` is set, against the Supabase CI starts, reading keys from the `server/.env.local` that `env-setup.sh --force` writes. They take about 20 seconds, refuse any non-local Supabase, and delete everything they make before pgTAP runs (B4-D6). Nothing to change in `ci.yml` unless you'd rather run them as their own step (`GLOW_INTEGRATION=1 pnpm --filter server exec vitest run tests/deck tests/taps tests/matches`).
+2. **A shared service-role client.** `server/src/server/deck/db.ts` has `serviceDb()` and `rpc(fn, args)`, which maps the database's P0001 codes to HTTP errors as CONTRACTS.md describes (404, 400, 409 with the same code, 503 when PostgREST can't reach the database or times out). Other owners will need the same. If you want one in `server/src/server/db/`, B4 is happy to move it there.
+3. **Auth on every request (D3) is not the deck's bottleneck.** On B4's own stack with 300 people, Supabase Auth's token check alone is 2 ms p50 (4 ms p95) one at a time and 29 ms p50 (82 ms p95) at 25 in flight, against 20 ms and 97 ms for `get_deck` before B4's tuning. No change proposed; full numbers are in PR #9.
+4. ~~**Rate limits.**~~ Done in 33c16c2, thanks: `route()` limits every route, so B4's handlers no longer call `rateLimit` themselves.
 
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
@@ -110,8 +116,12 @@ _From A3, 2026-10-24._
 
 ### For A2
 
-_A2's answers, 2026-10-24:_ 1 done (`server/src/contracts/operations.ts`, your shape). 2 done (your names; admin operations defined). 3 adopted (see For A1, item 3). 4 as listed. 5 done. 6 as listed. 7 done.
+_From B4, 2026-10-24._ PR [#9](https://github.com/davidaxie/glow/pull/9).
 
+1. **`0004_b4_deck_set_based.sql` replaces three of your helpers.** `private.open_checkin`, `private.active_checkin` and `private.pair_eligible` keep their names, arguments and answers, but now read three views, `private.open_checkins`, `private.active_cards` and `private.eligible_pairs`, which `get_deck` joins for the whole room at once (B4-D5). Every pgTAP test passes on top of it. Please put any future change to who sees whom in those views, so the deck, taps, `card_visible_to`, Realtime and glow all follow.
+2. **Lockdown for views.** `010_lockdown` checks tables (`relkind` r and p). The new views are closed to `anon` and `authenticated` (revoked explicitly, plus your default privileges), but a check over `relkind = 'v'` too would keep it that way.
+
+_A2's answers, 2026-10-24:_ 1 done (`server/src/contracts/operations.ts`, your shape). 2 done (your names; admin operations defined). 3 adopted (see For A1, item 3). 4 as listed. 5 done. 6 as listed. 7 done.
 
 _From A1, 2026-10-24._
 
@@ -493,6 +503,87 @@ after(() => notifyRoom(roomId, { type: 'deck.changed', roomId }));
 - `ios/fixtures/push/` has one `.apns` per event (`scripts/sim.sh push A glow_started`). The ones with a push are byte for byte what the server sends (a Vitest test checks); the ones without are marked Simulator-only stand-ins (B5-D2).
 
 **Still mocked**: `PushModule.live` and `RealtimeModule.live` still return the AppCore mocks; push sending is skipped.
+
+### B4 · Deck and matching engine
+
+_2026-10-24, Wave 1._ PR [#9](https://github.com/davidaxie/glow/pull/9) on `w1/b4-deck`.
+
+**Built**
+
+- `POST /api/rooms/{id}/deck` (`server/src/server/deck/get-deck.ts`): validates the filters (including the contract's `uniqueItems`, B4-D1), calls `get_deck` (every deck rule, the filters, the view cap and the all-day shuffle), and returns up to 10 cards, each with a 60-second image link signed for this viewer. Cards are only `id`, `image`, `tags`, `tappedByMe` (P1).
+- `POST /api/rooms/{id}/taps` (`server/src/server/taps/create-tap.ts`): calls `record_tap`. `sent` is exactly `{ result, tapsLeftToday }` and tells nobody (P5); `mutual` adds `matchId` and sends `match.created` to both people after the response (B4-D3).
+- `GET /api/matches` (`server/src/server/matches/list-matches.ts`): calls `list_matches`, returns only MatchSummary fields, and sends A2's settled timeouts as events (`choice_timeout` → `match.choice`, `glow_expired` → `glow.ended`, to both people).
+- `server/src/server/deck/db.ts`: the service-role client and `rpc()`, mapping the database's error codes to HTTP (CONTRACTS.md).
+- `supabase/migrations/0004_b4_deck_set_based.sql`: the deck rules written once as views, read by both the per-card helpers and a set-based `get_deck` (B4-D5). About 20 ms to 2 ms of database time per deck with 300 people; query plans are in PR #9.
+- Tests: unit tests for all three routes; integration tests against a real local Supabase for every deck rule, filters, paging, the view cap and shuffle, tap targets (404), the cap (409), mutual taps, 50 pairs tapping at once (twice), P5 (responses, counts, events and timing) and the matches list (B4-D6); and the 300-person HTTP load test, `server/tests/deck/load.ts`.
+
+**Still mocked** (swapped in one file, `server/src/server/deck/dependencies.ts`):
+
+- B3's `cardImageLink(cardId, viewerId)` (PR #7): `server/src/server/deck/stubs/card-link.ts` has B3's exact signature and makes the same link B3's image route checks.
+
+Real: B5's `notify(userIds, event)` from `@/server/notify` (#15), and rate limits, which `route()` applies with B8's `deck`, `taps` and `api` policies before each handler runs. Tests mock `notify` to see who would be told what.
+
+**Commands**
+
+```
+GLOW_INTEGRATION=1 pnpm --filter server exec vitest run tests/deck tests/taps tests/matches   # needs a local Supabase
+pnpm --filter server build && PORT=3104 pnpm --filter server start &   # then:
+node server/tests/deck/load.ts                                           # 300 people, then 50 simultaneous pairs
+```
+
+**Next wave needs** (C1 builds the deck screen, C2 the mutual moment and the matches list)
+
+Deck, `POST /api/rooms/{id}/deck` with `{ "filters": { "gender": ["woman"], "topColor": ["green", "blue"], "extras": ["glasses"] }, "offset": 0 }` (every field optional; an empty list means any):
+
+```json
+{
+  "cards": [
+    {
+      "id": "bbbbbbbb-0000-4000-8000-000000000001",
+      "image": { "url": "/api/cards/bbbbbbbb-0000-4000-8000-000000000001/image?exp=1793040060&sig=…", "expiresAt": "2026-10-24T20:16:00.000Z" },
+      "tags": { "topColor": "green", "hairLength": "short", "hairColor": "brown", "extras": ["glasses"] },
+      "tappedByMe": false
+    }
+  ],
+  "viewsLeftToday": 49,
+  "hasMore": true,
+  "nextOffset": 10
+}
+```
+
+- Page with `offset: nextOffset` until `hasMore` is false. Refreshing gives the same order all day. Seeing a card again is free; `viewsLeftToday` counts different cards.
+- An empty page says why in `emptyReason`: `quiet` (nobody else here fits you yet), `no_match` (nobody fits these filters: "Nobody fits that yet. Try fewer details."), `view_limit_reached`, `paused` (you're paused) or `checkin_ended` (your check-in expired, ended, was removed, or the room ended).
+- The image link lasts 60 seconds and works only with this person's token. Fetch it with the bearer token; when it expires, fetch the deck page again for a fresh link.
+- 404 means you never checked in to this room (or it doesn't exist). 400 is a filter value outside the contract or a repeated one. 429 has `Retry-After`.
+- Refetch the deck on `deck.changed` (someone paused, left or blocked).
+
+Tap, `POST /api/rooms/{id}/taps` with `{ "cardId": "…" }`:
+
+```json
+{ "result": "sent", "tapsLeftToday": 2 }
+{ "result": "mutual", "tapsLeftToday": 1, "matchId": "64bfd966-bf7f-426a-b7aa-f0dc371bae1a" }
+```
+
+- `sent` promises nothing about the other person (P5): show "They won't know unless they tap you too." Tapping the same card again is free and answers `sent` again.
+- When two people tap each other at the same moment, one gets `sent` and the other `mutual` (B4-D4). Both get `match.created` on `user:{id}` (and a push). Open the mutual moment on `match.created` or on a `mutual` reply, whichever comes first.
+- 404: the card isn't in your deck right now (they left, paused, blocked you, or you matched). Drop it from the deck. 409 `tap_limit_reached`: no taps left today in this room.
+- After a match, the card leaves both decks.
+
+Matches, `GET /api/matches`:
+
+```json
+{
+  "matches": [
+    { "id": "64bfd966-…", "status": "choosing", "firstName": "Blake", "roomName": "Glow demo room (test data)",
+      "createdAt": "2026-10-24T20:10:00.000Z", "choiceDeadline": "2026-10-24T20:20:00.000Z" },
+    { "id": "453803c0-…", "status": "met", "firstName": "Casey", "roomName": "Glow demo room (test data)",
+      "createdAt": "2026-10-24T19:00:00.000Z", "choiceDeadline": "2026-10-24T19:10:00.000Z", "lastMessageAt": "2026-10-24T19:40:00.000Z" }
+  ]
+}
+```
+
+- Newest first. "Now" is `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Ended matches (unmatched or blocked) never appear. A choice window that ran out shows as `chatting`, and both people get `match.choice`.
+- No user IDs anywhere: the match ID is the only handle (D20). `GET /api/matches/{id}` (C2) has the photo count and the choice.
 
 ### A2 · Contracts and database
 
