@@ -41,6 +41,22 @@ Things only David can do. None of these block Wave 0 work locally.
 16. **Point `xcode-select` at Xcode** (from B3). The Claude Code iOS Simulator tool refuses to run while `xcode-select` points at the Command Line Tools, so agents can't tap through the app with it. Run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` once. Until then agents drive screens with XCUITest and `scripts/sim.sh shot`, which works but is slower.
 19. **A real sandbox push** (from B5). The `xcode-select` items above (from B6 and B3) also let agents tap notifications in the Simulator. Once the APNs key from item 11.3 exists, run `server/tests/notify/apns-live.test.ts` once with `APNS_*` and `APNS_TEST_DEVICE_TOKEN` set, to check a real push through Apple's sandbox.
 
+## Checkpoint 1 · Contracts (after Wave 0)
+
+_Run by the orchestrator, to whom David handed the checkpoint decisions; written up by A1, 2026-10-24. Result: **pass**. Wave 1 started on main at 51c72dd and later._
+
+**What was checked** (Build plan: "Read the schema, `contracts/openapi.yaml` and the privacy invariants. Launch the empty app in the Simulator.")
+
+- **Contract and schema review.** No blockers. Six should-fixes, all landed in A2's `contract-change` PR #14 (migration `0002_a2_checkpoint1.sql`, D46 to D56): `service_role` default privileges for later migrations; a name-free `match.recheck` push when a Find needs a fresh location check; `start_glow` falls back to chat instead of raising; `create_checkin` needs a passed join location check; `POST /api/me/onboarding/complete` and admin review of held profile photos; settled timeouts returned so the calling route sends the events. Also in #14: no tap counts in room metrics, an exact daily tap count (`room_days`), the deck's `emptyReason` after purge, and a codegen check that ties `openapi.yaml` limits to `constants.json`. A1 added 501 stubs for the four new operations and updated `docs/SPEC.md` (endpoints, events, functions, tables) in the same PR.
+- **Privacy invariants.** Copied word for word into `AGENTS.md` (a test keeps them in step with the build plan). The server enforces P1 (replies carry only contract fields), P2 (logs and Sentry redact coordinates), P11 (403 becomes 404) in the route helper, and A2's pgTAP suite covers the database side.
+- **The empty app.** Verified from A3's Simulator shots and recordings (`docs/shots/launch-rooms-*.png`, `scan-demo-*.png`, `push-match-created-A.png`, `skeleton-scan-and-push-*.mp4`) and by building and testing main locally.
+
+**Main at Checkpoint 1**: tagged `wave-0-done` at e53053a (the #14 merge). Wave 0 merges: #1 cab8f97 (A1 skeleton), #2 e51b0d2 (A2 contracts and database), #3 51c72dd (A3 iPhone skeleton, A3's decisions renumbered to D33–D45), #14 e53053a (Checkpoint 1 fixes), plus A1's integration PRs #4 443bfc0 (parallel agents), #13 cbc563f (generated registry and stubs), #28, #30 and #31.
+
+**CI**: the last fully green GitHub Actions run on main is 40120018085 at 443bfc0. Both jobs ran everything, including codegen staleness, pgTAP (390 tests) and the iOS build and tests; 40118791968 at 51c72dd did the same. GitHub Actions stopped starting jobs at about 18:40 UTC (billing, Needs David 12), so main and PRs are verified with `scripts/ci-local.sh` since: `ci-local A1 53877f0: ubuntu pass, macos pass` for #14.
+
+**Not done at this checkpoint**: no TestFlight build yet (Build plan: end of each wave), because there's no Apple Developer account (Needs David 11). No Vercel preview URL (Needs David 1).
+
 ## Requests
 
 ### For A1
@@ -136,6 +152,11 @@ _From A3, 2026-10-24._
 2. **Service protocol ownership** (D40): please add to the iOS table that from Wave 1 each service owner owns its protocol and mock in AppCore: `AppCore/Services/SessionService.swift` and `AppCore/Mocks/PreviewSessionService.swift` (B1), `LocationService` (B2), `ImagingService` (B3), `PushService` and `RealtimeService` (B5). The rest of AppCore stays A3's (A1's, once A3 is done).
 3. **Who owns `Package.swift` and `project.yml` after Wave 0.** Owners will ask under A3 for dependencies and routes. With A3 finished, those requests land on you. The how-tos are in A3's Status section below.
 4. **macOS CI.** `scripts/sim.sh setup`, `build` and `test` run unattended with `GLOW_CI=1` (or `CI`): no signing, no prompts, exact package versions from `ios/Package.resolved`, non-zero exit on any failure, result bundles in `ios/build/results/`. Two suggestions for `ci.yml`: cache `ios/build/SourcePackages` keyed on `hashFiles('ios/Package.resolved')` (it saves the package clones on every run), and point the failure artifact at `ios/build/results/*.xcresult` (already covered by your `ios/build/**/*.xcresult` glob). `scripts/sim.sh lint` runs exactly your SwiftLint and SwiftFormat steps, and `scripts/sim.sh verify-project` checks that xcodegen is deterministic and no `.xcodeproj` is in git, if you want a step for it.
+
+_A1's answers, 2026-10-24._
+
+- A2 1: done in #13. `server/src/server/http/operations.ts` re-exports the generated registry, the placeholder is deleted, and `pnpm stubs` (`scripts/stub-routes.mjs`) adds a 501 stub for any operation without a route file, using `operationInfo` for the owner. 2: the codegen cache is in `ci.yml` (A1-D2). `codegen.sh --verify` on macOS is left out to save macOS minutes. 3: adopted (A1-D3). 4: as listed. 5: in "Writing a server route" in `AGENTS.md`. 6: done in #13 and #14. 7 and 8: thanks. Checkpoint 1 fixes: merged as #14, with stubs for the four new operations and the spec updated in the same PR.
+- A3 1: kept, lightly reworded, with D41. 2: done in #4 (D40 rows). 3: accepted; ask under **For A1**. 4: done, the macOS job caches `ios/build/SourcePackages` on `ios/Package.resolved`, runs `sim.sh lint` and `sim.sh verify-project`, and keeps `ios/build/results/*.xcresult` on failure.
 
 ### For A2
 
@@ -833,29 +854,23 @@ _2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a
 
 ### A1 · Integrator and repo
 
-_2026-10-24, Wave 0._ PR [#1](https://github.com/davidaxie/glow/pull/1) on `w0/a1-repo`.
+_2026-10-24, Integrator mode._
 
-**Built**
+**Merged into main**: A1's skeleton (#1), A2's contracts and database (#2), A3's iPhone skeleton (#3, rebased onto #2, with A3's decisions renumbered from D10–D22 to D33–D45), parallel-agent isolation (#4), the generated registry and stubs (#13), A2's Checkpoint 1 contract fixes with their stubs and spec updates (#14), the app test that accepts per-agent URLs (#28), real SwiftFormat checks in worktrees (#30), local CI (#31), rate limits in `route()` (#32), the Simulator and stack caps with union-merged docs (#33), the xcodebuild cap (#36), and own-stack and stale-slot fixes (#40).
 
-- pnpm workspace (`package.json`, `pnpm-workspace.yaml`) with one package, `server`: Next.js 16.4 App Router, TypeScript 6 strict, ESLint 9 with the Next config, Prettier, Vitest 4. Node 24 (`.nvmrc`).
-- `server/src/env.ts`: every server variable validated with zod, with local, preview and production profiles (D1). A wrong environment stops `next dev`, `next build` and `next start` with a message naming each variable. `server/.env.example` describes all of them.
-- `server/src/server/auth`: `requireUser(req)` checks the Supabase access token with Supabase Auth (D3), `requireCron(req)` checks the cron secret in constant time.
-- `server/src/server/http`: the typed route helper, `route(operationId, handler)`. Sign-in from the contract, 404 for malformed IDs and for any 403 (P11), 400 with field paths but no values, only contract fields in replies (P1), `no-store` everywhere, and 500s logged without bodies (P2). See "Writing a server route" in `AGENTS.md`.
-- A route file answering 501 for all 32 endpoints in the spec's API contract, a JSON 404 for any other `/api` path, and `proxy.ts` hiding `/api/dev/*` unless test sign-in is on (D6).
-- `server/src/server/log.ts` (redacting JSON logger) and Sentry in `server/instrumentation.ts`, off unless `SENTRY_DSN` is set and collecting nothing personal (D7).
-- Scripts: `scripts/env-setup.sh`, `scripts/dev-token.sh`, `scripts/smoke.sh`.
-- CI (`.github/workflows/ci.yml`) and Vercel deploys (`.github/workflows/vercel.yml`, `server/vercel.json`).
-- `AGENTS.md` with the rules and privacy invariants word for word, the ownership map from every brief, and every command. Tests fail if those sections drift from the build plan or if a file in git has no owner.
+**Built since Wave 0**
 
-**Commands**: see the Commands section of `AGENTS.md`. The short version: `pnpm install`, `pnpm db:start`, `pnpm env:setup`, `pnpm dev`, then `pnpm check` before you push.
+- **Parallel agents** (A1-D1): `scripts/agent-env.sh <ID>` (own Simulators, port, API URL, and `--own-db`), `sim.sh` reads `GLOW_SIM_A`, `GLOW_SIM_B` and `GLOW_API_BASE_URL` and has `setup A` and `teardown`, and `scripts/db.sh` behind `pnpm db:*` protects the shared stack. See "Many agents on one Mac" in `AGENTS.md`.
+- **Generated registry wired**: every operation in `contracts/openapi.yaml` (52 now) has a route file that answers 501 until its owner builds it. `pnpm stubs` adds stubs after a contract change, and `scripts/smoke.sh` reads the endpoint list from the registry.
+- **Local CI** (A1-D4): `scripts/ci-local.sh <ID>` runs both jobs in the agent's slot and prints a summary for the PR.
+- **CI** (A1-D2): the codegen tool and Swift packages are cached; macOS runs on main and on ready-for-review PRs that touch the app, the contract or the iOS scripts.
+- **Errors** (A1-D3) and **rate limits**: contract error codes only, with 409 and 422 helpers and `reason`; every route is rate limited by B8's policies right after sign-in.
 
-**Ownership map**: see the Ownership map in `AGENTS.md`.
+**Commands**: see Commands, "Many agents on one Mac" and "While GitHub Actions is down" in `AGENTS.md`.
 
 **Preview URL**: none yet. Vercel isn't linked (Needs David, item 1).
 
-**Still mocked**: the operation registry. `server/src/server/http/contract-placeholder.ts` stands in for A2's generated `server/src/contracts` with the right paths, methods, auth and path params, and empty request and response schemas. A1 swaps it for the generated registry when A2's PR merges, then deletes the placeholder.
-
-**Next wave needs**: build your endpoint by replacing `notImplemented` in its route file (the owner is named at the top of each file). Get a local token with `pnpm -s dev:token`, and check every endpoint with `pnpm smoke`.
+**Still mocked**: nothing in A1's paths. Every endpoint answers 501 until its owner builds it.
 
 ### A3 · iPhone app skeleton
 
