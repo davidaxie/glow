@@ -2,7 +2,7 @@
  * POST /api/rooms/{id}/checkin (createCheckin): join ticket plus blurred photo plus tags
  * creates my card.
  *
- * 1. Rate limit (B8's `checkin` policy).
+ * 1. Rate limit (B8's `checkin` policy, applied by the route helper for every operation).
  * 2. The join ticket must be for this person and this room, and still fresh (B2). Otherwise
  *    422 `join_ticket_invalid`: the app sends them back through the location check.
  * 3. Moderation (B8) checks the photo as uploaded. Card photos fail closed: a rejection is
@@ -18,7 +18,7 @@ import type { CardTags, MyCheckin } from '@/contracts';
 import { unprocessable, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
 import { httpErrorFor } from './db-errors';
-import { moderateImage, photoRejected, rateLimit, verifyJoinTicket } from './deps';
+import { moderateImage, photoRejected, verifyJoinTicket } from './deps';
 import { cardImageLink } from './signed-link';
 import { CARD_BUCKET, serviceClient } from './supabase';
 import { decodePhoto, normalizeCardPhoto } from './upload';
@@ -60,8 +60,6 @@ async function removeCardPhotos(paths: readonly string[]): Promise<void> {
 export const createCheckin: RouteHandler<'createCheckin'> = async ({ user, params, body }) => {
   const roomId = params.id;
   const userId = user.id;
-
-  await rateLimit(userId, 'checkin');
 
   const ticket = await verifyJoinTicket(body.ticket, { userId, roomId });
   if (!ticket) {

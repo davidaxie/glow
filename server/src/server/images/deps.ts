@@ -1,8 +1,8 @@
 /**
  * What check-in needs from other agents' modules, in one place.
  *
- * - `moderateImage`, `photoRejected` (B8, `@/server/moderation`) and `rateLimit` (B8,
- *   `@/server/ratelimit`): the real modules.
+ * - `moderateImage`, `photoRejected` (B8, `@/server/moderation`): the real module. Rate limits
+ *   come from the route helper (`limitRequest`), so check-in doesn't call them itself.
  * - `verifyJoinTicket` (B2, `@/server/rooms`): a TEMPORARY stub with exactly B2's signature,
  *   until B2's module merges; then this file re-exports B2's and the stub goes. It fails
  *   closed: only tests and local scripts can make a ticket it accepts.
@@ -106,4 +106,3 @@ export function signJoinTicketForTests(
 // ---------------------------------------------------------------------------- B8, real
 
 export { moderateImage, photoRejected } from '@/server/moderation';
-export { rateLimit } from '@/server/ratelimit';
