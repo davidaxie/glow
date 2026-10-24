@@ -504,6 +504,87 @@ after(() => notifyRoom(roomId, { type: 'deck.changed', roomId }));
 
 **Still mocked**: `PushModule.live` and `RealtimeModule.live` still return the AppCore mocks; push sending is skipped.
 
+### B4 · Deck and matching engine
+
+_2026-10-24, Wave 1._ PR [#9](https://github.com/davidaxie/glow/pull/9) on `w1/b4-deck`.
+
+**Built**
+
+- `POST /api/rooms/{id}/deck` (`server/src/server/deck/get-deck.ts`): validates the filters (including the contract's `uniqueItems`, B4-D1), calls `get_deck` (every deck rule, the filters, the view cap and the all-day shuffle), and returns up to 10 cards, each with a 60-second image link signed for this viewer. Cards are only `id`, `image`, `tags`, `tappedByMe` (P1).
+- `POST /api/rooms/{id}/taps` (`server/src/server/taps/create-tap.ts`): calls `record_tap`. `sent` is exactly `{ result, tapsLeftToday }` and tells nobody (P5); `mutual` adds `matchId` and sends `match.created` to both people after the response (B4-D3).
+- `GET /api/matches` (`server/src/server/matches/list-matches.ts`): calls `list_matches`, returns only MatchSummary fields, and sends A2's settled timeouts as events (`choice_timeout` → `match.choice`, `glow_expired` → `glow.ended`, to both people).
+- `server/src/server/deck/db.ts`: the service-role client and `rpc()`, mapping the database's error codes to HTTP (CONTRACTS.md).
+- `supabase/migrations/0004_b4_deck_set_based.sql`: the deck rules written once as views, read by both the per-card helpers and a set-based `get_deck` (B4-D5). About 20 ms to 2 ms of database time per deck with 300 people; query plans are in PR #9.
+- Tests: unit tests for all three routes; integration tests against a real local Supabase for every deck rule, filters, paging, the view cap and shuffle, tap targets (404), the cap (409), mutual taps, 50 pairs tapping at once (twice), P5 (responses, counts, events and timing) and the matches list (B4-D6); and the 300-person HTTP load test, `server/tests/deck/load.ts`.
+
+**Still mocked** (each with the owner's exact signature, swapped in one file, `server/src/server/deck/dependencies.ts`):
+
+- B3's `cardImageLink(cardId, viewerId)` (PR #7): `server/src/server/deck/stubs/card-link.ts` makes the same link B3's image route checks.
+- B5's `notify(userIds, event)` (PR #15): `server/src/server/deck/stubs/notify.ts` logs the event type only.
+- B8's `rateLimit(key, policy)` (PR #12): `server/src/server/deck/stubs/ratelimit.ts` allows everything. The daily caps are in the database either way.
+
+**Commands**
+
+```
+GLOW_INTEGRATION=1 pnpm --filter server exec vitest run tests/deck tests/taps tests/matches   # needs a local Supabase
+pnpm --filter server build && PORT=3104 pnpm --filter server start &   # then:
+node server/tests/deck/load.ts                                           # 300 people, then 50 simultaneous pairs
+```
+
+**Next wave needs** (C1 builds the deck screen, C2 the mutual moment and the matches list)
+
+Deck, `POST /api/rooms/{id}/deck` with `{ "filters": { "gender": ["woman"], "topColor": ["green", "blue"], "extras": ["glasses"] }, "offset": 0 }` (every field optional; an empty list means any):
+
+```json
+{
+  "cards": [
+    {
+      "id": "bbbbbbbb-0000-4000-8000-000000000001",
+      "image": { "url": "/api/cards/bbbbbbbb-0000-4000-8000-000000000001/image?exp=1793040060&sig=…", "expiresAt": "2026-10-24T20:16:00.000Z" },
+      "tags": { "topColor": "green", "hairLength": "short", "hairColor": "brown", "extras": ["glasses"] },
+      "tappedByMe": false
+    }
+  ],
+  "viewsLeftToday": 49,
+  "hasMore": true,
+  "nextOffset": 10
+}
+```
+
+- Page with `offset: nextOffset` until `hasMore` is false. Refreshing gives the same order all day. Seeing a card again is free; `viewsLeftToday` counts different cards.
+- An empty page says why in `emptyReason`: `quiet` (nobody else here fits you yet), `no_match` (nobody fits these filters: "Nobody fits that yet. Try fewer details."), `view_limit_reached`, `paused` (you're paused) or `checkin_ended` (your check-in expired, ended, was removed, or the room ended).
+- The image link lasts 60 seconds and works only with this person's token. Fetch it with the bearer token; when it expires, fetch the deck page again for a fresh link.
+- 404 means you never checked in to this room (or it doesn't exist). 400 is a filter value outside the contract or a repeated one. 429 has `Retry-After`.
+- Refetch the deck on `deck.changed` (someone paused, left or blocked).
+
+Tap, `POST /api/rooms/{id}/taps` with `{ "cardId": "…" }`:
+
+```json
+{ "result": "sent", "tapsLeftToday": 2 }
+{ "result": "mutual", "tapsLeftToday": 1, "matchId": "64bfd966-bf7f-426a-b7aa-f0dc371bae1a" }
+```
+
+- `sent` promises nothing about the other person (P5): show "They won't know unless they tap you too." Tapping the same card again is free and answers `sent` again.
+- When two people tap each other at the same moment, one gets `sent` and the other `mutual` (B4-D4). Both get `match.created` on `user:{id}` (and a push). Open the mutual moment on `match.created` or on a `mutual` reply, whichever comes first.
+- 404: the card isn't in your deck right now (they left, paused, blocked you, or you matched). Drop it from the deck. 409 `tap_limit_reached`: no taps left today in this room.
+- After a match, the card leaves both decks.
+
+Matches, `GET /api/matches`:
+
+```json
+{
+  "matches": [
+    { "id": "64bfd966-…", "status": "choosing", "firstName": "Blake", "roomName": "Glow demo room (test data)",
+      "createdAt": "2026-10-24T20:10:00.000Z", "choiceDeadline": "2026-10-24T20:20:00.000Z" },
+    { "id": "453803c0-…", "status": "met", "firstName": "Casey", "roomName": "Glow demo room (test data)",
+      "createdAt": "2026-10-24T19:00:00.000Z", "choiceDeadline": "2026-10-24T19:10:00.000Z", "lastMessageAt": "2026-10-24T19:40:00.000Z" }
+  ]
+}
+```
+
+- Newest first. "Now" is `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Ended matches (unmatched or blocked) never appear. A choice window that ran out shows as `chatting`, and both people get `match.choice`.
+- No user IDs anywhere: the match ID is the only handle (D20). `GET /api/matches/{id}` (C2) has the photo count and the choice.
+
 ### A2 · Contracts and database
 
 _2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts` (merged), then the Checkpoint 1 fixes in PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.
