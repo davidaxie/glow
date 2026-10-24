@@ -3,7 +3,7 @@ import { resetEnvCacheForTests } from '@/env';
 import { LOCAL_ENV } from './helpers/env';
 
 // Every test starts from a clean, valid local env and no cached getEnv().
-beforeEach(() => {
+beforeEach(async () => {
   for (const key of Object.keys(process.env)) {
     if (key in LOCAL_ENV || key.startsWith('APNS_') || key.startsWith('UPSTASH_')) {
       delete process.env[key];
@@ -13,6 +13,12 @@ beforeEach(() => {
   delete process.env.VERCEL_ENV;
   delete process.env.SENTRY_DSN;
   delete process.env.ALLOW_TEST_LOGIN;
+  // Never call the real Claude API from tests, even with a key exported in the shell (B8).
+  delete process.env.ANTHROPIC_API_KEY;
   Object.assign(process.env, LOCAL_ENV);
   resetEnvCacheForTests();
+  // Fresh in-memory rate limit counts for every test. Imported here, not at the top, so a
+  // test file's vi.mock calls (for example of the operation registry) apply first.
+  const { setRateLimitStoreForTests } = await import('@/server/ratelimit');
+  setRateLimitStoreForTests(undefined);
 });

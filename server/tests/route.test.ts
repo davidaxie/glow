@@ -311,6 +311,33 @@ describe('route helper', () => {
     expect(tooBig.status).toBe(413);
   });
 
+  it('rate limits every route after sign-in, before the handler runs', async () => {
+    await mockVerify();
+    const { setRateLimitStoreForTests } = await import('@/server/ratelimit');
+    const keys: string[] = [];
+    setRateLimitStoreForTests({
+      name: 'test',
+      hit: async (key) => {
+        keys.push(key);
+        return { allowed: false, remaining: 0, resetAt: Date.now() + 30_000 };
+      },
+    });
+    const handler = vi.fn();
+    const res = await call(testRoute('echo', handler), jsonBody({ ...COORDS, note: 'x' }));
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('30');
+    expect((await res.json()).error.code).toBe('rate_limited');
+    expect(handler).not.toHaveBeenCalled();
+    // The store only ever sees an HMAC, never the user ID.
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toContain(USER_ID);
+
+    // Signed out, the 401 comes first and nothing is counted.
+    const signedOut = await call(testRoute('echo', handler), { token: null });
+    expect(signedOut.status).toBe(401);
+    expect(keys).toHaveLength(1);
+  });
+
   it('answers 501 for stubs, after sign-in', async () => {
     await mockVerify();
     const stub = testRoute('echo', notImplemented);

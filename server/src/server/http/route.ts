@@ -8,7 +8,8 @@
  *   });
  *
  * For each request it, in order:
- * 1. checks sign-in from the operation's `auth` (401, or 503 if Supabase Auth is down)
+ * 1. checks sign-in from the operation's `auth` (401, or 503 if Supabase Auth is down), then
+ *    B8's rate limit for the operation, per person or per IP (429 with Retry-After)
  * 2. validates path params (invalid means it can't exist, so 404), query and body (400)
  * 3. runs the handler
  * 4. validates the reply against the contract and sends only the fields the contract
@@ -22,6 +23,7 @@ import type { NextRequest } from 'next/server';
 import type { z } from 'zod';
 import { requireCron, requireUser, type AuthUser } from '@/server/auth';
 import { logger } from '@/server/log';
+import { limitRequest } from '@/server/ratelimit';
 import { captureError } from '@/server/observability';
 import {
   HttpError,
@@ -93,6 +95,7 @@ export function route<Id extends OperationId>(
     let response: Response;
     try {
       const user = await authenticate(op, req);
+      await limitRequest(operationId, req, user);
       const params = await parseParams(op, ctx);
       if (isStub) notImplemented();
       const query = parseQuery(op, req);
