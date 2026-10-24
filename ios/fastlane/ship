@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Glow's release command. Owner: B9. See docs/RELEASE.md.
+#
+#   ios/fastlane/ship release          ship main to TestFlight: tag origin/main as beta-<UTC time> and
+#                                      push the tag; the "Release iOS" workflow builds and uploads it
+#   ios/fastlane/ship <lane> [k:v...]  run a fastlane lane on this Mac (check, verify_release, beta,
+#                                      external, status, privacy, privacy_answers)
+#
+# Lanes run with the gems in ios/fastlane/Gemfile.lock, installed into ios/build/bundle.
+# Works with macOS's bash 3.2.
+
+set -euo pipefail
+
+FASTLANE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IOS="$(dirname "$FASTLANE_DIR")"
+ROOT="$(dirname "$IOS")"
+
+die() { printf 'ship: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+# fastlane wants Ruby 3.1 or newer. macOS's own Ruby is 2.6, so prefer Homebrew's or rbenv's.
+find_ruby() {
+  local candidate
+  for candidate in "${GLOW_RUBY:-}" /opt/homebrew/opt/ruby/bin/ruby /usr/local/opt/ruby/bin/ruby \
+    "$(command -v ruby 2>/dev/null || true)"; do
+    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+    if "$candidate" -e 'exit(Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.1") ? 0 : 1)' 2>/dev/null; then
+      echo "$candidate"
+      return
+    fi
+  done
+  die "fastlane needs Ruby 3.1 or newer. Install it with: brew install ruby"
+}
+
+release() {
+  command -v git >/dev/null || die "git isn't installed"
+  git -C "$ROOT" fetch --quiet origin main
+  local tag commit
+  tag="beta-$(date -u +%Y%m%d-%H%M%S)"
+  commit="$(git -C "$ROOT" rev-parse --short origin/main)"
+  git -C "$ROOT" push --quiet origin "origin/main:refs/tags/$tag"
+  echo "Pushed $tag (main at $commit). The Release iOS workflow is building it:"
+  if command -v gh >/dev/null; then
+    gh -R "$(git -C "$ROOT" remote get-url origin)" run list --workflow release-ios.yml --limit 1 2>/dev/null || true
+  fi
+  echo "Its summary shows the build number. Then add it to docs/HANDOFFS.md (B9)."
+}
+
+lane() {
+  local ruby bindir bundle
+  ruby="$(find_ruby)"
+  bindir="$(dirname "$ruby")"
+  if [ -x "$bindir/bundle" ]; then bundle=("$bindir/bundle"); else bundle=("$ruby" -S bundle); fi
+
+  export BUNDLE_GEMFILE="$FASTLANE_DIR/Gemfile"
+  export BUNDLE_PATH="$IOS/build/bundle"
+  export FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_HIDE_CHANGELOG=1 FASTLANE_OPT_OUT_USAGE=YES
+  export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+  export LC_ALL="${LC_ALL:-en_US.UTF-8}" LANG="${LANG:-en_US.UTF-8}"
+
+  if ! "${bundle[@]}" check >/dev/null 2>&1; then
+    echo "Installing fastlane into ios/build/bundle (once)..."
+    "${bundle[@]}" install --quiet
+  fi
+  cd "$IOS"
+  exec "${bundle[@]}" exec fastlane "$@"
+}
+
+case "${1:-}" in
+  "" | -h | --help | help) usage 0 ;;
+  release) release ;;
+  check | verify_release | beta | external | status | privacy | privacy_answers) lane "$@" ;;
+  *) printf 'ship: unknown command %s\n\n' "$1" >&2; usage 1 ;;
+esac

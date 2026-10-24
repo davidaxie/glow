@@ -3,4 +3,9 @@
 #   BUNDLE_GEMFILE=fastlane/Gemfile bundle exec fastlane <lane>
 source "https://rubygems.org"
 
-gem "fastlane", "~> 2.228"
+gem "fastlane", "~> 2.241"
+
+group :test do
+  # ios/fastlane/test: ruby -Ilib -e 'Dir["test/*_test.rb"].each { |f| require_relative f }'
+  gem "minitest", "~> 5.25"
+end

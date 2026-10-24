@@ -1,0 +1,9 @@
+Glow is for live events. People can only join a room while they're physically inside the event venue: the app takes one precise location fix when you join, the server checks it against the room's area, and only pass or fail is kept. Coordinates are never stored.
+
+Signing in: use Sign in with Apple, or the 6-digit code Glow emails you. No demo account is needed, and any account works.
+
+Without being at a venue you can sign in, finish onboarding (first name, birthday, who you want to see, and 1 to 3 profile photos), allow notifications, and open the room scanner and room code entry. Joining a room will say you're not in the room yet. That's expected outside a venue, and nothing is shown about who is in any room.
+
+Privacy: outfit photos have every face blurred on the iPhone (Vision face detection) before upload. Cards never show faces, names or distances. A tap is never revealed unless it's mutual. Glow is 18+; onboarding refuses younger birthdays.
+
+Export compliance: Glow uses only standard HTTPS encryption (ITSAppUsesNonExemptEncryption is false).
