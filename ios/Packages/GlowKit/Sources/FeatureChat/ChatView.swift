@@ -95,7 +95,7 @@ struct ChatScreen: View {
             .task {
                 // Subscribed alongside the first load, so nothing that arrives meanwhile is missed.
                 guard startsByItself else { return }
-                await model.listen(to: dependencies.realtime.events())
+                await model.listen(to: dependencies.realtime.events(for: model.matchID))
             }
             .onChange(of: scenePhase) { _, phase in
                 // Events sent while the app was in the background never arrive: catch up.
