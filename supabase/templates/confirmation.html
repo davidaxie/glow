@@ -1,0 +1,6 @@
+<!-- Glow sign-in email for a new account (B1). Same as magic_link.html: a 6-digit code and no
+     link. {{ .Token }} is the code; it expires after auth.email.otp_expiry. -->
+<h2>Your Glow code</h2>
+<p>Enter this code in Glow to sign in:</p>
+<p style="font-size: 32px; font-weight: 700; letter-spacing: 8px; font-family: ui-monospace, Menlo, monospace;">{{ .Token }}</p>
+<p>It works once and expires in an hour. If you didn't ask for it, you can ignore this email.</p>
