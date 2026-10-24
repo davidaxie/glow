@@ -116,6 +116,22 @@ describe('local', () => {
     ).toEqual(['ALLOW_TEST_LOGIN']);
   });
 
+  it('accepts the optional app link settings and checks their shape', () => {
+    const ok = parseEnv({
+      ...LOCAL_ENV,
+      TESTFLIGHT_URL: 'https://testflight.apple.com/join/AbCdEf12',
+      APPLE_APP_ID: 'ABCDE12345.com.davidxie.glow',
+    });
+    expect(ok.ok && ok.env.TESTFLIGHT_URL).toBe('https://testflight.apple.com/join/AbCdEf12');
+    expect(ok.ok && ok.env.APPLE_APP_ID).toBe('ABCDE12345.com.davidxie.glow');
+    expect(names({ ...LOCAL_ENV, TESTFLIGHT_URL: 'https://example.com/join/x' })).toEqual([
+      'TESTFLIGHT_URL',
+    ]);
+    expect(names({ ...LOCAL_ENV, APPLE_APP_ID: 'com.davidxie.glow' })).toEqual(['APPLE_APP_ID']);
+    expect(REQUIRED_IN.TESTFLIGHT_URL).toBeUndefined();
+    expect(REQUIRED_IN.APPLE_APP_ID).toBeUndefined();
+  });
+
   it('rejects an ALLOW_TEST_LOGIN value that might be misread', () => {
     expect(names({ ...LOCAL_ENV, ALLOW_TEST_LOGIN: 'yes' })).toEqual(['ALLOW_TEST_LOGIN']);
   });

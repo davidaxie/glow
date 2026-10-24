@@ -2,3 +2,4 @@
 import { notImplemented, route } from '@/server/http';
 
 export const DELETE = route('deleteProfilePhoto', notImplemented);
+export const GET = route('getMyPhoto', notImplemented);

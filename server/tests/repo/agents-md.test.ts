@@ -32,8 +32,12 @@ describe('AGENTS.md', () => {
   );
 
   it('lists an owner for every file in git', () => {
-    const map = section(agents, 'Ownership map');
-    const listed = [...map.matchAll(/`([^`\s]+)`/g)]
+    // Only table rows name owners; headings like "Server (`server/`)" don't.
+    const rows = section(agents, 'Ownership map')
+      .split('\n')
+      .filter((line) => line.startsWith('|'))
+      .join('\n');
+    const listed = [...rows.matchAll(/`([^`\s]+)`/g)]
       .map(([, path]) => path!)
       .filter((p) => p.includes('/') || p.includes('.'))
       .map((p) => p.replace(/\/\*\*$/, '/').replace(/\*.*$/, ''));

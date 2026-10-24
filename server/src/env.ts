@@ -79,6 +79,21 @@ const formats = {
   UPSTASH_REDIS_REST_URL: z.url({ protocol: /^https$/, error: 'must be an https URL' }),
   UPSTASH_REDIS_REST_TOKEN: z.string().trim().min(20, 'is too short to be an Upstash token'),
   POSTHOG_KEY: z.string().trim().min(10, 'is too short to be a PostHog project key'),
+  // The public TestFlight link on the /r/{slug} page for people without Glow (B2).
+  TESTFLIGHT_URL: z.url({
+    protocol: /^https$/,
+    hostname: /^testflight\.apple\.com$/,
+    error: 'must be the public TestFlight link, https://testflight.apple.com/join/...',
+  }),
+  // TEAMID.bundle.id for the apple-app-site-association file (B2). Separate from the APNS_*
+  // group, so a preview without push can still serve the link file.
+  APPLE_APP_ID: z
+    .string()
+    .trim()
+    .regex(
+      /^[A-Z0-9]{10}\.[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/,
+      'must be TEAMID.bundle.id, like ABCDE12345.com.davidxie.glow',
+    ),
   SENTRY_DSN: z.url({ protocol: /^https?$/, error: 'must be the DSN URL from Sentry' }),
   ALLOW_TEST_LOGIN: z
     .enum(['1', 'true', '0', 'false'], { error: 'must be 1, true, 0 or false' })

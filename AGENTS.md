@@ -54,7 +54,7 @@ Agents: A1 Integrator and repo, A2 Contracts and database, A3 iPhone app skeleto
 | --- | --- | --- |
 | Repo root files (`package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.gitignore`, `.editorconfig`, `.nvmrc`, `.prettierrc.json`, `.prettierignore`) | A1 | A2 may add codegen devDependencies to the root `package.json` (pre-approved). Any agent's PR may update `pnpm-lock.yaml` for its own dependencies. |
 | `AGENTS.md` | A1 | |
-| `.swiftlint.yml`, `.swiftformat` | A3 | |
+| `.swiftlint.yml`, `.swiftformat` | A1 | Built by A3 in Wave 0 |
 | `docs/` | A1 | Except the files below |
 | `docs/SPEC.md`, `docs/BUILD_PLAN.md`, `docs/briefs/` | A1 | Exported verbatim from the doc. The spec changes only in a `contract-change` PR. |
 | `docs/HANDOFFS.md`, `docs/DECISIONS.md` | A1 (structure) | Every agent writes its own section and adds its own decisions |
@@ -66,8 +66,8 @@ Agents: A1 Integrator and repo, A2 Contracts and database, A3 iPhone app skeleto
 | `docs/shots/` | Every iOS agent | Only screenshots and recordings of your own screens, through `scripts/sim.sh shot` and `record` |
 | `.github/` | A1 | |
 | `.github/workflows/release-ios.yml` | B9 | |
-| `scripts/` | A1 | `env-setup.sh`, `dev-token.sh`, `smoke.sh`, plus anything not listed here |
-| `scripts/sim.sh` | A3 | |
+| `scripts/` | A1 | `env-setup.sh`, `dev-token.sh`, `smoke.sh`, `agent-env.sh`, `db.sh`, plus anything not listed here |
+| `scripts/sim.sh` | A1 | Built by A3 in Wave 0. Ask A1 for changes. |
 | `scripts/codegen.sh` | A2 | |
 | `scripts/e2e/` | D1 | |
 | `scripts/seed-demo.ts` | D5 | |
@@ -98,7 +98,7 @@ Agents: A1 Integrator and repo, A2 Contracts and database, A3 iPhone app skeleto
 | `server/src/contracts/` | A2 | Generated. Never hand-edit. |
 | `server/app/api/me/route.ts` | Shared | `GET` is B1's export line, `DELETE` is B8's. Each keeps its handler in its own module. |
 | `server/app/api/me/**` (profile, photos), `server/app/api/dev/test-login/`, `server/src/server/profiles/` | B1 | Not `pause` and not `DELETE /api/me` |
-| `server/app/api/rooms/resolve/`, `server/app/api/rooms/[id]/join/`, `server/app/api/rooms/[id]/leave/`, `server/app/r/[slug]/`, `server/app/.well-known/apple-app-site-association/`, `server/src/server/rooms/`, `server/src/server/geo/`, `server/src/server/qr/` | B2 | |
+| `server/app/api/rooms/resolve/`, `server/app/api/rooms/[id]/route.ts` (`GET /api/rooms/:id`), `server/app/api/rooms/[id]/join/`, `server/app/api/rooms/[id]/leave/`, `server/app/r/[slug]/`, `server/app/.well-known/apple-app-site-association/`, `server/src/server/rooms/`, `server/src/server/geo/`, `server/src/server/qr/` | B2 | |
 | `server/app/api/rooms/[id]/checkin/`, `server/app/api/cards/[cardId]/image/`, `server/app/api/matches/[id]/photos/[n]/`, `server/src/server/images/` | B3 | |
 | `server/app/api/rooms/[id]/deck/`, `server/app/api/rooms/[id]/taps/`, `server/app/api/matches/route.ts` (`GET /api/matches`), `server/src/server/deck/`, `server/src/server/taps/`, `server/src/server/matches/` | B4 | `matches` covers creation and listing |
 | `server/app/api/devices/**`, `server/src/server/notify/` | B5 | |
@@ -117,21 +117,25 @@ Module code lives in `ios/Packages/GlowKit/Sources/{Module}/` and its tests in `
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| `ios/project.yml`, `ios/Glow/` (app target), `ios/GlowTests/`, `ios/Packages/GlowKit/Package.swift` | A3 | Signing settings in `project.yml` are shared with B9; agree changes in `docs/HANDOFFS.md`. Never hand-edit the `.xcodeproj`. |
-| `ios/` (anything not listed below), `ios/Packages/GlowKit/` (package files outside the module folders) | A3 | |
-| AppCore, the APIClient wrapper | A3 | Not `Sources/APIClient/Generated` |
+| `ios/project.yml`, `ios/Glow/` (app target), `ios/GlowTests/`, `ios/Packages/GlowKit/Package.swift` | A1 | Built by A3 in Wave 0. Ask A1 under **For A1** in `docs/HANDOFFS.md` for a dependency, target, capability or build setting. Signing settings in `project.yml` are shared with B9. Never hand-edit the `.xcodeproj`. |
+| `ios/` (anything not listed below), `ios/Packages/GlowKit/` (package files outside the module folders) | A1 | Built by A3 in Wave 0 |
+| AppCore, the APIClient wrapper | A1 | Built by A3 in Wave 0. Not `Sources/APIClient/Generated`, and not the service protocols and mocks below. |
+| `AppCore/Services/SessionService.swift`, `AppCore/Mocks/PreviewSessionService.swift` | B1 | From Wave 1, each service owner owns its protocol and its mock in AppCore, and changes both together (D40) |
+| `AppCore/Services/LocationService.swift`, `AppCore/Mocks/PreviewLocationService.swift` | B2 | D40 |
+| `AppCore/Services/ImagingService.swift`, `AppCore/Mocks/PreviewImagingService.swift` | B3 | D40 |
+| `AppCore/Services/PushService.swift`, `AppCore/Services/RealtimeService.swift`, `AppCore/Mocks/PreviewPushService.swift`, `AppCore/Mocks/PreviewRealtimeService.swift` | B5 | D40 |
 | `ios/Packages/GlowKit/Sources/APIClient/Generated/` | A2 | Generated. Never hand-edit. |
-| `ios/fixtures/` | A3 | Except `ios/fixtures/push/` (B5) |
+| `ios/fixtures/` | A1 | Built by A3 in Wave 0. Except `ios/fixtures/push/` (B5). |
 | DesignSystem, the app icon, the launch screen assets | B6 | |
 | Session, FeatureOnboarding, FeatureSettings | B1 | |
 | Location, FeatureRooms | B2 | |
 | Imaging, FeatureCheckIn | B3 | |
-| Push, GlowRealtime (the spec's Realtime module), `ios/fixtures/push/` | B5 | The module is GlowRealtime because supabase-swift already has a target named Realtime |
+| Push, GlowRealtime (the spec's Realtime module), `ios/fixtures/push/` | B5 | It's GlowRealtime because supabase-swift already has a module named Realtime (D41) |
 | FeatureSafety | B8 | |
 | `ios/fastlane/` | B9 | |
 | FeatureDeck | C1 | |
 | FeatureMatch | C2 | |
-| FeatureGlow, LiveActivityShared (the Live Activity attributes), `ios/GlowLiveActivity/` (the widget extension) | C3 | E1 owns a `Precision` folder inside FeatureGlow in Wave 4, by agreement with C3 |
+| FeatureGlow, LiveActivityShared (the Live Activity attributes the app and the widget extension share, D41), `ios/GlowLiveActivity/` (the widget extension) | C3 | E1 owns a `Precision` folder inside FeatureGlow in Wave 4, by agreement with C3 |
 | FeatureChat | C4 | |
 | `ios/GlowUITests/` | D1 | D1 may make small fixes anywhere through PRs labeled `integration`, telling the owner in `docs/HANDOFFS.md` |
 | `Localizable.xcstrings` in every module | D4 | Accessibility fixes go through PRs to each owner |
@@ -162,10 +166,11 @@ The spec's `pnpm --filter server dev` and `supabase start` work too; `pnpm dev` 
 | `pnpm check` | typecheck, lint, format check and tests: what CI's Ubuntu job runs on the server |
 | `pnpm env:setup [--force] [--test-login]` | Writes `server/.env.local`. Copies keys from `supabase status` if it's running. `--test-login` turns on `ALLOW_TEST_LOGIN` (local only). |
 | `pnpm dev:token` | Prints an access token for a new throwaway test person on the local Supabase |
-| `pnpm smoke` | Calls every endpoint in the contract on a running server and checks its status. With `GLOW_TOKEN=$(pnpm -s dev:token)`, signed-in stubs must answer 501. Set `GLOW_API` for another port. |
+| `pnpm smoke` | Calls every operation in the contract on a running server. Signed out, user routes must answer 401; with `GLOW_TOKEN=$(pnpm -s dev:token)`, each route must answer 501 (a stub) or a status the contract declares for it, never a 500. Uses `GLOW_API` (set by `agent-env.sh`). |
+| `pnpm stubs` | Adds a 501 stub route for any contract operation without one (A1 runs it after contract changes) |
 | `pnpm codegen` | `scripts/codegen.sh` (A2): Swift client, TypeScript types and zod schemas, and constants from `contracts/` |
 | `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`, `pnpm db:test` | `supabase start`, `stop`, `db reset` (migrations plus seed) and `test db` (pgTAP) |
-| `scripts/sim.sh setup` | Create and boot two Simulators, Glow A and Glow B |
+| `scripts/sim.sh setup [A]` | Create and boot two Simulators, Glow A and Glow B. `setup A` boots only Glow A. |
 | `scripts/sim.sh build` | xcodegen, then xcodebuild for the Simulator |
 | `scripts/sim.sh install` | Install the Debug app on both |
 | `scripts/sim.sh at venue`, `scripts/sim.sh at away` | Move both to the seeded room's center, or 2 km away |
@@ -175,12 +180,34 @@ The spec's `pnpm --filter server dev` and `supabase start` work too; `pnpm dev` 
 | `scripts/sim.sh shot deck-empty` | Save a screenshot of both to `docs/shots/` |
 | `scripts/sim.sh record` | Record both screens until you stop it |
 | `scripts/sim.sh test` | Unit and UI tests on Glow A |
+| `scripts/sim.sh teardown` | Shut down and delete this agent's Simulators |
+| `eval "$(scripts/agent-env.sh <ID>)"` | This agent's own Simulator names, server port and API URL. `--own-db` adds an own Supabase. See the next section. |
 
 Export `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` before `xcodebuild` or `xcrun` if `xcode-select` points at the Command Line Tools.
 
+## Many agents on one Mac
+
+Up to nine agents build and test on the same Mac at once. Each works in its own git worktree, so builds (`ios/build`, `.next`) never collide; these rules keep the shared Simulators, ports and database apart.
+
+1. **Start every shell with your agent environment:** `eval "$(scripts/agent-env.sh <your ID>)"`. It sets your own Simulator names (`GLOW_SIM_A="Glow A (B1)"`, `GLOW_SIM_B="Glow B (B1)"`), your server port (`PORT`, from the table below) and the matching `GLOW_API` and `GLOW_API_BASE_URL`. Then `pnpm dev` serves your worktree's server on your port, `scripts/smoke.sh` checks it, and `scripts/sim.sh build` points the Debug app at it.
+2. **Boot only Glow A** (`scripts/sim.sh setup A`) unless the test needs both people. Each booted Simulator costs memory and CPU every other agent shares.
+3. **Never run `supabase db reset`, `supabase stop` or `supabase start` on the shared `glow` stack** (API 54421, DB 54422). Other agents are using it. `pnpm db:reset` and `pnpm db:stop` refuse when `GLOW_AGENT_ID` is set. If you add a migration or need a reset, take your own stack: `eval "$(scripts/agent-env.sh <ID> --own-db)"` copies your worktree's `supabase/` into `.agent-state/<id>/`, starts it as `glow-<id>` on your own port block, and exports its `SUPABASE_URL` and keys (your server and `sim.sh build` use them). `--own-db --reset` reapplies your migrations and seed; `scripts/agent-env.sh <ID> --stop-db` stops it. `pnpm db:*` follows `GLOW_SUPABASE_WORKDIR`, so it targets your stack.
+4. **Clean up** with `scripts/sim.sh teardown` (and `--stop-db` if you took a stack) when your work is merged.
+5. **Prove iOS work locally while your PR is a draft.** Run `scripts/sim.sh build`, `test` and `lint`, and attach `scripts/sim.sh shot` screenshots to the PR.
+
+| Agents | Server port | Own Supabase API (`--own-db`) |
+| --- | --- | --- |
+| A1, A2, A3 | 3091, 3092, 3093 | 55011, 55021, 55031 |
+| B1 to B9 | 3101 to 3109 | 55111 to 55191 (B1 is 55111, B2 is 55121, ...) |
+| C1 to C4 | 3111 to 3114 | 55211 to 55241 |
+| D1 to D5 | 3121 to 3125 | 55311 to 55351 |
+| E1 to E3 | 3131 to 3133 | 55411 to 55431 |
+
+Port 3000 and the shared stack's 544xx ports stay for the main checkout. `scripts/agent-env.sh --list` prints the whole table.
+
 ## Writing a server route
 
-Every endpoint in the contract already has a route file that answers 501. To build yours, replace `notImplemented` with a handler, and keep the logic in your own module under `server/src/server/`:
+Every endpoint in the contract already has a route file that answers 501 (when a contract change adds endpoints, A1 runs `pnpm stubs` to add theirs). To build yours, replace `notImplemented` with a handler, and keep the logic in your own module under `server/src/server/`:
 
 ```ts
 // server/app/api/matches/[id]/route.ts  (C2)
@@ -203,7 +230,8 @@ export const getMatchFor: RouteHandler<'getMatch'> = async ({ user, params }) =>
 
 The helper reads the operation from the generated contract and, before your handler runs, checks sign-in (401, or 503 if Supabase Auth is down), turns a malformed path ID into 404, and validates the query and body (400, with field paths but never the values sent). After it runs, it validates your reply and sends only the fields the contract declares. A reply that breaks the contract becomes a 500, so test your happy path.
 
-- Throw `notFound()`, `badRequest()`, `conflict()`, `rateLimited()` or `unavailable()` from `@/server/http`. There is no `forbidden()`: a 403 is always sent as 404 (P11).
+- Throw `notFound()`, `badRequest()`, `conflict(code, message)`, `unprocessable(code, message, { reason })`, `rateLimited()` or `unavailable()` from `@/server/http`. Codes are the contract's `ErrorCode` enum (409 `tap_limit_reached`, 422 `not_in_room` and so on; `docs/CONTRACTS.md` maps database errors to them). There is no `forbidden()`: a 403 is always sent as 404 (P11).
+- Times go out as `2026-10-24T20:15:00.000Z`. The database functions already return that; rows read straight from tables come back as `+00:00`, so send `new Date(value).toISOString()`, or the contract check turns the reply into a 500.
 - Log with `logger` from `@/server/log`, never `console`. It redacts fields like `lat`, `name` and `body`, but don't rely on that: log IDs, counts and outcomes only (P2).
 - Read configuration with `getEnv()` from `@/env`, never `process.env`. ESLint enforces both.
 - Every API response is `Cache-Control: no-store`. Raw responses (images, HTML, the link file) are only allowed where the contract says so.

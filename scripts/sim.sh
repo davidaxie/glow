@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# Glow Simulator workflow. Owner: A3. See docs/SPEC.md "Simulator workflow" and docs/HANDOFFS.md.
+# Glow Simulator workflow. Built by A3; owned by A1 from Wave 1. See docs/SPEC.md "Simulator
+# workflow" and docs/HANDOFFS.md.
 #
 # Two Simulators, Glow A and Glow B, so one Mac can play both people in a match.
 # Run `scripts/sim.sh help` for every command. Works with macOS's bash 3.2.
+#
+# Parallel agents on one Mac: `eval "$(scripts/agent-env.sh <ID>)"` first. It sets
+#   GLOW_SIM_A, GLOW_SIM_B     this agent's Simulator names (default "Glow A" and "Glow B")
+#   GLOW_API_BASE_URL          the API the Debug app talks to (default http://localhost:3000)
+#   GLOW_SUPABASE_URL, GLOW_SUPABASE_ANON_KEY   with --own-db, the agent's own Supabase
 
 set -euo pipefail
 
@@ -19,8 +25,9 @@ BUNDLE_ID="com.davidxie.glow"
 APP="$DERIVED/Build/Products/Debug-iphonesimulator/Glow.app"
 LOCKFILE="$IOS/Package.resolved"
 PROJECT_LOCKFILE="$PROJECT/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-SIM_A="Glow A"
-SIM_B="Glow B"
+SIM_A="${GLOW_SIM_A:-Glow A}"
+SIM_B="${GLOW_SIM_B:-Glow B}"
+[ "$SIM_A" != "$SIM_B" ] || { printf 'sim.sh: GLOW_SIM_A and GLOW_SIM_B must differ\n' >&2; exit 1; }
 
 # shellcheck source=../ios/fixtures/demo-room.env
 source "$IOS/fixtures/demo-room.env"
@@ -73,6 +80,11 @@ targets() {
   esac
 }
 
+# A or B, for a Simulator name from targets().
+letter_of() {
+  if [ "$1" = "$SIM_A" ]; then echo A; else echo B; fi
+}
+
 newest_runtime() {
   xcrun simctl list -j runtimes available |
     jq -r '[.runtimes[] | select(.platform == "iOS")] | sort_by(.version | split(".") | map(tonumber)) | last | .identifier // empty'
@@ -102,7 +114,7 @@ cmd_setup() {
   [ -n "$device_type" ] || die "the runtime $runtime has no iPhone Pro device type."
 
   local name udid
-  for name in "$SIM_A" "$SIM_B"; do
+  while IFS= read -r name; do
     udid="$(udid_of "$name")"
     if [ -z "$udid" ]; then
       say "Creating $name (${device_type##*.}, ${runtime##*.})"
@@ -113,9 +125,36 @@ cmd_setup() {
     xcrun simctl ui "$udid" appearance dark >/dev/null 2>&1 || true
     xcrun simctl status_bar "$udid" override --time "9:41" --batteryState charged --batteryLevel 100 \
       --cellularBars 4 --wifiBars 3 >/dev/null 2>&1 || true
-  done
+    say "$name is ready."
+  done < <(targets "${1:-both}")
   if ! on_ci; then open -a Simulator; fi
-  say "Glow A and Glow B are ready."
+}
+
+# Shuts down and deletes this agent's Simulators. The shared default names need --yes.
+cmd_teardown() {
+  use_xcode
+  need jq "Install it with: brew install jq"
+  local which="both" yes=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --yes) yes=1 ;;
+      *) which="$arg" ;;
+    esac
+  done
+  if [ -z "${GLOW_SIM_A:-}${GLOW_SIM_B:-}" ] && [ "$yes" -ne 1 ]; then
+    die "teardown would delete the shared default Simulators \"$SIM_A\" and \"$SIM_B\". Set GLOW_SIM_A and GLOW_SIM_B (scripts/agent-env.sh), or pass --yes."
+  fi
+  local name udid
+  while IFS= read -r name; do
+    udid="$(udid_of "$name")"
+    if [ -z "$udid" ]; then
+      say "$name doesn't exist. Nothing to do."
+      continue
+    fi
+    xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+    xcrun simctl delete "$udid"
+    say "Deleted $name ($udid)"
+  done < <(targets "$which")
 }
 
 # --- Build -----------------------------------------------------------------------------------
@@ -143,6 +182,10 @@ xcodebuild_glow() {
     extra=(CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation -skipMacroValidation)
     if [ -f "$LOCKFILE" ]; then extra+=(-onlyUsePackageVersionsFromResolvedFile); fi
   fi
+  # Per-agent endpoints (scripts/agent-env.sh). Command-line settings win over the xcconfig.
+  if [ -n "${GLOW_API_BASE_URL:-}" ]; then extra+=("API_BASE_URL=$GLOW_API_BASE_URL"); fi
+  if [ -n "${GLOW_SUPABASE_URL:-}" ]; then extra+=("SUPABASE_URL=$GLOW_SUPABASE_URL"); fi
+  if [ -n "${GLOW_SUPABASE_ANON_KEY:-}" ]; then extra+=("SUPABASE_ANON_KEY=$GLOW_SUPABASE_ANON_KEY"); fi
   xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Debug \
     -derivedDataPath "$DERIVED" -clonedSourcePackagesDirPath "$PACKAGES" ${extra[@]+"${extra[@]}"} "$@"
 }
@@ -169,7 +212,7 @@ cmd_build() {
   mkdir -p "$LOGS"
   say "Generating Glow.xcodeproj from ios/project.yml"
   generate
-  say "Building Debug for the Simulator (log: ios/build/logs/build.log)"
+  say "Building Debug for the Simulator against ${GLOW_API_BASE_URL:-http://localhost:3000} (log: ios/build/logs/build.log)"
   if ! xcodebuild_glow -destination "$(destination)" build >"$LOGS/build.log" 2>&1; then
     grep -E "error:|warning:|BUILD FAILED" "$LOGS/build.log" | sort -u | head -40 >&2 || true
     die "build failed. Full log: ios/build/logs/build.log"
@@ -310,7 +353,7 @@ cmd_shot() {
   mkdir -p "$SHOTS"
   local name letter
   while IFS= read -r name; do
-    letter="${name##* }"
+    letter="$(letter_of "$name")"
     xcrun simctl io "$(udid_or_die "$name")" screenshot --type=png "$SHOTS/$shot-$letter.png" >/dev/null 2>&1
     say "Saved docs/shots/$shot-$letter.png"
   done < <(targets "${2:-both}")
@@ -423,7 +466,7 @@ cmd_help() {
   cat <<'EOF'
 Glow Simulator workflow (docs/SPEC.md, "Simulator workflow")
 
-  scripts/sim.sh setup                 create and boot two Simulators, Glow A and Glow B
+  scripts/sim.sh setup [A|B|both]      create and boot Glow A and Glow B (setup A boots just A)
   scripts/sim.sh build                 xcodegen, then xcodebuild Debug for the Simulator
   scripts/sim.sh install [A|B|both]    install the Debug app and launch it
   scripts/sim.sh launch [A|B|both]     relaunch the installed app
@@ -441,8 +484,12 @@ Glow Simulator workflow (docs/SPEC.md, "Simulator workflow")
   scripts/sim.sh verify-project        xcodegen twice gives the same project; no .xcodeproj in git
   scripts/sim.sh logs [A|B]            stream the app's logs
   scripts/sim.sh reset [A|B|both]      erase the Simulators
+  scripts/sim.sh teardown [A|B|both]   shut down and delete this agent's Simulators
 
 Most commands take A, B or both (the default) as their last argument.
+
+Parallel agents: eval "$(scripts/agent-env.sh <ID>)" first, so GLOW_SIM_A and GLOW_SIM_B name
+this agent's own Simulators and GLOW_API_BASE_URL points the app at this agent's server.
 EOF
 }
 
@@ -466,6 +513,7 @@ case "$command" in
   verify-project) cmd_verify_project "$@" ;;
   logs) cmd_logs "$@" ;;
   reset) cmd_reset "$@" ;;
+  teardown) cmd_teardown "$@" ;;
   help | -h | --help) cmd_help ;;
   *) die "unknown command '$command'. Run: scripts/sim.sh help" ;;
 esac

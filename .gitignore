@@ -56,3 +56,6 @@ ios/fastlane/test_output/
 
 # Agent worktrees
 .claude/worktrees/
+
+# Per-agent scratch state from scripts/agent-env.sh --own-db
+.agent-state/
