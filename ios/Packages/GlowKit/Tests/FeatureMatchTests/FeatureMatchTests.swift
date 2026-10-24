@@ -175,6 +175,29 @@ struct MatchModelTests {
         #expect(model.phase == .waiting)
     }
 
+    @Test func openingAStaleFindSendsItAgainOnce() async {
+        // Opened from the match.recheck push: both chose Find, and choosing hasn't ended.
+        var stale = choosing()
+        stale.yourChoice = .find
+        stale.otherHasChosen = true
+        let client = FixtureMatchClient(matches: [stale])
+        let model = makeModel(client)
+        await model.load()
+        #expect(client.choices.map(\.0) == [.find])
+        await model.load() // a refresh right after doesn't send it again
+        #expect(client.choices.count == 1)
+    }
+
+    @Test func openingAFindTheyHaventAnsweredSendsNothing() async {
+        var waiting = choosing()
+        waiting.yourChoice = .find
+        let client = FixtureMatchClient(matches: [waiting])
+        let model = makeModel(client)
+        await model.load()
+        #expect(model.phase == .waiting)
+        #expect(client.choices.isEmpty)
+    }
+
     @Test func aRecheckIsIgnoredUnlessIChoseFind() async {
         let client = FixtureMatchClient(matches: [choosing()])
         let model = makeModel(client)

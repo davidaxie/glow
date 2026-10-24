@@ -50,6 +50,8 @@ public final class MatchModel {
     @ObservationIgnored private let analytics: any Analytics
     @ObservationIgnored private let logger = Logger(subsystem: Log.subsystem, category: "match")
     @ObservationIgnored private var resendingFind = false
+    /// When this screen last sent Find, so a refresh doesn't send it again while it's still fresh.
+    @ObservationIgnored private var lastFindAt: Date?
 
     public init(matchID: MatchID, client: any MatchClient, location: any LocationService, analytics: any Analytics) {
         self.matchID = matchID
@@ -64,6 +66,11 @@ public final class MatchModel {
     public func load() async {
         do {
             try await apply(client.match(matchID))
+            if needsFreshFind {
+                // Both chose Find but choosing hasn't ended: my check went stale while I was away
+                // (I may have opened the app from the match.recheck push). Send it again.
+                await resendFind()
+            }
         } catch MatchError.notFound {
             becomeGone()
         } catch {
@@ -141,6 +148,9 @@ public final class MatchModel {
     private func send(_ choice: MatchSnapshot.Choice, fix: LocationFix?) async {
         do {
             let outcome = try await client.choose(choice, for: matchID, fix: fix)
+            if choice == .find {
+                lastFindAt = .now
+            }
             track(outcome)
             apply(outcome.match, next: outcome.next)
         } catch {
@@ -155,11 +165,19 @@ public final class MatchModel {
         do {
             let fix = try await freshFix()
             let outcome = try await client.choose(.find, for: matchID, fix: fix)
+            lastFindAt = .now
             track(outcome)
             apply(outcome.match, next: outcome.next)
         } catch {
             show(error)
         }
+    }
+
+    /// Waiting on Find, they've chosen too, and this screen hasn't sent Find recently.
+    private var needsFreshFind: Bool {
+        guard phase == .waiting, snapshot?.otherHasChosen == true else { return false }
+        guard let lastFindAt else { return true }
+        return Date.now.timeIntervalSince(lastFindAt) > GlowConstants.geoFreshnessForGlow / 2
     }
 
     private func freshFix() async throws(MatchError) -> LocationFix {

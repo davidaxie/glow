@@ -31,6 +31,9 @@ public struct MatchSnapshot: Hashable, Sendable {
     public var createdAt: Date
     public var choiceDeadline: Date
     public var yourChoice: Choice?
+    /// Whether they've chosen. Never shown (C2-D2): only used to send Find again when both chose
+    /// Find but choosing hasn't ended, which means a location check went stale.
+    public var otherHasChosen: Bool
 
     public init(
         id: MatchID,
@@ -41,6 +44,7 @@ public struct MatchSnapshot: Hashable, Sendable {
         createdAt: Date,
         choiceDeadline: Date,
         yourChoice: Choice? = nil,
+        otherHasChosen: Bool = false,
     ) {
         self.id = id
         self.status = status
@@ -50,6 +54,7 @@ public struct MatchSnapshot: Hashable, Sendable {
         self.createdAt = createdAt
         self.choiceDeadline = choiceDeadline
         self.yourChoice = yourChoice
+        self.otherHasChosen = otherHasChosen
     }
 
     /// Where this match lives once choosing is over: the glow or the chat. Nil while choosing.
@@ -194,6 +199,7 @@ extension MatchSnapshot {
             createdAt: detail.createdAt,
             choiceDeadline: detail.choiceDeadline,
             yourChoice: detail.yourChoice.map { $0 == .find ? .find : .chat },
+            otherHasChosen: detail.otherHasChosen,
         )
     }
 }
