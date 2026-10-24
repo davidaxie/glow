@@ -206,7 +206,7 @@ Port 3000 and the shared stack's 544xx ports stay for the main checkout. `script
 
 ## Writing a server route
 
-Every endpoint in the contract already has a route file that answers 501. To build yours, replace `notImplemented` with a handler, and keep the logic in your own module under `server/src/server/`:
+Every endpoint in the contract already has a route file that answers 501 (when a contract change adds endpoints, A1 runs `pnpm stubs` to add theirs). To build yours, replace `notImplemented` with a handler, and keep the logic in your own module under `server/src/server/`:
 
 ```ts
 // server/app/api/matches/[id]/route.ts  (C2)
@@ -229,7 +229,8 @@ export const getMatchFor: RouteHandler<'getMatch'> = async ({ user, params }) =>
 
 The helper reads the operation from the generated contract and, before your handler runs, checks sign-in (401, or 503 if Supabase Auth is down), turns a malformed path ID into 404, and validates the query and body (400, with field paths but never the values sent). After it runs, it validates your reply and sends only the fields the contract declares. A reply that breaks the contract becomes a 500, so test your happy path.
 
-- Throw `notFound()`, `badRequest()`, `conflict()`, `rateLimited()` or `unavailable()` from `@/server/http`. There is no `forbidden()`: a 403 is always sent as 404 (P11).
+- Throw `notFound()`, `badRequest()`, `conflict(code, message)`, `unprocessable(code, message, { reason })`, `rateLimited()` or `unavailable()` from `@/server/http`. Codes are the contract's `ErrorCode` enum (409 `tap_limit_reached`, 422 `not_in_room` and so on; `docs/CONTRACTS.md` maps database errors to them). There is no `forbidden()`: a 403 is always sent as 404 (P11).
+- Times go out as `2026-10-24T20:15:00.000Z`. The database functions already return that; rows read straight from tables come back as `+00:00`, so send `new Date(value).toISOString()`, or the contract check turns the reply into a 500.
 - Log with `logger` from `@/server/log`, never `console`. It redacts fields like `lat`, `name` and `body`, but don't rely on that: log IDs, counts and outcomes only (P2).
 - Read configuration with `getEnv()` from `@/env`, never `process.env`. ESLint enforces both.
 - Every API response is `Cache-Control: no-store`. Raw responses (images, HTML, the link file) are only allowed where the contract says so.

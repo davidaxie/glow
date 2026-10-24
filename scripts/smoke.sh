@@ -26,52 +26,22 @@ if [[ -z "$TEST_LOGIN" && -f "$ROOT/server/.env.local" ]]; then
   TEST_LOGIN="$(grep -E '^ALLOW_TEST_LOGIN=' "$ROOT/server/.env.local" | head -n1 | cut -d= -f2- || true)"
 fi
 
-ID=11111111-1111-4111-8111-111111111111
-
-# method  path  auth(user|public|cron|dev)  body(json|multipart|none)
-ENDPOINTS=(
-  "GET    /api/me                                 user   none"
-  "PUT    /api/me/profile                         user   json"
-  "POST   /api/me/photos                          user   multipart"
-  "DELETE /api/me/photos/$ID                      user   none"
-  "POST   /api/dev/test-login                     dev    json"
-  "POST   /api/me/pause                           user   json"
-  "DELETE /api/me                                 user   none"
-  "POST   /api/devices                            user   json"
-  "DELETE /api/devices/$ID                        user   none"
-  "POST   /api/rooms/resolve                      user   json"
-  "POST   /api/rooms/$ID/join                     user   json"
-  "POST   /api/rooms/$ID/leave                    user   none"
-  "POST   /api/rooms/$ID/checkin                  user   multipart"
-  "GET    /api/cards/$ID/image                    user   none"
-  "POST   /api/rooms/$ID/deck                     user   json"
-  "POST   /api/rooms/$ID/taps                     user   json"
-  "GET    /api/matches                            user   none"
-  "GET    /api/matches/$ID                        user   none"
-  "GET    /api/matches/$ID/photos/0               user   none"
-  "POST   /api/matches/$ID/choice                 user   json"
-  "GET    /api/matches/$ID/glow                   user   none"
-  "POST   /api/matches/$ID/glow/met               user   none"
-  "POST   /api/matches/$ID/glow/cancel            user   none"
-  "GET    /api/matches/$ID/messages               user   none"
-  "POST   /api/matches/$ID/messages               user   json"
-  "POST   /api/matches/$ID/unmatch                user   none"
-  "POST   /api/blocks                             user   json"
-  "POST   /api/reports                            user   json"
-  "POST   /api/abuse/capture                      user   json"
-  "GET    /api/cron/purge                         cron   none"
-  "GET    /.well-known/apple-app-site-association public none"
-  "GET    /r/demo                                 public none"
-)
+# Every operation in the generated contract: METHOD PATH AUTH BODY OPERATION_ID OWNER.
+ENDPOINTS=()
+while IFS= read -r line; do ENDPOINTS+=("$line"); done < <(node "$ROOT/scripts/list-operations.mjs")
+[[ "${#ENDPOINTS[@]}" -gt 0 ]] || { echo "smoke: no operations found in the contract" >&2; exit 1; }
 
 pass=0
 fail=0
 for line in "${ENDPOINTS[@]}"; do
-  read -r method path auth body <<<"$line"
+  read -r method path auth body op _owner <<<"$line"
+  # Test sign-in only exists when ALLOW_TEST_LOGIN is on (D6).
+  [[ "$op" == testLogin ]] && auth=dev
   args=(-s -o /dev/null -w '%{http_code}' -X "$method" "$API$path")
   case "$body" in
     json) args+=(-H 'content-type: application/json' --data '{}') ;;
     multipart) args+=(-F 'placeholder=1') ;;
+    none) ;;
   esac
 
   case "$auth" in
@@ -100,10 +70,10 @@ for line in "${ENDPOINTS[@]}"; do
   got="$(curl "${args[@]}" || echo 000)"
   if [[ "$got" == "$want" ]]; then
     pass=$((pass + 1))
-    printf '  ok    %-6s %-42s %s\n' "$method" "$path" "$got"
+    printf '  ok    %-6s %-56s %s\n' "$method" "$path" "$got"
   else
     fail=$((fail + 1))
-    printf '  FAIL  %-6s %-42s got %s, want %s\n' "$method" "$path" "$got" "$want"
+    printf '  FAIL  %-6s %-56s got %s, want %s (%s)\n' "$method" "$path" "$got" "$want" "$op"
   fi
 done
 
