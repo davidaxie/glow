@@ -84,7 +84,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let route = dependencies.push.route(for: push)
         nonisolated(unsafe) let done = completionHandler
         Task { @MainActor in
-            if let route { router.go(route) }
+            if let route {
+                router.go(route)
+            }
             done()
         }
     }
