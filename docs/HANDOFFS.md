@@ -86,7 +86,7 @@ _From B4, 2026-10-24._ PR [#9](https://github.com/davidaxie/glow/pull/9).
 1. **Integration tests in CI.** B4's integration tests (`server/tests/{deck,taps,matches}/*.integration.test.ts`) run inside `pnpm test` whenever `CI` is set, against the Supabase CI starts, reading keys from the `server/.env.local` that `env-setup.sh --force` writes. They take about 20 seconds, refuse any non-local Supabase, and delete everything they make before pgTAP runs (B4-D6). Nothing to change in `ci.yml` unless you'd rather run them as their own step (`GLOW_INTEGRATION=1 pnpm --filter server exec vitest run tests/deck tests/taps tests/matches`).
 2. **A shared service-role client.** `server/src/server/deck/db.ts` has `serviceDb()` and `rpc(fn, args)`, which maps the database's P0001 codes to HTTP errors as CONTRACTS.md describes (404, 400, 409 with the same code, 503 when PostgREST can't reach the database or times out). Other owners will need the same. If you want one in `server/src/server/db/`, B4 is happy to move it there.
 3. **Auth on every request (D3) is not the deck's bottleneck.** On B4's own stack with 300 people, Supabase Auth's token check alone is 2 ms p50 (4 ms p95) one at a time and 29 ms p50 (82 ms p95) at 25 in flight, against 20 ms and 97 ms for `get_deck` before B4's tuning. No change proposed; full numbers are in PR #9.
-4. **Rate limits.** The deck, taps and matches handlers call B8's `rateLimit(user.id, 'deck' | 'taps' | 'api')` first, as B8 asked. When `route()` calls `limitRequest` itself, B4 will drop those calls.
+4. ~~**Rate limits.**~~ Done in 33c16c2, thanks: `route()` limits every route, so B4's handlers no longer call `rateLimit` themselves.
 
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
@@ -521,7 +521,7 @@ _2026-10-24, Wave 1._ PR [#9](https://github.com/davidaxie/glow/pull/9) on `w1/b
 
 - B3's `cardImageLink(cardId, viewerId)` (PR #7): `server/src/server/deck/stubs/card-link.ts` makes the same link B3's image route checks.
 - B5's `notify(userIds, event)` (PR #15): `server/src/server/deck/stubs/notify.ts` logs the event type only.
-- B8's `rateLimit` is real (#12 merged): each handler calls `rateLimit(user.id, 'deck' | 'taps' | 'api')` first, until `route()` does it for every route.
+- Rate limits are real: `route()` applies B8's `deck`, `taps` and `api` policies before each handler runs.
 
 **Commands**
 

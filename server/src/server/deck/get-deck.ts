@@ -22,7 +22,7 @@ import {
 import { badRequest, type RouteHandler } from '@/server/http';
 import type { ErrorIssue } from '@/server/http/errors';
 import { rpc } from './db';
-import { cardImageLink, rateLimit } from './dependencies';
+import { cardImageLink } from './dependencies';
 
 /** What `get_deck` returns (docs/CONTRACTS.md). `cardPath` is storage-internal and never sent. */
 type DbCard = {
@@ -121,7 +121,8 @@ export async function loadDeck(
   return toDeck(raw, viewerId, now);
 }
 
-export const getDeckRoute: RouteHandler<'getDeck'> = async ({ user, params, body }) => {
-  await rateLimit(user.id, 'deck');
-  return { status: 200, body: await loadDeck(user.id, params.id, body) };
-};
+// Rate limits (B8's `deck` policy) are applied by route() before this runs.
+export const getDeckRoute: RouteHandler<'getDeck'> = async ({ user, params, body }) => ({
+  status: 200,
+  body: await loadDeck(user.id, params.id, body),
+});

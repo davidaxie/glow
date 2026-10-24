@@ -84,7 +84,7 @@ export function useRealSupabase(config: ItConfig): void {
   process.env.SUPABASE_SERVICE_ROLE_KEY = config.serviceKey;
   resetEnvCacheForTests();
   // B8's burst limits are B8's tests; these tests make far more requests per person than any
-  // phone would. The routes still call rateLimit(); this store just never says no.
+  // phone would. route() still counts every request; this store just never says no.
   setRateLimitStoreForTests({
     name: 'test',
     hit: async () => ({ allowed: true, remaining: Number.MAX_SAFE_INTEGER, resetAt: 0 }),

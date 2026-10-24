@@ -6,7 +6,8 @@ import { createHmac } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CARD_URL_TTL_SECONDS, CARD_VIEWS_PER_ROOM_PER_DAY, zDeck } from '@/contracts';
-import { HttpError, rateLimited } from '@/server/http';
+import { HttpError } from '@/server/http';
+import { setRateLimitStoreForTests } from '@/server/ratelimit';
 import { LOCAL_ENV } from '../helpers/env';
 import { fakeAccessToken, mockVerify, USER_ID } from '../helpers/auth';
 
@@ -14,17 +15,12 @@ vi.mock('@/server/auth/verify', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/auth/verify')>();
   return { ...actual, verifyAccessToken: vi.fn() };
 });
-vi.mock('@/server/deck/dependencies', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
-  return { ...actual, rateLimit: vi.fn(async () => {}) };
-});
 vi.mock('@/server/deck/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/db')>();
   return { ...actual, rpc: vi.fn() };
 });
 
 const { rpc } = await import('@/server/deck/db');
-const { rateLimit } = await import('@/server/deck/dependencies');
 const { loadDeck, toDeck, validateFilters } = await import('@/server/deck/get-deck');
 const { POST } = await import('../../app/api/rooms/[id]/deck/route');
 
@@ -231,11 +227,19 @@ describe('POST /api/rooms/{id}/deck', () => {
   });
 
   it('counts against the deck rate limit first, and a 429 reads nothing', async () => {
-    vi.mocked(rateLimit).mockRejectedValue(rateLimited(12));
+    const resetAt = Date.now() + 12_000;
+    const policies: string[] = [];
+    setRateLimitStoreForTests({
+      name: 'test',
+      hit: async (_key, policy) => {
+        policies.push(policy);
+        return { allowed: false, remaining: 0, resetAt };
+      },
+    });
     const res = await call({});
     expect(res.status).toBe(429);
     expect(res.headers.get('retry-after')).toBe('12');
-    expect(rateLimit).toHaveBeenCalledWith(USER_ID, 'deck');
+    expect(policies).toEqual(['deck']);
     expect(rpc).not.toHaveBeenCalled();
   });
 

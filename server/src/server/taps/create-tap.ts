@@ -16,7 +16,6 @@
  */
 import type { TapRequest, TapResult } from '@/contracts';
 import { rpc } from '@/server/deck/db';
-import { rateLimit } from '@/server/deck/dependencies';
 import type { RouteHandler } from '@/server/http';
 import { announceMatch } from '@/server/matches/announce';
 
@@ -46,7 +45,8 @@ export async function recordTap(
   return { result: 'sent', tapsLeftToday };
 }
 
-export const createTapRoute: RouteHandler<'createTap'> = async ({ user, params, body }) => {
-  await rateLimit(user.id, 'taps');
-  return { status: 200, body: await recordTap(user.id, params.id, body) };
-};
+// Rate limits (B8's `taps` policy) are applied by route() before this runs.
+export const createTapRoute: RouteHandler<'createTap'> = async ({ user, params, body }) => ({
+  status: 200,
+  body: await recordTap(user.id, params.id, body),
+});

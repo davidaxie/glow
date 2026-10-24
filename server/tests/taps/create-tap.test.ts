@@ -5,7 +5,8 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { zTapResult } from '@/contracts';
-import { HttpError, rateLimited } from '@/server/http';
+import { HttpError } from '@/server/http';
+import { setRateLimitStoreForTests } from '@/server/ratelimit';
 import { fakeAccessToken, mockVerify, USER_ID } from '../helpers/auth';
 
 vi.mock('@/server/auth/verify', async (importOriginal) => {
@@ -18,11 +19,11 @@ vi.mock('@/server/deck/db', async (importOriginal) => {
 });
 vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
-  return { ...actual, notify: vi.fn(async () => {}), rateLimit: vi.fn(async () => {}) };
+  return { ...actual, notify: vi.fn(async () => {}) };
 });
 
 const { rpc, serviceDb } = await import('@/server/deck/db');
-const { notify, rateLimit } = await import('@/server/deck/dependencies');
+const { notify } = await import('@/server/deck/dependencies');
 const { POST } = await import('../../app/api/rooms/[id]/taps/route');
 
 const ROOM = 'de000000-0000-4000-8000-000000000001';
@@ -140,11 +141,19 @@ describe('POST /api/rooms/{id}/taps', () => {
   });
 
   it('counts against the taps rate limit first, and a 429 records nothing', async () => {
-    vi.mocked(rateLimit).mockRejectedValue(rateLimited(30));
+    const resetAt = Date.now() + 30_000;
+    const policies: string[] = [];
+    setRateLimitStoreForTests({
+      name: 'test',
+      hit: async (_key, policy) => {
+        policies.push(policy);
+        return { allowed: false, remaining: 0, resetAt };
+      },
+    });
     const res = await call({ cardId: CARD });
     expect(res.status).toBe(429);
     expect(res.headers.get('retry-after')).toBe('30');
-    expect(rateLimit).toHaveBeenCalledWith(USER_ID, 'taps');
+    expect(policies).toEqual(['taps']);
     expect(rpc).not.toHaveBeenCalled();
   });
 

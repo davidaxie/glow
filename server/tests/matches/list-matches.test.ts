@@ -16,7 +16,7 @@ vi.mock('@/server/deck/db', async (importOriginal) => {
 });
 vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
-  return { ...actual, notify: vi.fn(async () => {}), rateLimit: vi.fn(async () => {}) };
+  return { ...actual, notify: vi.fn(async () => {}) };
 });
 
 const { rpc } = await import('@/server/deck/db');
