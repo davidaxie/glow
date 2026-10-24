@@ -13,7 +13,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { MODERATION_TIMEOUT_MS, type CardTags, type MyCheckin } from '@/contracts';
-import type { RouteHandler, RouteReply } from '@/server/http';
+import { unavailable, unprocessable, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
 import { httpErrorFor } from './db-errors';
 import {
@@ -48,21 +48,6 @@ const REJECTED_MESSAGES: Readonly<Record<PhotoRejectReason, string>> = {
   possibly_minor: 'The photo is not allowed.',
   unreadable: 'The photo could not be read.',
 };
-
-type Reply = RouteReply<'createCheckin'>;
-
-function errorReply(
-  status: 422 | 503,
-  code: 'photo_rejected' | 'join_ticket_invalid' | 'unavailable',
-  message: string,
-  reason?: string,
-): Reply {
-  return {
-    status,
-    body: { error: { code, message, ...(reason ? { reason } : {}) } },
-    ...(status === 503 ? { headers: { 'Retry-After': '2' } } : {}),
-  } as Reply;
-}
 
 /** B8's verdict, or `null` if moderation didn't answer in time (fail closed). */
 async function moderate(jpeg: Buffer): Promise<ModerationVerdict | null> {
