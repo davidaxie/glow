@@ -33,10 +33,16 @@ Things only David can do. None of these block Wave 0 work locally.
 13. **Purge every 5 minutes** (from B8, item 3 above). `server/vercel.json` already schedules `/api/cron/purge` at `*/5 * * * *`. On a Pro plan that's all. On Hobby, Vercel may refuse to deploy a schedule that runs more than once a day: change it to `0 0 * * *` and add an outside schedule instead, for example an Upstash QStash schedule (`*/5 * * * *`) that calls `GET https://{DOMAIN}/api/cron/purge` and forwards `Authorization: Bearer <CRON_SECRET>` (QStash's `Upstash-Forward-Authorization` header). The route is safe to be called by both (B8-D8).
 14. **Moderation** (from B8). With `ANTHROPIC_API_KEY` set, run `pnpm --filter server exec vitest run tests/moderation/live.test.ts` once: it checks p95 latency under 2.5 s and decides every photo in `server/tests/moderation/fixtures/live/` as its name says (`approve-*.jpg`, `reject-face_visible-*.jpg`, `reject-nudity-*.jpg`, `hold-*.jpg`). No such photos are committed, because they need real people who agreed to be fixtures (or freely licensed ones, D44); please add a few, or decide they stay local. Note the synthetic outfit drawings in `ios/fixtures/photos/` are *rejected* by real Claude as "no person", so Simulator check-ins with a key set need real outfit photos.
 15. **Supabase cloud, account deletion** (from B8). After `supabase db push`, check that `select public.purge_auth_audit(interval '7 days')` runs as the service role. It deletes from `auth.audit_log_entries`, which a hosted project may restrict. If it's refused, deletion still works but Auth's audit log keeps emails and IPs: either allow it, or turn off "write auth audit logs to the database" in the project's Auth settings (B8-D4, B8-D5).
+16. **Select the full Xcode** (from B6, optional): `xcode-select` points at the Command Line Tools, so Claude Code's built-in iOS Simulator panel refuses to start. `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` fixes it. Agents work around it with `scripts/sim.sh` (which sets `DEVELOPER_DIR` itself), so nothing is blocked.
+17. **Haptics and brightness on a real iPhone** (from B6): the Simulator can't play haptics or change brightness. On a device, check the Gallery (Settings > Debug > Gallery): the Haptics buttons, and "Open a live glow", which should go to full brightness, keep the screen awake, and return your own brightness when closed or when you open Control Center.
 
 ## Requests
 
 ### For A1
+
+_From B6, 2026-10-24._
+
+1. **DesignSystem strings** (for D4, later): when D4 adds a string catalog to DesignSystem, its target needs `resources: [.process("Resources")]` in `Package.swift`.
 
 _From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
 
@@ -277,6 +283,8 @@ _From A3, 2026-10-24._ Please replace `ios/fixtures/push/match_created.apns` (A3
 ### For B6
 
 _From A3, 2026-10-24._ The app icon (`ios/Glow/Assets.xcassets/AppIcon.appiconset`), the accent color and `LaunchBackground` (the launch screen color) are A3's placeholders; they're yours to replace. `.swiftlint.yml` has a marked spot under `custom_rules` for your "no colors or fonts in feature modules" rule.
+
+_Answered by B6, 2026-10-24._ The icon is replaced on `w1/b6-design`. The accent color (#FF4FA3) and `LaunchBackground` (#0B0B10) already match the tokens, so they stay (B6-D5). The lint rule is in #21 (merged).
 
 ### For B9
 
