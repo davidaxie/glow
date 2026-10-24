@@ -656,3 +656,62 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** Only `held` (the default) and `pending` photos can be listed (anything else is 400) or opened (404 once decided). Approve sets `approved`. Reject deletes the image and its row, and Ban does the same and then bans the owner (B7-D5); the reply says `rejected`. Every view is watermarked with the admin's code and logged.
 
 **Why.** Held photos are often of someone who might be under 18. Admins need to see exactly what they're deciding on, and nothing else; a rejected image isn't kept anywhere.
+## B3 · Check-in and private images
+
+### B3-D1 · Card links are bound to one viewer and last 60 seconds, but aren't single-use
+
+**Question.** The brief says "reused links" get 404. Does that mean a link works only once?
+
+**Choice.** A link is an HMAC over `{cardId}.{viewerId}.{exp}`, with the viewer taken from the bearer token, so it's useless to anyone but the person it was made for (their reuse is a 404, which is what the contract means by "reused by someone else"). It also stops working after CARD_URL_TTL, and a link claiming a longer life is refused even if signed. Within those 60 seconds, its own viewer may fetch it again. Every fetch still checks `card_visible_to`.
+
+**Why.** Single-use links would break whenever SwiftUI re-renders or a request is retried, without protecting anything: the only person who can use the link already sees the card. Binding to the token and re-checking visibility on every fetch is what keeps a leaked link worthless.
+
+### B3-D2 · Match photos are watermarked too
+
+**Question.** The spec only says card photos get the viewer's watermark.
+
+**Choice.** `GET /api/matches/{id}/photos/{n}` adds the same faint viewer-code watermark as cards, and the same no-cache headers.
+
+**Why.** A profile photo is a face, the most sensitive image the app serves. If one leaks, the code says who it was shown to.
+
+### B3-D3 · The server re-encodes every card photo, though the phone already cleaned it
+
+**Choice.** After moderation approves the upload, the server decodes it, applies any orientation, scales it to at most PHOTO_MAX_DIMENSION and re-encodes it with sharp, keeping no EXIF, GPS, XMP, ICC profile or comments. Only that copy is stored. Moderation runs on the bytes as uploaded (B8's fake reads its fixture marker from them).
+
+**Why.** P3 is enforced on the phone, but a modified app could still send a photo with a location in it. Re-encoding makes "the stored photo has no metadata" true whatever the client does.
+
+### B3-D4 · The phone removes every metadata segment, ICC profile included
+
+**Choice.** The pipeline draws into 8-bit sRGB, exports with no properties, then `JPEGSanitizer` drops every APP1 to APP15 segment and every comment, keeping only JFIF and what's needed to decode.
+
+**Why.** ImageIO writes no EXIF when given none, but "all metadata removed" shouldn't depend on a framework's defaults. A device's color profile can carry its model name, so it goes too; sRGB is what every viewer assumes without one.
+
+### B3-D5 · Faces are checked again after blurring, and a survivor stops the upload
+
+**Choice.** After blurring, Vision looks for faces again. Any it finds get a second pass; if a face survives that, the pipeline throws `processingFailed` and nothing is uploaded ("We couldn't blur that photo, so we didn't use it").
+
+**Why.** A blur that left a detectable face would break P3 silently. Failing is better than a card with a face, and server moderation is the backstop after this.
+
+### B3-D6 · A person must be found, unless a face already shows one
+
+**Choice.** If Vision finds no face, the photo needs a human rectangle (whole or upper body), or the person is asked to retake. A photo with a face skips that check, since a face means a person is there (and it's blurred).
+
+**Why.** The spec's retake rule is about empty photos. Neck-down outfit photos have no face, so the human rectangle request is what tells them apart from a photo of a wall.
+
+### B3-D7 · The watermark is drawn with a built-in pixel font
+
+**Choice.** The viewer's code is drawn as SVG rectangles from a 5×7 pixel font in `glyphs.ts`, repeated diagonally across the whole photo, once in white and once in black, each at 12% opacity.
+
+**Why.** Vercel's functions have no system fonts, so SVG text could render as nothing and silently drop the watermark. Two passes keep it visible on white shirts and black jackets alike without being loud.
+
+### B3-D8 · Private images are never cached, in memory or on disk
+
+**Choice.** `PrivateImageLoader` fetches every image through `GlowAPI` (ephemeral session, no URL cache, D42), keeps no in-memory cache, and `PrivateImageView` holds the decoded image only in its own state. Card links must be a relative `/api/cards/{id}/image?exp&sig` path or nothing is sent, so a link can never carry the token to another host.
+
+**Why.** Spec step 10 ("Display with caching turned off"), and a card should disappear from the phone the moment it leaves the deck. When a 60-second link has expired, the view reports `.notFound` and C1 refetches the deck for fresh links.
+
+### B3-D9 · Cheap checks run before moderation, and a failed check-in leaves no photo
+
+**Choice.** Check-in runs: rate limit, join ticket, base64 and size checks, then moderation, then storage, then `create_checkin`. If `create_checkin` fails, the photo just stored is deleted before the error goes back, and the photos of replaced check-ins are deleted at once rather than at the next purge.
+
+**Why.** An expired ticket shouldn't cost a moderation call, and no photo should outlive the check-in it belonged to.
