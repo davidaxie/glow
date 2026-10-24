@@ -8,6 +8,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { TAPS_PER_ROOM_PER_DAY, zTapResult, type TapResult } from '@/contracts';
 import { IT, useRealSupabase, World, type Person } from '../deck/harness';
 
+// Setting up dozens of people takes a while on a busy machine.
+vi.setConfig({ hookTimeout: 180_000, testTimeout: 180_000 });
+
 vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
   return { ...actual, notify: vi.fn(async () => ({ realtime: 'skipped', push: null })) };

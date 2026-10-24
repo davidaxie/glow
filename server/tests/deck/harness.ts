@@ -23,6 +23,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import type { CardTags, Database, DeckRequest } from '@/contracts';
 import { resetEnvCacheForTests } from '@/env';
+import { setRateLimitStoreForTests } from '@/server/ratelimit';
 import { LOCAL_ENV } from '../helpers/env';
 
 type Gender = Database['public']['Enums']['gender'];
@@ -82,6 +83,12 @@ export function useRealSupabase(config: ItConfig): void {
   process.env.SUPABASE_ANON_KEY = config.anonKey;
   process.env.SUPABASE_SERVICE_ROLE_KEY = config.serviceKey;
   resetEnvCacheForTests();
+  // B8's burst limits are B8's tests; these tests make far more requests per person than any
+  // phone would. The routes still call rateLimit(); this store just never says no.
+  setRateLimitStoreForTests({
+    name: 'test',
+    hit: async () => ({ allowed: true, remaining: Number.MAX_SAFE_INTEGER, resetAt: 0 }),
+  });
 }
 
 export type Person = {
