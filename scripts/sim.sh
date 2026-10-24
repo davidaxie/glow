@@ -417,10 +417,32 @@ cmd_lint() {
   use_xcode # SwiftLint needs the full Xcode's SourceKit
   need swiftlint "Install it with: brew install swiftlint"
   need swiftformat "Install it with: brew install swiftformat"
+  # Explicit config and paths: a worktree lives under the main checkout's .claude/, and
+  # SwiftFormat would otherwise also apply the parent checkout's .swiftformat and skip every
+  # file. Both tools must report the files they checked, or the lint counts as failed.
+  local out checked
   say "SwiftFormat"
-  (cd "$ROOT" && swiftformat --lint --quiet .)
+  out="$(cd "$ROOT" && swiftformat --lint --config "$ROOT/.swiftformat" "$IOS" 2>&1)" || {
+    printf '%s\n' "$out" >&2
+    die "SwiftFormat found files to format. Run: swiftformat --config .swiftformat ios"
+  }
+  checked="$(printf '%s\n' "$out" | sed -nE 's|^(.* )?([0-9]+)/([0-9]+) files? require formatting.*|\3|p' | tail -1)"
+  [ -n "$checked" ] && [ "$checked" -gt 0 ] || {
+    printf '%s\n' "$out" >&2
+    die "SwiftFormat checked no files, so the lint proves nothing."
+  }
+  say "SwiftFormat checked $checked files."
   say "SwiftLint"
-  (cd "$ROOT" && swiftlint lint --strict --quiet)
+  out="$(cd "$ROOT" && swiftlint lint --strict --config "$ROOT/.swiftlint.yml" 2>&1)" || {
+    printf '%s\n' "$out" | grep -vE '^Linting ' >&2
+    die "SwiftLint found violations."
+  }
+  checked="$(printf '%s\n' "$out" | sed -nE 's|^Done linting!.* in ([0-9]+) files?\.$|\1|p' | tail -1)"
+  [ -n "$checked" ] && [ "$checked" -gt 0 ] || {
+    printf '%s\n' "$out" >&2
+    die "SwiftLint checked no files, so the lint proves nothing."
+  }
+  say "SwiftLint checked $checked files."
   say "Lint passed."
 }
 

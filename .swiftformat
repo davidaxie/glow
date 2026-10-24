@@ -1,7 +1,7 @@
-# SwiftFormat for the iOS app. Owner: A3. CI runs `swiftformat --lint ios` (scripts/sim.sh lint).
+# SwiftFormat for the iOS app. Owner: A1 (built by A3). `scripts/sim.sh lint` runs `swiftformat --lint --config .swiftformat ios`.
 
 --swiftversion 6.2
---exclude .claude,node_modules,ios/build,ios/Glow.xcodeproj,ios/Packages/GlowKit/.build,ios/Packages/GlowKit/Sources/APIClient/Generated,ios/fastlane
+--exclude node_modules,ios/build,ios/Glow.xcodeproj,ios/Packages/GlowKit/.build,ios/Packages/GlowKit/Sources/APIClient/Generated,ios/fastlane
 
 --indent 4
 --maxwidth 140
