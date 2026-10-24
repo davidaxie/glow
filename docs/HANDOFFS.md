@@ -21,6 +21,12 @@ Things only David can do. None of these block Wave 0 work locally.
 
 ### For A1
 
+_From B8, 2026-10-24._
+
+1. **Rate limit every route in the helper.** In `route()` (`server/src/server/http/route.ts`), right after `authenticate`, add `await limitRequest(operationId, req, user)` from `@/server/ratelimit`. It picks the policy per operation (`policyForOperation`, a test covers every operation in the contract), keys by person or by client IP, throws your `rateLimited()` 429, and skips `runPurge`. Then no handler has to remember to call it.
+2. ~~**`reason` on errors.**~~ Done in #13. `photoRejected(reason)` is built on `unprocessable`, and `ModerationUnavailableError` passes `reason: 'moderation'`.
+3. **`tests/setup.ts`:** please also delete `ANTHROPIC_API_KEY` before each test, so a key exported in someone's shell never makes the suite call the real API (B8's live test reads the key once at import, before setup runs).
+
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
 1. **Wire the generated registry.** `server/src/contracts/operations.ts` exports `operations` (typed `as const satisfies Record<string, OperationDef>`), with the operationIds your stubs already use. In `server/src/server/http/operations.ts`, replace the placeholder import with `import { operations as generated } from '@/contracts/operations';` and `export const operations = generated;`, then delete `contract-placeholder.ts`. I tried exactly that locally: `tsc --noEmit` passes with every existing route. `tests/stubs.test.ts` then wants route files for the operations the placeholder didn't have:
@@ -121,6 +127,18 @@ _Answered by A3, 2026-10-24, in PR #3._ 1: done. `setup`, `build` and `test` run
 
 _From A1, 2026-10-24._ `HttpError` and `errorBody` now carry the contract's optional `reason`: `throw unprocessable('photo_rejected', 'Try another photo.', { reason: 'face_visible' })` sends 422 `{ error: { code, message, reason } }`. `conflict(code, message)` covers 409s like `onboarding_incomplete`. The route helper now validates against the generated contract, so `addProfilePhoto` takes A2's base64 JSON body, not multipart.
 
+_From B8, 2026-10-24._ Profile photo moderation, in `@/server/moderation` (exact exports under B8 in Status):
+
+```ts
+import { moderateImage, photoRejected } from '@/server/moderation';
+
+const verdict = await moderateImage('profile', jpegBytes); // Uint8Array, the JPEG as uploaded
+if (verdict.decision === 'rejected') throw photoRejected(verdict.reason); // 422 photo_rejected
+// verdict.decision is 'approved' or 'held': store it as profile_photos.moderation_status.
+```
+
+It throws `ModerationUnavailableError` (an `HttpError`, 503 `unavailable`, reason `moderation`) on a timeout or outage. Let it propagate and don't store the photo (B8-D2). Held photos (possibly under 18) are never shown until B7 approves them. Rate limits: `addProfilePhoto` and `deleteProfilePhoto` use the `photos` policy, `updateProfile` uses `account`, `testLogin` uses `signIn` (per IP). If A1 wires `limitRequest` into the route helper (For A1 below), you don't call anything; otherwise `await rateLimit(user.id, 'photos')` first thing in the handler.
+
 ### For B2
 
 _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/route.ts` exists as a 501 stub for `getRoomState`; it's yours (listed in your `AGENTS.md` row), so replace the stub. 2: done. 3: `server/src/env.ts` has two optional variables, both validated and optional everywhere: `TESTFLIGHT_URL` (must be `https://testflight.apple.com/...`) and `APPLE_APP_ID` (`TEAMID.bundle.id`, like `ABCDE12345.com.davidxie.glow`). Please use `APPLE_APP_ID` for the link file rather than `APNS_TEAM_ID` plus `APNS_BUNDLE_ID`: the APNS variables only exist together with the push key, so a preview without push couldn't serve the link file. Read them with `getEnv()`.
@@ -128,6 +146,34 @@ _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/
 ### For B3
 
 _From A3, 2026-10-24._ `ios/fixtures/photos/` has four synthetic, faceless outfit images (D44). Add fixture photos with real faces that the people in them agreed to (or freely licensed ones) for the blur tests. `ios/fixtures/` is A3's, so add them in a `cross-owner` PR or ask A1.
+
+_From B8, 2026-10-24._ Card photo moderation fails closed:
+
+```ts
+import { moderateImage, photoRejected } from '@/server/moderation';
+
+const verdict = await moderateImage('card', jpegBytes); // throws ModerationUnavailableError (503) on timeout or outage
+if (verdict.decision !== 'approved') throw photoRejected(verdict.reason);
+// reasons: face_visible, nudity, no_outfit, no_person, possibly_minor, unreadable
+```
+
+Moderate before uploading to storage, so a rejected photo is never stored. In tests, `await moderationFixtureJpeg(['face_visible'])` gives a JPEG the local fake rejects (also `nudity`, `no_outfit`, `no_person`, `possibly_minor`, `slow` for the timeout, `error` for an outage); `moderationFixtureJpeg([])` is approved. Rate limit policy: `checkin` (10 per 10 min) for `createCheckin`, `join` for `joinRoom`, `resolveRoom` and `leaveRoom`.
+
+### For C4
+
+_From B8, 2026-10-24._ Chat moderation never throws and never takes more than MODERATION_TIMEOUT (2.5 s):
+
+```ts
+import { moderateText, messageRejected } from '@/server/moderation';
+import { rateLimit } from '@/server/ratelimit';
+
+await rateLimit(user.id, 'messages'); // 30 per minute; throws 429 rate_limited with Retry-After
+const verdict = await moderateText(body);
+if (verdict.decision === 'flagged') throw messageRejected(); // 422 message_rejected, don't store it
+// verdict.decision is 'passed' or 'pending': pass it to send_message as messages.moderation.
+```
+
+`pending` means moderation was slow or down: the message goes through, and B8's purge cron reviews it later and sets `moderation = 'flagged'` if it's bad. Please hide `flagged` messages from the recipient in `listMessages`. In tests, `[glow-test:flag]`, `[glow-test:slow]` and `[glow-test:error]` in a body drive the local fake (`TEXT_FIXTURE`).
 
 ### For B5
 
@@ -161,6 +207,53 @@ _2026-10-24, Wave 1, first PR (tokens and basic components)._ Branch `w1/b6-desi
 **Using it** (feature modules): `import DesignSystem`, then `Text("Hi").glowFont(.body).foregroundStyle(.glowTextPrimary)`, `Button("Check in") { … }.buttonStyle(.glowPrimary)`, `.background(.glowBackground)`. Never `Color(...)`, `UIColor`, `.font(.title)` or `Font.system` in a feature: a SwiftLint rule (sent to A1 as a `cross-owner` PR) fails them. Need a color or style that isn't here? Ask under **For B6**.
 
 **Still mocked**: nothing. DesignSystem depends on nothing but SwiftUI.
+
+### B8 · Safety, moderation and cleanup
+
+_2026-10-24, Wave 1, interfaces._ PR on `w1/b8-safety-interfaces`; the rest of B8 follows on `w1/b8-safety`.
+
+**Moderation** (`server/src/server/moderation`, import from `@/server/moderation`)
+
+| Export | Shape |
+| --- | --- |
+| `moderateImage(kind, bytes)` | `kind: 'card' \| 'profile'`, `bytes: Uint8Array` (the JPEG as uploaded). Resolves `ImageModeration`: `{ decision: 'approved', findings }`, `{ decision: 'rejected', reason, findings? }` or `{ decision: 'held', reason: 'possibly_minor', findings }` (profile only). Throws `ModerationUnavailableError` after MODERATION_TIMEOUT (2.5 s) or on an outage. |
+| `moderateText(body)` | Resolves `TextModeration`: `{ decision: 'passed' }`, `{ decision: 'flagged', category }` or `{ decision: 'pending' }` (no answer within 2.5 s, or an outage). Never throws. |
+| `reviewText(body)` | The same with a 15 s timeout, for the after-the-fact review. |
+| `photoRejected(reason)` | `HttpError` 422 `photo_rejected` with `reason`. |
+| `messageRejected()` | `HttpError` 422 `message_rejected`. |
+| `ModerationUnavailableError`, `moderationUnavailable()` | `HttpError` 503 `unavailable`, `reason: 'moderation'`, `Retry-After: 2`. |
+| `decideImage(kind, findings)` | The rules on their own (B8-D2). |
+| `moderationFixtureJpeg(flags)`, `TEXT_FIXTURE`, `setModerationModelForTests(model)` | For tests. |
+| Types | `ImageKind`, `ImageModeration`, `ImageRejectReason` (`face_visible`, `nudity`, `no_outfit`, `no_person`, `possibly_minor`, `unreadable`), `ImageFindings`, `TextModeration`, `TextCategory`. |
+
+**Rate limits** (`server/src/server/ratelimit`, import from `@/server/ratelimit`)
+
+| Export | Shape |
+| --- | --- |
+| `rateLimit(key, policy)` | Counts one request; throws `rateLimited()` (429 `rate_limited`, `Retry-After` in seconds) when over. Use the person's ID as the key. |
+| `checkRateLimit(key, policy)` | `{ allowed, remaining, retryAfterSeconds }`, without throwing. |
+| `limitRequest(operationId, req, user)` | Picks the policy for a contract operation and keys by person or client IP. For A1's route helper. |
+| `RATE_LIMIT_POLICIES`, `policyForOperation(id)` | The policies below, and which operation uses which. |
+
+| Policy | Limit | Operations |
+| --- | --- | --- |
+| `signIn` | 10 per 10 min, per IP | `testLogin` |
+| `join` | 20 per 10 min | `resolveRoom`, `joinRoom`, `leaveRoom` |
+| `checkin` | 10 per 10 min | `createCheckin` |
+| `deck` | 60 per min | `getDeck` |
+| `taps` | 20 per min | `createTap` |
+| `messages` | 30 per min | `sendMessage` |
+| `reports` | 10 per hour | `createReport` |
+| `blocks` | 60 per hour | `createBlock` |
+| `capture` | 60 per hour | `logCapture` |
+| `photos` | 20 per 10 min | `addProfilePhoto`, `deleteProfilePhoto` |
+| `account` | 30 per 10 min | `updateProfile`, `setPaused`, `deleteAccount`, `registerDevice`, `deleteDevice` |
+| `admin` | 300 per min | every `admin*` operation |
+| `api` | 300 per min | everything else (reads); `runPurge` has none |
+
+A limited request answers 429 `rate_limited` with `Retry-After`; the app already maps that to `APIError.rateLimited`. Keys are hashed before they reach the store, and limits fail open if Upstash is down (B8-D3).
+
+**Still mocked**: Claude runs only with `ANTHROPIC_API_KEY`; without it, local runs use the fake (B8-D1). Upstash runs only with `UPSTASH_REDIS_REST_*`; locally it's in memory.
 
 ### A2 · Contracts and database
 
