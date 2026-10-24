@@ -271,15 +271,13 @@ describe.skipIf(!LIVE)('delete account', () => {
     await world.db.storage
       .from('profile-photos')
       .upload(photoPath, jpeg, { contentType: 'image/jpeg' });
-    await world.db
-      .from('profile_photos')
-      .insert({
-        id: photoId,
-        user_id: a.id,
-        path: photoPath,
-        position: 0,
-        moderation_status: 'approved',
-      });
+    await world.db.from('profile_photos').insert({
+      id: photoId,
+      user_id: a.id,
+      path: photoPath,
+      position: 0,
+      moderation_status: 'approved',
+    });
     await world.db.from('devices').insert({
       user_id: a.id,
       apns_token: 'ab'.repeat(32),
