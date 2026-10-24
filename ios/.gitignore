@@ -1,0 +1,10 @@
+# iOS-only ignores on top of the root .gitignore (which already covers the generated
+# .xcodeproj, ios/build/, DerivedData, .build and .swiftpm). Owner: A3.
+
+# Per-machine overrides, like analytics keys.
+Glow/Config/Local.xcconfig
+
+# The lockfile that counts is ios/Package.resolved. This one only appears if you resolve the package alone.
+Packages/GlowKit/Package.resolved
+
+*.xcresult

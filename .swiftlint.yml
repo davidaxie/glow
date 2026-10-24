@@ -1,0 +1,58 @@
+# SwiftLint for the iOS app. Owner: A3. CI runs `swiftlint lint --strict` (scripts/sim.sh lint).
+# SwiftFormat owns layout (indentation, wrapping, commas); SwiftLint owns everything else.
+
+included:
+  - ios
+excluded:
+  - ios/build
+  - ios/Glow.xcodeproj
+  - ios/Packages/GlowKit/.build
+  - ios/Packages/GlowKit/Sources/APIClient/Generated
+  - ios/fastlane
+
+disabled_rules:
+  - trailing_comma # SwiftFormat adds them
+  - opening_brace # SwiftFormat wraps braces
+  - todo # placeholders say who owns the work
+
+opt_in_rules:
+  - contains_over_first_not_nil
+  - discouraged_optional_boolean
+  - empty_count
+  - empty_string
+  - fatal_error_message
+  - first_where
+  - last_where
+  - private_swiftui_state
+  - redundant_nil_coalescing
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - yoda_condition
+
+line_length:
+  warning: 140
+  error: 200
+  ignores_urls: true
+
+identifier_name:
+  min_length: 2
+  excluded: [id, x, y, to]
+
+type_name:
+  min_length: 2
+  max_length: 60
+
+nesting:
+  type_level: 2
+
+custom_rules:
+  # Privacy: print and NSLog can leak coordinates, names or tokens into device logs.
+  no_print:
+    name: 'No print'
+    regex: '(^|[^\w.])(print|debugPrint|NSLog)\('
+    excluded: '/Tests/|UITests/'
+    message: 'Use os.Logger with privacy annotations (see AppCore Log).'
+    severity: error
+  # B6 adds design-token rules here (feature modules may not define their own colors or fonts).
+
+reporter: xcode

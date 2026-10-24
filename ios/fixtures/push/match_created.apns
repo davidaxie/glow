@@ -1,0 +1,11 @@
+{
+  "Simulator Target Bundle": "com.davidxie.glow",
+  "aps": {
+    "alert": {
+      "body": "Someone you noticed noticed you back."
+    },
+    "sound": "default"
+  },
+  "type": "match.created",
+  "match_id": "00000000-0000-4000-8000-000000000001"
+}

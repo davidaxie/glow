@@ -1,0 +1,19 @@
+// Debug: Simulator builds against the local stack. Owner: A3.
+#include "Shared.xcconfig"
+
+GLOW_ENVIRONMENT = debug
+
+// Local API (pnpm --filter server dev) and local Supabase (supabase start).
+// Supabase runs on non-default ports on this team's Macs (see supabase/config.toml and
+// docs/DECISIONS.md from A2): API 54421, DB 54422, Studio 54423, Mailpit 54424.
+API_BASE_URL = http:/$()/localhost:3000
+SUPABASE_URL = http:/$()/127.0.0.1:54421
+// The local stack's public demo publishable key, the same one as server/.env.example. Not a secret:
+// every local Supabase has it, and it only works against 127.0.0.1.
+SUPABASE_ANON_KEY = sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
+
+// Xcode builds register push tokens in the sandbox environment.
+GLOW_APS_ENVIRONMENT = development
+
+// Optional, untracked overrides for your machine, like POSTHOG_KEY. Not in git.
+#include? "Local.xcconfig"
