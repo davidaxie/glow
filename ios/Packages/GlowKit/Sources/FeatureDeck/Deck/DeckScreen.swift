@@ -107,7 +107,6 @@ struct DeckScreen: View {
                     .padding(.top, GlowSpacing.xxl)
             }
             .refreshable { await model.refresh() }
-            .safeAreaInset(edge: .bottom) { noticeBar }
         case let .failed(failure):
             GlowEmptyState(
                 systemImage: failure == .offline ? "wifi.slash" : "exclamationmark.triangle",
