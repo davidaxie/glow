@@ -16,11 +16,11 @@ vi.mock('@/server/deck/db', async (importOriginal) => {
 });
 vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
-  return { ...actual, notify: vi.fn(async () => {}) };
+  return { ...actual, notify: vi.fn(async () => {}), notifySettled: vi.fn(async () => []) };
 });
 
 const { rpc } = await import('@/server/deck/db');
-const { notify } = await import('@/server/deck/dependencies');
+const { notify, notifySettled } = await import('@/server/deck/dependencies');
 const { GET } = await import('../../app/api/matches/route');
 
 const OTHER_USER = '7e570000-0000-4000-8000-000000000002';
@@ -86,24 +86,23 @@ describe('GET /api/matches', () => {
     const res = await call();
     expect(await res.json()).toEqual({ matches: [] });
     expect(notify).not.toHaveBeenCalled();
+    expect(notifySettled).not.toHaveBeenCalled();
   });
 
-  it('tells both people about timeouts it applied: match.choice and glow.ended', async () => {
+  it('hands the timeouts it applied to notifySettled, which tells both people', async () => {
+    const settled = [
+      { matchId: M1, kind: 'choice_timeout', userIds: [USER_ID, OTHER_USER] },
+      { matchId: M2, kind: 'glow_expired', userIds: [USER_ID, OTHER_USER] },
+    ];
     vi.mocked(rpc).mockResolvedValue({
       matches: [detail(M1, 'chatting'), detail(M2, 'chatting')],
-      settled: [
-        { matchId: M1, kind: 'choice_timeout', userIds: [USER_ID, OTHER_USER] },
-        { matchId: M2, kind: 'glow_expired', userIds: [USER_ID, OTHER_USER] },
-      ],
+      settled,
     } as never);
     const res = await call();
     expect(res.status).toBe(200);
-    expect(notify).toHaveBeenCalledTimes(2);
-    expect(notify).toHaveBeenCalledWith([USER_ID, OTHER_USER], {
-      type: 'match.choice',
-      matchId: M1,
-    });
-    expect(notify).toHaveBeenCalledWith([USER_ID, OTHER_USER], { type: 'glow.ended', matchId: M2 });
+    // B5's notifySettled sends match.choice for choice_timeout and glow.ended for glow_expired.
+    expect(notifySettled).toHaveBeenCalledTimes(1);
+    expect(notifySettled).toHaveBeenCalledWith(settled);
     expect(JSON.stringify(await res.clone().json())).not.toContain('settled');
   });
 

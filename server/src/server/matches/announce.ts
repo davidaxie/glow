@@ -1,5 +1,6 @@
 /**
- * Owner: B4. Telling both people about a new match, and about matches whose time ran out.
+ * Owner: B4. Telling both people about a new match. (Timeouts a database function settled go
+ * out through B5's `notifySettled`, in list-matches.ts.)
  *
  * Events carry only `{ type, matchId }` (contracts/events.json). The user IDs here come from
  * the database, go only to `notify()`, and never reach a reply (P1).
@@ -49,35 +50,5 @@ export async function announceMatch(matchId: string): Promise<void> {
       return;
     }
     await notify(people, { type: 'match.created', matchId });
-  });
-}
-
-/**
- * A timeout a database function applied while answering (A2's `settled`, migration 0002):
- * `choice_timeout` opened the chat, `glow_expired` ended the glow.
- */
-export type SettledTransition = {
-  readonly matchId: string;
-  readonly kind: 'choice_timeout' | 'glow_expired' | (string & {});
-  readonly userIds: readonly string[];
-};
-
-/** Tells both people about each settled transition: match.choice or glow.ended. */
-export async function announceSettled(
-  settled: readonly SettledTransition[] | null | undefined,
-): Promise<void> {
-  if (!settled || settled.length === 0) return;
-  await afterResponse(async () => {
-    await Promise.all(
-      settled.map((t) => {
-        if (t.kind === 'choice_timeout') {
-          return notify(t.userIds, { type: 'match.choice', matchId: t.matchId });
-        }
-        if (t.kind === 'glow_expired') {
-          return notify(t.userIds, { type: 'glow.ended', matchId: t.matchId });
-        }
-        return undefined;
-      }),
-    );
   });
 }

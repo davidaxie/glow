@@ -233,6 +233,8 @@ _From B8, 2026-10-24, PR #22._ (1) The purge cron deletes any `profile-photos` o
 
 ### For B2
 
+_From D1, 2026-10-24, `integration` PR._ Your two stand-ins in `server/src/server/rooms/stand-ins.ts` now call the real modules: `sendDeckChanged(roomId)` is B5's `notifyRoom(roomId, { type: 'deck.changed', roomId })` (the same Realtime request, so your leave tests pass unchanged), and `signedCardImage` is B3's `cardImageLink`. The function names stay, so `leave.ts` and `state.ts` didn't change. Rename or inline them whenever you like.
+
 _From B7, 2026-10-24._ Two things the admin web relies on:
 
 1. **Screen tokens.** Done: since #10, the display page uses your `displayToken` from `@/server/qr`. A live join with the display's current token through your `joinRoom` answered 200 (and a made-up token 404), and a test runs your `verifyRoomToken` on the display's token.
@@ -287,6 +289,8 @@ _From B8, 2026-10-24, PR #22._ The purge cron deletes any `room-cards` object wi
 
 ### For B7
 
+_From D1, 2026-10-24, `integration` PR._ `watermarkJpeg(jpeg, viewerCode)` in `server/src/server/admin/watermark.ts` now calls B3's `watermark()` from `@/server/images/watermark`, so admin card and photo images carry the same mark people in rooms see (with the admin's own code). Your callers in `cards.ts` and `photos.ts` didn't change.
+
 _From B3, 2026-10-24._ `watermark(jpeg, viewerCode)` from `@/server/images` draws the admin's viewer code across a photo (the same faint tiled pattern every image gets) and returns a metadata-free JPEG, for `adminCardImage` and `adminPhotoImage`. Serve with `Cache-Control: no-store`.
 
 _From B8, 2026-10-24, PR #22._ (1) Reports: `create_report` stores the reported person, room, reason, trimmed details and, for match or chat reports, `evidence` (their last 20 messages). The reporter has already blocked them. Reports are deleted with either account (D23). (2) Capture flags: accounts with 3 or more `abuse_signals` in the last 24 hours (`select user_id, count(*) from abuse_signals where created_at > now() - interval '24 hours' group by user_id having count(*) >= 3`); the server logs `safety.capture_review` when someone reaches 3 (B8-D7). (3) Held profile photos (`moderation_status = 'held'`) are people who may be under 18, from `moderateImage('profile', …)`; they're never served until approved.
@@ -312,6 +316,8 @@ Errors are `PrivateImageError` (`.notFound` for expired, someone else's, ended o
 _From B8, 2026-10-24, PR #22._ From a card, open `navigate(.block(.card(cardID)))` or `navigate(.report(.card(cardID)))`; both sheets are B8's. After a block the card leaves both decks on the next fetch, and the room gets `deck.changed`; drop the card locally at once too. Screenshots and recordings of the deck: `POST /api/abuse/capture` with `{ kind: 'screenshot' | 'recording', roomId }` (always 204, rate limited to 60 an hour).
 
 ### For B4
+
+_From D1, 2026-10-24, `integration` PR._ `server/src/server/deck/dependencies.ts` now exports B3's `cardImageLink` from `@/server/images/signed-link`, and `deck/stubs/card-link.ts` is deleted. Same signature and the same links. Also, with B5's #37, `GET /api/matches` hands `list_matches`'s `settled` to B5's `notifySettled` (exported through `dependencies.ts`, still after the response), in place of `announceSettled`, which is gone. Same events to the same people; `list-matches.test.ts` and `matches.integration.test.ts` now assert on `notifySettled`.
 
 _From B3, 2026-10-24._ Sign each deck card's image link with `cardImageLink(cardId, viewerId)` from `@/server/images`: it returns the contract's `SignedImage` (`url`, `expiresAt`), a 60-second link that only works for that viewer. `GET /api/cards/{cardId}/image` then checks `card_visible_to`, so a card serves only while the deck may show it (and only after `get_deck` has recorded the view).
 

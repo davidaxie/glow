@@ -13,7 +13,8 @@ import type { MatchList, MatchStatus, MatchSummary } from '@/contracts';
 import { rpc } from '@/server/deck/db';
 import type { RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
-import { announceSettled, type SettledTransition } from './announce';
+import { notifySettled } from '@/server/deck/dependencies';
+import { afterResponse } from './announce';
 
 /** What `list_matches` returns per match: MatchDetail plus server-only fields. */
 type DbMatch = {
@@ -28,7 +29,8 @@ type DbMatch = {
 
 type DbMatchList = {
   readonly matches: readonly DbMatch[];
-  readonly settled?: readonly SettledTransition[] | null;
+  /** Timeouts it applied, `[{ matchId, kind, userIds }]` (CONTRACTS.md, "Settled timeouts"). */
+  readonly settled?: readonly unknown[] | null;
 };
 
 const LISTED: ReadonlySet<string> = new Set<MatchStatus>([
@@ -54,7 +56,13 @@ export function toSummary(match: DbMatch): MatchSummary | null {
 
 export async function listMatches(userId: string): Promise<MatchList> {
   const raw = (await rpc('list_matches', { p_user_id: userId })) as unknown as DbMatchList;
-  await announceSettled(raw.settled);
+  // match.choice or glow.ended to both people, after the response (B5's notifySettled).
+  const settled = raw.settled;
+  if (settled && settled.length > 0) {
+    await afterResponse(async () => {
+      await notifySettled(settled);
+    });
+  }
   const matches: MatchSummary[] = [];
   for (const match of raw.matches) {
     const summary = toSummary(match);

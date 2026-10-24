@@ -12,9 +12,13 @@ vi.setConfig({ hookTimeout: 180_000, testTimeout: 180_000 });
 
 vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
-  return { ...actual, notify: vi.fn(async () => ({ realtime: 'skipped', push: null })) };
+  return {
+    ...actual,
+    notify: vi.fn(async () => ({ realtime: 'skipped', push: null })),
+    notifySettled: vi.fn(async () => []),
+  };
 });
-const { notify } = await import('@/server/deck/dependencies');
+const { notifySettled } = await import('@/server/deck/dependencies');
 
 describe.runIf(IT)('GET /api/matches (integration)', { timeout: 120_000 }, () => {
   let world: World;
@@ -103,20 +107,24 @@ describe.runIf(IT)('GET /api/matches (integration)', { timeout: 120_000 }, () =>
       },
       { id: first!.id },
     );
-    vi.mocked(notify).mockClear();
+    vi.mocked(notifySettled).mockClear();
     const forAna = await list(ana);
     expect(forAna.matches.map((x) => [x.id, x.status, x.firstName])).toEqual([
       [second.matchId, 'choosing', 'Dev'],
       [first!.id, 'chatting', 'Ben'],
     ]);
-    // The timeout list_matches applied goes to both people as match.choice (A2's settled).
-    expect(notify).toHaveBeenCalledTimes(1);
-    const [people, event] = vi.mocked(notify).mock.calls[0]!;
-    expect([...(people as string[])].sort()).toEqual([ana.id, ben.id].sort());
-    expect(event).toEqual({ type: 'match.choice', matchId: first!.id });
+    // The timeout list_matches applied goes to notifySettled, for both people (A2's settled).
+    expect(notifySettled).toHaveBeenCalledTimes(1);
+    const [settled] = vi.mocked(notifySettled).mock.calls[0]! as [
+      Array<{ matchId: string; kind: string; userIds: string[] }>,
+    ];
+    expect(settled).toHaveLength(1);
+    expect(settled[0]!.matchId).toBe(first!.id);
+    expect(settled[0]!.kind).toBe('choice_timeout');
+    expect([...settled[0]!.userIds].sort()).toEqual([ana.id, ben.id].sort());
     // Applied once: the next list sends nothing.
     await list(ben);
-    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notifySettled).toHaveBeenCalledTimes(1);
   });
 
   it('an ended match (unmatch or block) disappears for both', async () => {
