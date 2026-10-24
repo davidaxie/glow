@@ -648,3 +648,11 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 ### B7-D10 · The web domain is one server constant that must match the app's
 
 **Choice.** `WEB_DOMAIN` in `server/src/server/admin/links.ts` builds every poster and display link, and a test fails if it differs from `GLOW_WEB_DOMAIN` in `ios/Glow/Config/Shared.xcconfig` (today both are `glow-domain-not-chosen.invalid`, D33). B7 asked A1 to move it into `server/src/env.ts` as a variable.
+
+### B7-D11 · Admins can only see profile photos that need a decision
+
+**Question.** `GET /api/admin/photos` takes any moderation status, so an admin could list and open every approved profile photo in the system.
+
+**Choice.** Only `held` (the default) and `pending` photos can be listed (anything else is 400) or opened (404 once decided). Approve sets `approved`. Reject deletes the image and its row, and Ban does the same and then bans the owner (B7-D5); the reply says `rejected`. Every view is watermarked with the admin's code and logged.
+
+**Why.** Held photos are often of someone who might be under 18. Admins need to see exactly what they're deciding on, and nothing else; a rejected image isn't kept anywhere.
