@@ -12,7 +12,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/contracts';
 import { getEnv } from '@/env';
-import { HttpError, badRequest, notFound, unavailable } from '@/server/http';
+import { badRequest, conflict, notFound, unavailable, type HttpError } from '@/server/http';
 import { logger } from '@/server/log';
 
 /** Past this, a database call answers 503 so the app retries, instead of hanging. */
@@ -43,11 +43,10 @@ export function serviceDb(): SupabaseClient<Database> {
 const EXPECTED: Readonly<Record<string, () => HttpError>> = {
   not_found: notFound,
   invalid_input: () => badRequest(),
-  tap_limit_reached: () =>
-    new HttpError(409, 'tap_limit_reached', 'No taps left today in this room.'),
-  room_not_live: () => new HttpError(409, 'room_not_live', 'This room is not live right now.'),
+  tap_limit_reached: () => conflict('tap_limit_reached', 'No taps left today in this room.'),
+  room_not_live: () => conflict('room_not_live', 'This room is not live right now.'),
   onboarding_incomplete: () =>
-    new HttpError(409, 'onboarding_incomplete', 'Finish setting up your profile first.'),
+    conflict('onboarding_incomplete', 'Finish setting up your profile first.'),
 };
 
 type PostgrestErrorLike = { readonly code?: string; readonly message?: string };
