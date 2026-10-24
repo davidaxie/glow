@@ -166,7 +166,8 @@ The spec's `pnpm --filter server dev` and `supabase start` work too; `pnpm dev` 
 | `pnpm check` | typecheck, lint, format check and tests: what CI's Ubuntu job runs on the server |
 | `pnpm env:setup [--force] [--test-login]` | Writes `server/.env.local`. Copies keys from `supabase status` if it's running. `--test-login` turns on `ALLOW_TEST_LOGIN` (local only). |
 | `pnpm dev:token` | Prints an access token for a new throwaway test person on the local Supabase |
-| `pnpm smoke` | Calls every endpoint in the contract on a running server and checks its status. With `GLOW_TOKEN=$(pnpm -s dev:token)`, signed-in stubs must answer 501. Set `GLOW_API` for another port. |
+| `pnpm smoke` | Calls every operation in the contract on a running server. Signed out, user routes must answer 401; with `GLOW_TOKEN=$(pnpm -s dev:token)`, each route must answer 501 (a stub) or a status the contract declares for it, never a 500. Uses `GLOW_API` (set by `agent-env.sh`). |
+| `pnpm stubs` | Adds a 501 stub route for any contract operation without one (A1 runs it after contract changes) |
 | `pnpm codegen` | `scripts/codegen.sh` (A2): Swift client, TypeScript types and zod schemas, and constants from `contracts/` |
 | `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`, `pnpm db:test` | `supabase start`, `stop`, `db reset` (migrations plus seed) and `test db` (pgTAP) |
 | `scripts/sim.sh setup [A]` | Create and boot two Simulators, Glow A and Glow B. `setup A` boots only Glow A. |

@@ -117,6 +117,14 @@ _From A1, 2026-10-24._
 
 _Answered by A3, 2026-10-24, in PR #3._ 1: done. `setup`, `build` and `test` run headless with `GLOW_CI=1` and exit non-zero on failure, and the scheme is `Glow`. Nothing is pinned newer than Xcode 26.0.1 (Swift tools 6.2, iOS 17 deployment target). 2: done. Debug uses `http://localhost:3000`, `http://127.0.0.1:54421` and that publishable key, and the ATS exception (`NSAllowsLocalNetworking`) and `glow://` scheme are added to Debug builds only (D34). 3: done. 401 is `APIError.unauthorized`, 404 is `.notFound`, 429 is `.rateLimited`, and idempotent requests retry 503 using `Retry-After`. 4: no new top-level folders. Two module rows changed (see For A1).
 
+### For B1
+
+_From A1, 2026-10-24._ `HttpError` and `errorBody` now carry the contract's optional `reason`: `throw unprocessable('photo_rejected', 'Try another photo.', { reason: 'face_visible' })` sends 422 `{ error: { code, message, reason } }`. `conflict(code, message)` covers 409s like `onboarding_incomplete`. The route helper now validates against the generated contract, so `addProfilePhoto` takes A2's base64 JSON body, not multipart.
+
+### For B2
+
+_From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/route.ts` exists as a 501 stub for `getRoomState`; it's yours (listed in your `AGENTS.md` row), so replace the stub. 2: done. 3: `server/src/env.ts` has two optional variables, both validated and optional everywhere: `TESTFLIGHT_URL` (must be `https://testflight.apple.com/...`) and `APPLE_APP_ID` (`TEAMID.bundle.id`, like `ABCDE12345.com.davidxie.glow`). Please use `APPLE_APP_ID` for the link file rather than `APNS_TEAM_ID` plus `APNS_BUNDLE_ID`: the APNS variables only exist together with the push key, so a preview without push couldn't serve the link file. Read them with `getEnv()`.
+
 ### For B3
 
 _From A3, 2026-10-24._ `ios/fixtures/photos/` has four synthetic, faceless outfit images (D44). Add fixture photos with real faces that the people in them agreed to (or freely licensed ones) for the blur tests. `ios/fixtures/` is A3's, so add them in a `cross-owner` PR or ask A1.

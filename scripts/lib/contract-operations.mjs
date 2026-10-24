@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const SERVER = join(ROOT, 'server');
 
-/** [{ id, method, path, auth, body: 'json' | 'multipart' | 'none', owner }] */
+/** [{ id, method, path, auth, body: 'json' | 'multipart' | 'none', owner, statuses: number[] }] */
 export function readOperations() {
   const source = readFileSync(join(SERVER, 'src/contracts/operations.ts'), 'utf8');
   const start = source.indexOf('export const operations = {');
@@ -22,13 +22,18 @@ export function readOperations() {
   );
   const ops = [];
   let op;
+  let inResponses = false;
   for (const line of source.slice(start).split('\n')) {
     let m;
     if (line.startsWith('} as const')) break;
     if ((m = /^ {2}([A-Za-z0-9]+): \{$/.exec(line))) {
-      op = { id: m[1], body: 'none', owner: owners[m[1]] ?? 'A1' };
+      op = { id: m[1], body: 'none', owner: owners[m[1]] ?? 'A1', statuses: [] };
+      inResponses = false;
       ops.push(op);
-    } else if (op && (m = /^ {4}method: '([A-Z]+)',$/.exec(line))) op.method = m[1];
+    } else if (op && /^ {4}responses: \{$/.test(line)) inResponses = true;
+    else if (op && inResponses && (m = /^ {6}(\d{3}): /.exec(line))) op.statuses.push(Number(m[1]));
+    else if (op && inResponses && /^ {4}\},?$/.test(line)) inResponses = false;
+    else if (op && (m = /^ {4}method: '([A-Z]+)',$/.exec(line))) op.method = m[1];
     else if (op && (m = /^ {4}path: '([^']+)',$/.exec(line))) op.path = m[1];
     else if (op && (m = /^ {4}auth: '([a-z]+)',$/.exec(line))) op.auth = m[1];
     else if (op && (m = /^ {4}body: (.+)$/.exec(line))) {
