@@ -737,6 +737,9 @@ for await state in dependencies.session.states() { … } // .signedOut, .onboard
 - **C1 to C4:** sign each Simulator in with `-GlowDebugTestLogin alex@glow.test` and `-GlowDebugTestLogin blake@glow.test` (both onboarded, but seeded with no photos: add one through Settings → Edit photos or `POST /api/me/photos` so matches have something to show).
 - **D1:** UI test hooks: `onboarding.getStarted`, `signIn.email`, `signIn.apple`, `signIn.test.email`, `signIn.test.button`, `email.field`, `email.send`, `code.field`, `code.verify`, `profile.firstName`, `profile.birthday`, `profile.gender.<woman|man|nonbinary>`, `profile.showMe.<…>`, `profile.continue`, `underAge.signOut`, `photos.slot.<0-2>`, `photos.remove.<n>`, `photos.continue`, `notifications.allow`, `notifications.skip`, `settings.editProfile`, `settings.editPhotos`, `settings.signOut`, `settings.signOut.confirm`.
 - **B9:** sign-in works on `main` once #6 merges (email code and test sign-in); Apple waits on the account.
+### D1 · Integration and end-to-end tests
+
+_2026-10-24, Wave 3, in progress._ Draft PR on `w3/d1-e2e`. Building `scripts/e2e/player-b.ts` (person B through the API) and the XCUITest journeys in `ios/GlowUITests/`. Full notes, and the one command for each journey, when the PR is ready.
 
 ### B9 · Release and TestFlight
 
