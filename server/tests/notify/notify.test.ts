@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { notify, notifyRoom, type UserEvent } from '@/server/notify';
+import { notify, notifyRoom, notifySettled, type UserEvent } from '@/server/notify';
 
 const ALEX = '7E570000-0000-4000-8000-00000000000A';
 const BLAKE = '7e570000-0000-4000-8000-00000000000b';
@@ -147,5 +147,57 @@ describe('notifyRoom', () => {
     const sent = captureFetch();
     await notifyRoom(ROOM, { type: 'match.created', matchId: MATCH } as never);
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe('notifySettled', () => {
+  it('sends match.choice for a choice timeout and glow.ended for an expired glow, to both', async () => {
+    quietLogs();
+    const sent = captureFetch();
+    const other = 'f1c70000-0000-4000-8000-0000000000ee';
+    const outcomes = await notifySettled([
+      { matchId: MATCH, kind: 'choice_timeout', userIds: [ALEX, BLAKE] },
+      { matchId: other, kind: 'glow_expired', userIds: [ALEX, BLAKE] },
+    ]);
+    expect(outcomes.map((o) => o.realtime)).toEqual(['sent', 'sent']);
+    const messages = sent.flatMap(
+      (s) => (s.body as { messages: { topic: string; payload: unknown }[] }).messages,
+    );
+    expect(messages).toHaveLength(4);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          topic: `user:${BLAKE}`,
+          payload: { type: 'match.choice', matchId: MATCH },
+        }),
+        expect.objectContaining({
+          topic: `user:${ALEX.toLowerCase()}`,
+          payload: { type: 'glow.ended', matchId: other },
+        }),
+      ]),
+    );
+  });
+
+  it('does nothing when nothing settled', async () => {
+    const sent = captureFetch();
+    expect(await notifySettled(undefined)).toEqual([]);
+    expect(await notifySettled(null)).toEqual([]);
+    expect(await notifySettled([])).toEqual([]);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('skips malformed entries and unknown kinds, and never throws', async () => {
+    const logs = quietLogs();
+    const sent = captureFetch();
+    const outcomes = await notifySettled([
+      { matchId: MATCH, kind: 'reveal_everyone', userIds: [ALEX] },
+      { matchId: 'nope', kind: 'choice_timeout', userIds: [ALEX] },
+      { matchId: MATCH, kind: 'choice_timeout' },
+      'garbage',
+    ]);
+    expect(outcomes).toEqual([]);
+    expect(await notifySettled({ not: 'a list' })).toEqual([]);
+    expect(sent).toHaveLength(0);
+    expect(logs.join('\n')).toContain('notify.settled_invalid');
   });
 });

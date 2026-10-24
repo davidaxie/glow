@@ -1,0 +1,141 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`every push payload (P6) > checkin.expiring 1`] = `
+{
+  "body": {
+    "aps": {
+      "alert": {
+        "body": "Your check-in ends soon.",
+      },
+      "category": "CHECKIN",
+      "interruption-level": "active",
+      "sound": "default",
+      "thread-id": "room:de000000-0000-4000-8000-000000000001",
+    },
+    "roomId": "de000000-0000-4000-8000-000000000001",
+    "type": "checkin.expiring",
+  },
+  "headers": {
+    ":method": "POST",
+    ":path": "/3/device/abababababababababababababababababababababababababababababababab",
+    "apns-collapse-id": "checkin.expiring:de000000-0000-4000-8000-000000000001",
+    "apns-expiration": "1792873800",
+    "apns-priority": "10",
+    "apns-push-type": "alert",
+    "apns-topic": "com.davidxie.glow",
+    "content-type": "application/json",
+  },
+}
+`;
+
+exports[`every push payload (P6) > glow.started 1`] = `
+{
+  "body": {
+    "aps": {
+      "alert": {
+        "body": "Time to find each other.",
+      },
+      "category": "GLOW",
+      "interruption-level": "time-sensitive",
+      "sound": "default",
+      "thread-id": "match:f1c70000-0000-4000-8000-000000000001",
+    },
+    "matchId": "f1c70000-0000-4000-8000-000000000001",
+    "type": "glow.started",
+  },
+  "headers": {
+    ":method": "POST",
+    ":path": "/3/device/abababababababababababababababababababababababababababababababab",
+    "apns-collapse-id": "glow.started:f1c70000-0000-4000-8000-000000000001",
+    "apns-expiration": "1792873800",
+    "apns-priority": "10",
+    "apns-push-type": "alert",
+    "apns-topic": "com.davidxie.glow",
+    "content-type": "application/json",
+  },
+}
+`;
+
+exports[`every push payload (P6) > match.created 1`] = `
+{
+  "body": {
+    "aps": {
+      "alert": {
+        "body": "Someone you noticed noticed you back.",
+      },
+      "category": "MATCH",
+      "interruption-level": "active",
+      "sound": "default",
+      "thread-id": "match:f1c70000-0000-4000-8000-000000000001",
+    },
+    "matchId": "f1c70000-0000-4000-8000-000000000001",
+    "type": "match.created",
+  },
+  "headers": {
+    ":method": "POST",
+    ":path": "/3/device/abababababababababababababababababababababababababababababababab",
+    "apns-collapse-id": "match.created:f1c70000-0000-4000-8000-000000000001",
+    "apns-expiration": "1792876500",
+    "apns-priority": "10",
+    "apns-push-type": "alert",
+    "apns-topic": "com.davidxie.glow",
+    "content-type": "application/json",
+  },
+}
+`;
+
+exports[`every push payload (P6) > match.recheck 1`] = `
+{
+  "body": {
+    "aps": {
+      "alert": {
+        "body": "Open Glow to find each other.",
+      },
+      "category": "MATCH",
+      "interruption-level": "time-sensitive",
+      "sound": "default",
+      "thread-id": "match:f1c70000-0000-4000-8000-000000000001",
+    },
+    "matchId": "f1c70000-0000-4000-8000-000000000001",
+    "type": "match.recheck",
+  },
+  "headers": {
+    ":method": "POST",
+    ":path": "/3/device/abababababababababababababababababababababababababababababababab",
+    "apns-collapse-id": "match.recheck:f1c70000-0000-4000-8000-000000000001",
+    "apns-expiration": "1792873500",
+    "apns-priority": "10",
+    "apns-push-type": "alert",
+    "apns-topic": "com.davidxie.glow",
+    "content-type": "application/json",
+  },
+}
+`;
+
+exports[`every push payload (P6) > message.created 1`] = `
+{
+  "body": {
+    "aps": {
+      "alert": {
+        "body": "New message",
+      },
+      "category": "MESSAGE",
+      "interruption-level": "active",
+      "sound": "default",
+      "thread-id": "match:f1c70000-0000-4000-8000-000000000001",
+    },
+    "matchId": "f1c70000-0000-4000-8000-000000000001",
+    "type": "message.created",
+  },
+  "headers": {
+    ":method": "POST",
+    ":path": "/3/device/abababababababababababababababababababababababababababababababab",
+    "apns-collapse-id": "message.created:f1c70000-0000-4000-8000-000000000001",
+    "apns-expiration": "1792876500",
+    "apns-priority": "10",
+    "apns-push-type": "alert",
+    "apns-topic": "com.davidxie.glow",
+    "content-type": "application/json",
+  },
+}
+`;
