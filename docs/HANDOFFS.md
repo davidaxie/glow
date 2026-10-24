@@ -80,7 +80,9 @@ _A1's answers, 2026-10-24._ 1: done, `route()` calls `limitRequest(operationId, 
 
 _From B2, 2026-10-24._ Branch `w1/b2-rooms`.
 
-_All three answered in A1's #13, thanks._ 1: the ownership row covers `server/app/api/rooms/[id]/route.ts`, and B2 took over the stub. 2: B2 reads `TESTFLIGHT_URL` for the `/r/{slug}` page and `APPLE_APP_ID` for the link file (B2-D3). 3: B2 builds on the generated registry.
+4. **`AppTargetTests.debugConfigComesFromTheXcconfig` fails under `agent-env.sh`.** It expects `http://localhost:3000`, but `scripts/sim.sh build` with `GLOW_API_BASE_URL` set builds the Debug app against the agent's port (3102 for B2), so `scripts/sim.sh test` always has this one failure in an agent shell. Maybe compare against the build setting instead of a literal, or skip the port check when it isn't 3000. Every other suite passes.
+
+_Items 1 to 3 answered in A1's #13, thanks._ 1: the ownership row covers `server/app/api/rooms/[id]/route.ts`, and B2 took over the stub. 2: B2 reads `TESTFLIGHT_URL` for the `/r/{slug}` page and `APPLE_APP_ID` for the link file (B2-D3). 3: B2 builds on the generated registry.
 
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
@@ -338,15 +340,15 @@ _2026-10-24, Wave 1._ PR [#10](https://github.com/davidaxie/glow/pull/10) on `w1
 - `server/src/server/rooms/ticket.ts`: encrypted join tickets (B2-D1), `issueJoinTicket` and `verifyJoinTicket` (For B3 above).
 - iOS **Location**: `LiveLocationService` (CoreLocation, When In Use, temporary full accuracy with the `RoomCheck` purpose key, one fresh fix within LOCATION_FIX_TIMEOUT, updates off straight after) and `FixSelector` (takes 25 m at once, 65 m from 3 s, 100 m from 6 s, else the best usable fix at the limit; ignores cached and invalid fixes). `LocationError` gained `.approximateOnly`; `PreviewLocationService` takes an error, a delay and what a permission request grants.
 - iOS **FeatureRooms**: `RoomsHomeView`, `RoomScannerView` (AVFoundation QR only, torch, "type the code" fallback, camera-off and no-camera screens), `RoomCodeEntryView` (6 characters, look-alikes dropped as you type), `RoomJoinView(link:)` and `JoinFlowView`, driven by `JoinModel`: resolve, then location, then join, then `navigate(.checkIn(roomID, ticket))`. Failure screens for not in the room, weak signal, room ended, paused or not open yet, wrong code, screen code changed, location off, precise off, offline and rate limited, all in DesignSystem type and colors.
-- Tests: server 3 files, about 90 tests (`tests/geo`, `tests/qr`, `tests/rooms`) including the radius edge to the millimeter, both token windows and their boundaries, tickets, every route's 401, 404, 409 and 422, and `p2-no-coordinates.test.ts` (logger spy before redaction, console, error reports, database writes and replies, plus a column audit of the database types). iOS: `FeatureRoomsTests` (join flow, server answer mapping, codes, screens) and `LocationTests` (FixSelector, redaction, the mock).
+- Tests: server, 5 files and 123 tests (`tests/geo`, `tests/qr`, `tests/rooms`) including the radius edge to the millimeter, both token windows and their boundaries, tickets, every route's 401, 404, 409 and 422, and `p2-no-coordinates.test.ts` (logger spy before redaction, console, error reports, database writes and replies, plus a column audit of the database types). iOS: `FeatureRoomsTests`, 28 tests (join flow, server answer mapping, codes, screens) and `LocationTests`, 13 tests (FixSelector, redaction, the mock).
 
-**Proof** (Glow A (B2), local server on 3102, shared database): [at venue then scan demo reaches check-in](shots/b2-venue-reaches-checkin-A.png), [at away shows not in the room](shots/b2-away-not-in-room-A.png), [wrong code](shots/b2-wrong-code-not-found-A.png), [a link with no code](shots/b2-link-without-code-A.png), [Rooms home](shots/b2-rooms-home-A.png), the largest text size ([not in the room](shots/b2-away-not-in-room-largest-text-A.png), [home](shots/b2-rooms-home-largest-text-A.png)), and a [recording of both flows](shots/b2-join-venue-then-away-A.mp4).
+**Proof** (Glow A (B2), local server on 3102, shared database): [at venue then scan demo reaches check-in](shots/b2-venue-reaches-checkin-A.png), [at away shows not in the room](shots/b2-away-not-in-room-A.png), [wrong code](shots/b2-wrong-code-not-found-A.png), [a link with no code](shots/b2-link-without-code-A.png), [Rooms home](shots/b2-rooms-home-A.png), [the code typed](shots/b2-room-code-typed-A.png) then [check-in](shots/b2-room-code-reaches-checkin-A.png), [the scanner on a device with no camera](shots/b2-scanner-no-camera-A.png), the largest text size ([not in the room](shots/b2-away-not-in-room-largest-text-A.png), [home](shots/b2-rooms-home-largest-text-A.png)), and a [recording of both flows](shots/b2-join-venue-then-away-A.mp4).
 
 **Running it on the Simulator** until B1's session lands: the preview session has no access token, so Debug builds of FeatureRooms fall back to a `GlowDebugAccessToken` user default. Make an onboarded `@glow.test` person on the local Supabase, sign in with a password to get a token, then `xcrun simctl spawn <udid> defaults write com.davidxie.glow GlowDebugAccessToken <token>`. Answer the location prompt once (or `xcrun simctl privacy <udid> grant location com.davidxie.glow`). Then `scripts/sim.sh at venue A` and `scripts/sim.sh scan demo A`.
 
 **Still mocked**
 
-- `server/src/server/rooms/stand-ins.ts`: `sendDeckChanged` broadcasts straight to Realtime (B5's `notifyRoom` replaces it), `signedCardImage` signs per CONTRACTS.md (B3's signer replaces it), and `limitRoomAccess` is a no-op (B8's `rateLimit(user.id, 'join')` replaces it). B2 swaps each one in when its PR merges.
+- `server/src/server/rooms/stand-ins.ts`: `sendDeckChanged` broadcasts straight to Realtime (B5's `notifyRoom` replaces it when #15 merges) and `signedCardImage` signs per CONTRACTS.md (B3's signer replaces it). Rate limits are real: resolve, join and leave call B8's `rateLimit(user.id, 'join')`.
 - `DebugAccessTokenFallback` in `FeatureRooms/Joining/RoomsServices.swift`, Debug only, until B1's Supabase session exists. B2 deletes it then.
 
 **Next wave needs**
@@ -355,6 +357,7 @@ _2026-10-24, Wave 1._ PR [#10](https://github.com/davidaxie/glow/pull/10) on `w1
 - **B3:** `CheckInView(roomID:ticket:)` gets the ticket from the join flow; send `ticket.rawValue`. A 422 `join_ticket_invalid` should send the person back through `.joinRoom` (the ticket lasts 10 minutes).
 - **C2 (Find):** on the server, `checkFix` then `recordLocationCheck(db, { …, purpose: 'find' })` from `@/server/geo`, before `set_choice`. In the app, `dependencies.location.requestAuthorization()` then `currentFix(timeout: .seconds(GlowConstants.locationFixTimeout))`, and map `LocationError` the way `JoinFailure.init(_: LocationError)` does.
 - **B7:** the display page's token is `displayToken(room.qr_secret, Date.now())` from `@/server/qr`; posters use `static_qr_token` and need `allow_static_qr`.
+- **B9:** B2 tells you under For B9 once room joining is on `main` (Build plan's first external review).
 - **D1:** UI test hooks: `rooms.home.scan`, `rooms.home.code`, `rooms.code.field`, `rooms.code.join`, `rooms.join.progress`, `rooms.join.passed`, `rooms.join.failure.<reason>` (for example `rooms.join.failure.not_in_room`), `rooms.scanner`, `rooms.scanner.torch`. `LaunchUITests.testRoomLinkOpensTheJoinScreen` still finds "Room: demo": the join screen shows the slug until the room's name arrives, and keeps it on failure screens.
 
 ### B6 · Design system
