@@ -110,6 +110,15 @@ SLOT_WAIT="${GLOW_SIM_SLOT_WAIT:-1800}"
 SLOT_GRACE=180
 RELEASE_ON_EXIT=""
 
+# At most GLOW_MAX_BUILDS (4) xcodebuild runs (build, test, allow-push) at once on this Mac,
+# across every agent: parallel builds are what pushed the load average toward 870. Same mechanism
+# as the Simulator slots, in GLOW_BUILD_SLOT_DIR. A build slot belongs to the sim.sh process that
+# runs xcodebuild, and is freed when that process exits, however it exits.
+BUILD_SLOT_DIR="${GLOW_BUILD_SLOT_DIR:-/tmp/glow-build-slots}"
+MAX_BUILDS="${GLOW_MAX_BUILDS:-4}"
+BUILD_WAIT="${GLOW_BUILD_SLOT_WAIT:-3600}"
+BUILD_SLOT=""
+
 booted_glow_udids() {
   xcrun simctl list -j devices booted | jq -r '.devices[][] | select(.name | startswith("Glow")) | .udid'
 }
@@ -217,6 +226,65 @@ release_on_exit() {
   fi
 }
 
+reap_build_slots() {
+  local slot pid
+  for slot in "$BUILD_SLOT_DIR"/slot-*; do
+    [ -d "$slot" ] || continue
+    pid="$(slot_field "$slot" pid)"
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then rm -rf "$slot"; fi
+  done
+}
+
+show_build_slots() {
+  local slot since
+  for slot in "$BUILD_SLOT_DIR"/slot-*; do
+    [ -d "$slot" ] || continue
+    since="$(slot_field "$slot" since)"
+    printf '    %s: %s for agent %s (process %s, since %s)\n' "$(basename "$slot")" "$(slot_field "$slot" what)" \
+      "$(slot_field "$slot" agent)" "$(slot_field "$slot" pid)" "$(date -r "${since:-0}" +%H:%M:%S 2>/dev/null || echo '?')" >&2
+  done
+}
+
+# Waits (a local sleep, no network) for one of the Mac's build slots, for `xcodebuild <what>`.
+acquire_build_slot() {
+  local what="$1" waited=0 i slot
+  [ -z "$BUILD_SLOT" ] || return 0
+  mkdir -p "$BUILD_SLOT_DIR"
+  chmod 1777 "$BUILD_SLOT_DIR" 2>/dev/null || true
+  while :; do
+    reap_build_slots
+    for i in $(seq 1 "$MAX_BUILDS"); do
+      slot="$BUILD_SLOT_DIR/slot-$i"
+      if mkdir "$slot" 2>/dev/null; then
+        printf 'what=%s\nagent=%s\npid=%s\nsince=%s\n' "$what" "${GLOW_AGENT_ID:-none}" "$$" "$(date +%s)" >"$slot/owner"
+        BUILD_SLOT="$slot"
+        return 0
+      fi
+    done
+    if [ $((waited % 60)) -eq 0 ]; then
+      say "All $MAX_BUILDS build slots on this Mac are busy (waited ${waited}s). Holders:"
+      show_build_slots
+    fi
+    [ "$waited" -lt "$BUILD_WAIT" ] || die "no build slot came free in ${BUILD_WAIT}s."
+    sleep 10
+    waited=$((waited + 10))
+  done
+}
+
+release_build_slot() {
+  if [ -n "$BUILD_SLOT" ]; then
+    rm -rf "$BUILD_SLOT"
+    BUILD_SLOT=""
+  fi
+}
+
+# Whatever happens, give back what this run holds.
+on_exit() {
+  release_build_slot
+  release_on_exit
+}
+trap on_exit EXIT
+
 boot() { # <udid> [name]: takes a slot first, so at most MAX_SLOTS are ever booted
   local udid="$1" name="${2:-$1}"
   acquire_slot "$udid" "$name"
@@ -293,10 +361,13 @@ cmd_release() {
 cmd_slots() {
   use_xcode
   need jq "Install it with: brew install jq"
-  mkdir -p "$SLOT_DIR"
+  mkdir -p "$SLOT_DIR" "$BUILD_SLOT_DIR"
   reap_slots
+  reap_build_slots
   say "Simulator slots ($MAX_SLOTS on this Mac, in $SLOT_DIR):"
   show_slots
+  say "Build slots ($MAX_BUILDS on this Mac, in $BUILD_SLOT_DIR):"
+  if [ -n "$(find "$BUILD_SLOT_DIR" -maxdepth 1 -name 'slot-*' -type d)" ]; then show_build_slots; else printf '    all free\n' >&2; fi
 }
 
 # --- Build -----------------------------------------------------------------------------------
@@ -328,8 +399,13 @@ xcodebuild_glow() {
   if [ -n "${GLOW_API_BASE_URL:-}" ]; then extra+=("API_BASE_URL=$GLOW_API_BASE_URL"); fi
   if [ -n "${GLOW_SUPABASE_URL:-}" ]; then extra+=("SUPABASE_URL=$GLOW_SUPABASE_URL"); fi
   if [ -n "${GLOW_SUPABASE_ANON_KEY:-}" ]; then extra+=("SUPABASE_ANON_KEY=$GLOW_SUPABASE_ANON_KEY"); fi
+  # The last argument is the action (build or test), for the build slot's label.
+  local what="${!#}" code=0
+  acquire_build_slot "$what"
   xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Debug \
-    -derivedDataPath "$DERIVED" -clonedSourcePackagesDirPath "$PACKAGES" ${extra[@]+"${extra[@]}"} "$@"
+    -derivedDataPath "$DERIVED" -clonedSourcePackagesDirPath "$PACKAGES" ${extra[@]+"${extra[@]}"} "$@" || code=$?
+  release_build_slot
+  return "$code"
 }
 
 # Keeps ios/Package.resolved in step with what Xcode resolved. Xcode reads the lockfile from the
@@ -355,6 +431,7 @@ cmd_build() {
   say "Generating Glow.xcodeproj from ios/project.yml"
   generate
   say "Building Debug for the Simulator against ${GLOW_API_BASE_URL:-http://localhost:3000} (log: ios/build/logs/build.log)"
+  acquire_build_slot build # here, so waiting shows in the terminal, not in the log
   if ! xcodebuild_glow -destination "$(destination)" build >"$LOGS/build.log" 2>&1; then
     grep -E "error:|warning:|BUILD FAILED" "$LOGS/build.log" | sort -u | head -40 >&2 || true
     die "build failed. Full log: ios/build/logs/build.log"
@@ -479,6 +556,7 @@ cmd_allow_push() {
     udid="$(udid_or_die "$name")"
     boot "$udid" "$name"
     say "Granting notification permission on $name (log: ios/build/logs/allow-push.log)"
+    acquire_build_slot allow-push
     if ! xcodebuild_glow -destination "id=$udid" \
       -only-testing:GlowUITests/SimulatorSetupUITests/testAllowNotifications test >"$LOGS/allow-push.log" 2>&1; then
       tail -20 "$LOGS/allow-push.log" >&2
@@ -540,7 +618,6 @@ cmd_test() {
   # xcodebuild would boot Glow A itself, so take its slot first, and give it back when done.
   boot "$udid" "$SIM_A"
   RELEASE_ON_EXIT="$udid"
-  trap release_on_exit EXIT
   case "${1:-}" in
     "") ;;
     unit) only=(-skip-testing:GlowUITests) ;;
@@ -552,6 +629,7 @@ cmd_test() {
   say "Testing on $SIM_A ${1:+($1) }(log: ios/build/logs/test.log)"
   local results="$BUILD/results/test-$(date +%Y%m%d-%H%M%S).xcresult"
   mkdir -p "$BUILD/results"
+  acquire_build_slot test
   if ! xcodebuild_glow -destination "id=$udid" -resultBundlePath "$results" ${only[@]+"${only[@]}"} test >"$LOGS/test.log" 2>&1; then
     grep -E "error:|failed|Failing tests|✘|TEST FAILED" "$LOGS/test.log" | sort -u | head -40 >&2 || true
     die "tests failed. Full log: ios/build/logs/test.log"
@@ -655,14 +733,15 @@ Glow Simulator workflow (docs/SPEC.md, "Simulator workflow")
   scripts/sim.sh reset [A|B|both]      erase the Simulators
   scripts/sim.sh teardown [A|B|both]   shut down and delete this agent's Simulators
   scripts/sim.sh release [A|B|both]    shut down this agent's Simulators and free their slots
-  scripts/sim.sh slots                 who holds the Mac's Simulator slots (at most 3 booted)
+  scripts/sim.sh slots                 who holds the Mac's Simulator slots (3) and build slots (4)
 
 Most commands take A, B or both (the default) as their last argument.
 
 Parallel agents: eval "$(scripts/agent-env.sh <ID>)" first, so GLOW_SIM_A and GLOW_SIM_B name
 this agent's own Simulators and GLOW_API_BASE_URL points the app at this agent's server.
 At most 3 Glow Simulators are booted on this Mac at once: setup, install and test wait for a free
-slot, and test shuts Glow A down and frees its slot when it finishes.
+slot, and test shuts Glow A down and frees its slot when it finishes. At most 4 xcodebuild runs
+(build, test, allow-push) go at once; the rest wait for a build slot.
 EOF
 }
 
