@@ -174,6 +174,8 @@ echo "export SUPABASE_ANON_KEY=$(q "$anon")"
 echo "export SUPABASE_SERVICE_ROLE_KEY=$(q "$service")"
 echo "export GLOW_SUPABASE_URL=$(q "$api")"
 echo "export GLOW_SUPABASE_ANON_KEY=$(q "$anon")"
+# The local Postgres has no TLS; `supabase gen types --db-url` (codegen.sh) tries TLS unless told.
+case "$db" in *sslmode=*) ;; *\?*) db="$db&sslmode=disable" ;; *) db="$db?sslmode=disable" ;; esac
 echo "export GLOW_DB_URL=$(q "$db")"
 echo "export GLOW_SUPABASE_WORKDIR=$(q "$STATE")"
 echo "agent-env: $PROJECT_ID is up at $api. Run supabase commands with --workdir \"\$GLOW_SUPABASE_WORKDIR\"." >&2

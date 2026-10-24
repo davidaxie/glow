@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "ci:local": "scripts/ci-local.sh",
     "env:setup": "scripts/env-setup.sh",
     "dev:token": "scripts/dev-token.sh",
     "smoke": "scripts/smoke.sh",
