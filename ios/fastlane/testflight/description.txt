@@ -1,0 +1,7 @@
+Glow lets two people in the same room find out, privately, that they noticed each other.
+
+Scan the room's QR code to join. Glow checks once that you're really in the room, then forgets your location. Check in with a quick photo of today's outfit: any face in it is blurred on your iPhone before anything is uploaded. Then look through today's cards, which show outfits only, with no faces, names or distances, and tap the person you noticed.
+
+They aren't told. If they tap you too, both phones buzz and you see each other's profile for the first time. Then choose to find each other, with matching colors and a code word on both screens, or just chat.
+
+Glow is for people 18 and over.
