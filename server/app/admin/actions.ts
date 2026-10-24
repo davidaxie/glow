@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { HttpError } from '@/server/http';
 import { z } from 'zod';
 import {
+  zAdminPhotoReview,
   zAdminRemoveCard,
   zAdminRoomCreate,
   zAdminRoomUpdate,
@@ -248,8 +249,6 @@ export async function resolveReportAction(
 
 // ---------------------------------------------------------------- held profile photos
 
-const zPhotoDecision = z.object({ decision: z.enum(['approve', 'reject', 'ban']) });
-
 export async function photoImageAction(photoId: string): Promise<ActionResult<string>> {
   const admin = await adminAction();
   return attempt('photoImage', admin, async () => {
@@ -261,7 +260,7 @@ export async function photoImageAction(photoId: string): Promise<ActionResult<st
 export async function reviewPhotoAction(photoId: string, decision: unknown): Promise<ActionResult> {
   const admin = await adminAction();
   return attempt('reviewPhoto', admin, async () => {
-    const body = parseInput(zPhotoDecision, { decision });
+    const body = parseInput(zAdminPhotoReview, { decision });
     await reviewPhoto(parseInput(zId, photoId), body.decision, admin.userId);
     return null;
   });

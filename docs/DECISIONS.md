@@ -633,7 +633,7 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 
 ### B7-D7 · Live numbers have no tap count, and the rest are shown as they are
 
-**Choice.** RoomMetrics has no taps (A2's D52, P5), and until A2's #14 merges the old field is always 0. Joins, card views, matches, glows started, We met and reports are shown live, refreshed every 10 seconds.
+**Choice.** RoomMetrics has no taps (A2's D52, P5). Joins, card views, matches, glows started, We met and reports are shown live, refreshed every 10 seconds.
 
 **Why.** Matches and glows are mutual by definition: both people already know. A tap count is the only number that could reveal a one-sided choice.
 

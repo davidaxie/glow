@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { operationInfo, operations } from '@/contracts';
 import { setAdminDepsForTests } from '@/server/admin/context';
 import { USER_ID, fakeAccessToken, mockVerify } from '../helpers/auth';
-import { ADMIN_ID, FakeRepo, ROOM_ID, card, fakeDeps, report } from './fake-repo';
+import { ADMIN_ID, FakeRepo, ROOM_ID, card, fakeDeps, photo, report } from './fake-repo';
 
 vi.mock('@/server/auth/verify', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/auth/verify')>();
@@ -28,6 +28,7 @@ type Handler = (
 const APP = fileURLToPath(new URL('../../app', import.meta.url));
 const CARD = card();
 const REPORT = report({ contextId: CARD.id });
+const PHOTO = photo({ userId: '7e570000-0000-4000-8000-000000000003' });
 
 const BODIES: Record<string, unknown> = {
   adminCreateRoom: {
@@ -51,7 +52,11 @@ const PARAMS: Record<string, string> = { id: ROOM_ID, cardId: CARD.id };
 function paramsFor(id: string, op: Op): Record<string, string> {
   const names = [...op.path.matchAll(/\{(\w+)\}/g)].map(([, n]) => n!);
   const value = (name: string) =>
-    id === 'adminResolveReport' && name === 'id' ? REPORT.id : PARAMS[name]!;
+    id === 'adminResolveReport' && name === 'id'
+      ? REPORT.id
+      : id.startsWith('adminPhoto') || id === 'adminReviewPhoto'
+        ? PHOTO.id
+        : PARAMS[name]!;
   return Object.fromEntries(names.map((n) => [n, value(n)]));
 }
 
@@ -90,6 +95,7 @@ function world(isAdmin: boolean) {
     r.people.set(USER_ID, { viewerCode: 'K7MPQ2XR', bannedAt: null, authBanned: false });
     r.cards.set(CARD.id, { ...CARD, userId: '7e570000-0000-4000-8000-000000000003' });
     r.reports.set(REPORT.id, REPORT);
+    r.profilePhotos.set(PHOTO.id, PHOTO);
   });
   setAdminDepsForTests(fakeDeps(repo).deps);
   return repo;
@@ -97,7 +103,7 @@ function world(isAdmin: boolean) {
 
 describe('admin routes', () => {
   it('cover every B7 operation in the contract', () => {
-    expect(admin.length).toBeGreaterThanOrEqual(14);
+    expect(admin.length).toBe(17);
   });
 
   const built = admin.filter(([, op]) => existsSync(routeFile(op.path)));
@@ -129,9 +135,10 @@ describe('admin routes', () => {
     world(true);
     const res = await call(id, op);
     if (res.status === 501) return;
-    // The card has no photo in the fake store, so its image is a plain 404.
+    // The card and the photo have no image in the fake store, so their images are a plain 404.
     const expected: Record<string, number> = {
       adminCardImage: 404,
+      adminPhotoImage: 404,
       adminCreateRoom: 201,
       adminRemoveCard: 204,
     };

@@ -6,6 +6,7 @@
  * Admins see only what needs a decision: held photos, and pending ones stuck in moderation.
  * Approved and rejected photos can't be listed or opened here (B7-D11).
  */
+import type { AdminPhoto, ModerationStatus } from '@/contracts';
 import { badRequest, notFound } from '@/server/http';
 import { logger } from '@/server/log';
 import { deps } from './context';
@@ -13,18 +14,9 @@ import { banPerson } from './reports';
 import type { PhotoRecord } from './repo';
 import { watermarkJpeg } from './watermark';
 
-export type PhotoStatus = PhotoRecord['moderationStatus'];
+export type PhotoStatus = ModerationStatus;
 export type PhotoDecision = 'approve' | 'reject' | 'ban';
-
-/** The contract's AdminPhoto (A2's #14). */
-export type AdminPhotoView = {
-  id: string;
-  position: number;
-  moderationStatus: PhotoStatus;
-  createdAt: string;
-  viewerCode: string;
-  image: string;
-};
+export type AdminPhotoView = AdminPhoto;
 
 const REVIEWABLE: readonly PhotoStatus[] = ['held', 'pending'];
 

@@ -4,8 +4,7 @@
  *
  * There is no tap count (P5, D52): an admin standing in the room, watching a tap count tick
  * up as someone looks at their phone, could learn that that person just tapped someone.
- * A2's contract change (#14) removes `taps` from RoomMetrics and stops tap activity rows;
- * until it merges, the field the old contract still requires is always 0.
+ * RoomMetrics has no `taps` field, and the database keeps no tap activity rows (A2's #14).
  */
 import type { RoomMetrics } from '@/contracts';
 import { badRequest } from '@/server/http';
@@ -60,8 +59,6 @@ export async function roomMetrics(roomId: string, since?: string): Promise<RoomM
     activeCheckins,
     checkins: totals.checkin,
     cardViews: totals.card_view,
-    // Never a real count. Goes away with A2's #14.
-    taps: 0,
     matches: totals.match,
     glowsStarted: totals.glow_started,
     glowsMet: totals.glow_met,

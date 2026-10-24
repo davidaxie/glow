@@ -8,6 +8,7 @@ import type { RouteHandler } from '@/server/http';
 import { requireAdmin } from './access';
 import { cardImage, listCards, removeCard } from './cards';
 import { roomMetrics } from './metrics';
+import { listPhotos, photoImage, reviewPhoto } from './photos';
 import { posterPdf } from './poster';
 import { listReports, resolveReport } from './reports';
 import {
@@ -152,4 +153,23 @@ export const adminResolveReportHandler: RouteHandler<'adminResolveReport'> = asy
 }) => {
   await requireAdmin(user.id);
   return { status: 200, body: await resolveReport(params.id, body.action, user.id) };
+};
+
+export const adminListPhotosHandler: RouteHandler<'adminListPhotos'> = async ({ user, query }) => {
+  await requireAdmin(user.id);
+  return { status: 200, body: { photos: await listPhotos(query.status ?? 'held') } };
+};
+
+export const adminPhotoImageHandler: RouteHandler<'adminPhotoImage'> = async ({ user, params }) => {
+  await requireAdmin(user.id);
+  return jpegResponse(await photoImage(params.id, user.id));
+};
+
+export const adminReviewPhotoHandler: RouteHandler<'adminReviewPhoto'> = async ({
+  user,
+  params,
+  body,
+}) => {
+  await requireAdmin(user.id);
+  return { status: 200, body: await reviewPhoto(params.id, body.decision, user.id) };
 };
