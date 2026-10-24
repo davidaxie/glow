@@ -23,6 +23,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import type { CardTags, Database, DeckRequest } from '@/contracts';
 import { resetEnvCacheForTests } from '@/env';
+import { LOCAL_ENV } from '../helpers/env';
 
 type Gender = Database['public']['Enums']['gender'];
 
@@ -74,6 +75,9 @@ export const IT: ItConfig | null = resolveConfig();
 
 /** Points getEnv() at the real local Supabase. Call in beforeEach, after tests/setup.ts. */
 export function useRealSupabase(config: ItConfig): void {
+  // The signing secrets stay the test values from tests/helpers/env.ts (also in beforeAll,
+  // which runs before tests/setup.ts sets them).
+  Object.assign(process.env, LOCAL_ENV);
   process.env.SUPABASE_URL = config.url;
   process.env.SUPABASE_ANON_KEY = config.anonKey;
   process.env.SUPABASE_SERVICE_ROLE_KEY = config.serviceKey;
