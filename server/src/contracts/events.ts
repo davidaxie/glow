@@ -31,8 +31,13 @@ export const eventCatalog = {
   },
   'match.choice': {
     channel: 'user',
-    to: "the other person",
+    to: "the other person, or both when choosing ends",
     push: null,
+  },
+  'match.recheck': {
+    channel: 'user',
+    to: "the person whose location check is stale (set_choice's recheckUserIds, start_glow's staleUserIds)",
+    push: { body: "Open Glow to find each other.", category: 'MATCH', interruptionLevel: 'time-sensitive', sound: 'default', collapseId: 'match.recheck:{matchId}', threadId: 'match:{matchId}' },
   },
   'match.ended': {
     channel: 'user',

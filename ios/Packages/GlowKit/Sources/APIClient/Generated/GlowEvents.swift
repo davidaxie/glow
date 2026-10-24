@@ -28,6 +28,7 @@ public enum GlowEvents {
     public enum EventType: String, CaseIterable, Sendable {
         case matchCreated = "match.created"
         case matchChoice = "match.choice"
+        case matchRecheck = "match.recheck"
         case matchEnded = "match.ended"
         case glowStarted = "glow.started"
         case glowEnded = "glow.ended"
@@ -39,6 +40,7 @@ public enum GlowEvents {
             switch self {
             case .matchCreated: .user
             case .matchChoice: .user
+            case .matchRecheck: .user
             case .matchEnded: .user
             case .glowStarted: .user
             case .glowEnded: .user
@@ -53,6 +55,7 @@ public enum GlowEvents {
             switch self {
             case .matchCreated: .match
             case .matchChoice: nil
+            case .matchRecheck: .match
             case .matchEnded: nil
             case .glowStarted: .glow
             case .glowEnded: nil

@@ -38,11 +38,25 @@
       }
     },
     "match.choice": {
-      "description": "The other person chose Find or Chat, or their choice needs a fresh location check. Refetch the match.",
+      "description": "The other person chose Find or Chat, or the match's choosing ended (both chose, the glow couldn't start, or the window ran out). Refetch the match.",
       "channel": "user",
-      "to": "the other person",
+      "to": "the other person, or both when choosing ends",
       "payloadSchema": "MatchChoiceEvent",
       "push": null
+    },
+    "match.recheck": {
+      "description": "You chose Find and the other person did too, but your location check is older than GEO_FRESHNESS_FOR_GLOW. The app (or a tap on the push, which opens the match) sends Find again with a fresh fix.",
+      "channel": "user",
+      "to": "the person whose location check is stale (set_choice's recheckUserIds, start_glow's staleUserIds)",
+      "payloadSchema": "MatchRecheckEvent",
+      "push": {
+        "body": "Open Glow to find each other.",
+        "category": "MATCH",
+        "interruptionLevel": "time-sensitive",
+        "sound": "default",
+        "collapseId": "match.recheck:{matchId}",
+        "threadId": "match:{matchId}"
+      }
     },
     "match.ended": {
       "description": "The match ended for both people (unmatch, block or account deletion). Close the match and its chat.",
@@ -66,7 +80,7 @@
       }
     },
     "glow.ended": {
-      "description": "The glow ended: both tapped We met, someone canceled, or time ran out.",
+      "description": "The glow ended: both tapped We met, someone canceled, or time ran out (from purge, or from whichever route reported it in settled).",
       "channel": "user",
       "to": "both people",
       "payloadSchema": "GlowEndedEvent",

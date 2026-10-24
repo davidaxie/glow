@@ -378,6 +378,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"room_days": {
+                  Row: {
+                    "day": string,"room_id": string,"taps_used": number,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "day": string,"room_id": string,"taps_used"?: number,"user_id": string
+                  }
+                  Update: {
+                    "day"?: string,"room_id"?: string,"taps_used"?: number,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "room_days_room_id_fkey"
+      columns: ["room_id"]
+isOneToOne: false
+      referencedRelation: "rooms"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "room_days_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"rooms": {
                   Row: {
                     "allow_static_qr": boolean,"code": string,"created_at": string,"demo_mode": boolean,"ends_at": string,"id": string,"lat": number,"lng": number,"name": string,"qr_secret": string,"radius_m": number,"slug": string,"starts_at": string,"static_qr_token": string,"status": Database["public"]['Enums']["room_status"],"timezone": string,"updated_at": string
@@ -444,6 +470,9 @@ isOneToOne: false
                            },
 "card_visible_to":
 { Args: { "p_checkin_id": string,"p_viewer_id": string }; Returns: boolean
+                           },
+"complete_onboarding":
+{ Args: { "p_user_id": string }; Returns: Json
                            },
 "create_checkin":
 { Args: { "p_card_path": string,"p_checkin_id": string,"p_room_id": string,"p_tags": Json,"p_user_id": string }; Returns: Json

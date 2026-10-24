@@ -57,6 +57,19 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/me/pause`.
     /// - Remark: Generated from `#/paths//api/me/pause/post(setPaused)`.
     func setPaused(_ input: Operations.SetPaused.Input) async throws -> Operations.SetPaused.Output
+    /// Finish onboarding
+    ///
+    /// Moves `onboardingStep` to `complete` once the profile is filled in and at least
+    /// PROFILE_PHOTOS_MIN photos are approved. The notifications step is optional: the app calls
+    /// this whether or not the person allowed push, so declining notifications never blocks
+    /// anyone. Photos held for review (possibly under 18) don't count (P10). Anything missing is
+    /// 409 `onboarding_incomplete`, and `GET /api/me` shows what. Calling it again once complete
+    /// is harmless. Calls `complete_onboarding`.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/me/onboarding/complete`.
+    /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)`.
+    func completeOnboarding(_ input: Operations.CompleteOnboarding.Input) async throws -> Operations.CompleteOnboarding.Output
     /// Register a push token
     ///
     /// Registering a token that already exists moves it to the signed-in person.
@@ -112,7 +125,9 @@ public protocol APIProtocol: Sendable {
     /// Only a face-blurred photo ever leaves the phone (P3). The server moderates it and fails
     /// closed: a visible face, nudity or no outfit gets 422 `photo_rejected` with a `reason`, and
     /// a moderation outage gets 503 `unavailable`. Any older check-in of mine in this
-    /// room ends. Calls `create_checkin`.
+    /// room ends. Calls `create_checkin`, which also needs the passed join location check that
+    /// joinRoom recorded within JOIN_TICKET_TTL (422 `location_required` otherwise), so a QR code
+    /// or room code alone can never make a card.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/checkin`.
@@ -132,8 +147,10 @@ public protocol APIProtocol: Sendable {
     /// Filters return up to DECK_PAGE_SIZE cards with signed image links
     ///
     /// Calls `get_deck`, which applies every deck rule, the filters and the daily view cap, in an
-    /// order that stays the same all day. Cards never carry a user ID (P1). 404 if I've never
-    /// checked in to this room.
+    /// order that stays the same all day. Cards never carry a user ID (P1). 404 only when the room
+    /// doesn't exist, or I have no check-in there and haven't checked in there today. After my
+    /// check-in expires (even once purge has deleted it), the same day answers
+    /// `emptyReason: checkin_ended`.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/deck`.
@@ -143,7 +160,8 @@ public protocol APIProtocol: Sendable {
     ///
     /// Calls `record_tap`. The other person is never told about a one-sided tap (P5). A card
     /// that isn't in my deck right now is 404; no taps left today is 409 `tap_limit_reached`.
-    /// Tapping the same card again doesn't use a tap. On mutual, both people get match.created.
+    /// Tapping the same card again doesn't use a tap, but tapping someone again after an
+    /// unmatch is a new tap. On mutual, both people get match.created.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/taps`.
@@ -152,7 +170,9 @@ public protocol APIProtocol: Sendable {
     /// My active and past matches
     ///
     /// Newest first. Ended matches (unmatched or blocked) never appear. "Now" in the app is
-    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`.
+    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`, which
+    /// applies timeouts first; for each one it reports in `settled`, this route sends the events
+    /// (docs/CONTRACTS.md, "Settled timeouts").
     ///
     ///
     /// - Remark: HTTP `GET /api/matches`.
@@ -160,7 +180,9 @@ public protocol APIProtocol: Sendable {
     func listMatches(_ input: Operations.ListMatches.Input) async throws -> Operations.ListMatches.Output
     /// One match, with the other person's first name and photo count
     ///
-    /// Applies any timeout first (choice window, glow time). Calls `get_match`.
+    /// Applies any timeout first (choice window, glow time). Calls `get_match`; for each timeout
+    /// it reports in `settled`, this route sends the events (docs/CONTRACTS.md, "Settled timeouts").
+    ///
     ///
     /// - Remark: HTTP `GET /api/matches/{id}`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/get(getMatch)`.
@@ -177,10 +199,13 @@ public protocol APIProtocol: Sendable {
     /// Find needs `location`; the server checks it like a join (422 `not_in_room` or
     /// `location_inaccurate` on failure) before calling `set_choice`. When both chose Find, both
     /// are still checked in and both passed a check in the last GEO_FRESHNESS_FOR_GLOW, the glow
-    /// starts and `next` is `glow`. Anything else opens the chat. `next: waiting` with
-    /// `reason: other_location_stale` means the other person's app is being asked (match.choice)
-    /// to send Find again with a fresh fix. While waiting with Find, the app re-sends Find with a
-    /// fresh fix whenever it gets match.choice.
+    /// starts and `next` is `glow` (the server calls `start_glow`, which either starts it or opens
+    /// the chat; it never leaves the match stuck). Anything else opens the chat. `next: waiting`
+    /// with `reason: other_location_stale` means the other person's location check went stale
+    /// while they waited: the server sends them match.recheck, a push that asks them to open Glow
+    /// ("Open Glow to find each other."), so their app sends Find again with a fresh fix. The app
+    /// re-sends Find with a fresh fix whenever it gets match.recheck, or opens from its push.
+    /// Timeouts this call applies are reported in `settled`, and this route sends their events.
     ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/choice`.
@@ -204,7 +229,10 @@ public protocol APIProtocol: Sendable {
     func getGlow(_ input: Operations.GetGlow.Input) async throws -> Operations.GetGlow.Output
     /// I tapped We met
     ///
-    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`.
+    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`. A glow
+    /// whose time already ran out comes back `expired`, reported in `settled`, and this route
+    /// sends glow.ended for it.
+    ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/glow/met`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/glow/met/post(markGlowMet)`.
@@ -355,6 +383,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Finish onboarding
+    ///
+    /// Moves `onboardingStep` to `complete` once the profile is filled in and at least
+    /// PROFILE_PHOTOS_MIN photos are approved. The notifications step is optional: the app calls
+    /// this whether or not the person allowed push, so declining notifications never blocks
+    /// anyone. Photos held for review (possibly under 18) don't count (P10). Anything missing is
+    /// 409 `onboarding_incomplete`, and `GET /api/me` shows what. Calling it again once complete
+    /// is harmless. Calls `complete_onboarding`.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/me/onboarding/complete`.
+    /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)`.
+    public func completeOnboarding(headers: Operations.CompleteOnboarding.Input.Headers = .init()) async throws -> Operations.CompleteOnboarding.Output {
+        try await completeOnboarding(Operations.CompleteOnboarding.Input(headers: headers))
+    }
     /// Register a push token
     ///
     /// Registering a token that already exists moves it to the signed-in person.
@@ -460,7 +503,9 @@ extension APIProtocol {
     /// Only a face-blurred photo ever leaves the phone (P3). The server moderates it and fails
     /// closed: a visible face, nudity or no outfit gets 422 `photo_rejected` with a `reason`, and
     /// a moderation outage gets 503 `unavailable`. Any older check-in of mine in this
-    /// room ends. Calls `create_checkin`.
+    /// room ends. Calls `create_checkin`, which also needs the passed join location check that
+    /// joinRoom recorded within JOIN_TICKET_TTL (422 `location_required` otherwise), so a QR code
+    /// or room code alone can never make a card.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/checkin`.
@@ -500,8 +545,10 @@ extension APIProtocol {
     /// Filters return up to DECK_PAGE_SIZE cards with signed image links
     ///
     /// Calls `get_deck`, which applies every deck rule, the filters and the daily view cap, in an
-    /// order that stays the same all day. Cards never carry a user ID (P1). 404 if I've never
-    /// checked in to this room.
+    /// order that stays the same all day. Cards never carry a user ID (P1). 404 only when the room
+    /// doesn't exist, or I have no check-in there and haven't checked in there today. After my
+    /// check-in expires (even once purge has deleted it), the same day answers
+    /// `emptyReason: checkin_ended`.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/deck`.
@@ -521,7 +568,8 @@ extension APIProtocol {
     ///
     /// Calls `record_tap`. The other person is never told about a one-sided tap (P5). A card
     /// that isn't in my deck right now is 404; no taps left today is 409 `tap_limit_reached`.
-    /// Tapping the same card again doesn't use a tap. On mutual, both people get match.created.
+    /// Tapping the same card again doesn't use a tap, but tapping someone again after an
+    /// unmatch is a new tap. On mutual, both people get match.created.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/taps`.
@@ -540,7 +588,9 @@ extension APIProtocol {
     /// My active and past matches
     ///
     /// Newest first. Ended matches (unmatched or blocked) never appear. "Now" in the app is
-    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`.
+    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`, which
+    /// applies timeouts first; for each one it reports in `settled`, this route sends the events
+    /// (docs/CONTRACTS.md, "Settled timeouts").
     ///
     ///
     /// - Remark: HTTP `GET /api/matches`.
@@ -550,7 +600,9 @@ extension APIProtocol {
     }
     /// One match, with the other person's first name and photo count
     ///
-    /// Applies any timeout first (choice window, glow time). Calls `get_match`.
+    /// Applies any timeout first (choice window, glow time). Calls `get_match`; for each timeout
+    /// it reports in `settled`, this route sends the events (docs/CONTRACTS.md, "Settled timeouts").
+    ///
     ///
     /// - Remark: HTTP `GET /api/matches/{id}`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/get(getMatch)`.
@@ -583,10 +635,13 @@ extension APIProtocol {
     /// Find needs `location`; the server checks it like a join (422 `not_in_room` or
     /// `location_inaccurate` on failure) before calling `set_choice`. When both chose Find, both
     /// are still checked in and both passed a check in the last GEO_FRESHNESS_FOR_GLOW, the glow
-    /// starts and `next` is `glow`. Anything else opens the chat. `next: waiting` with
-    /// `reason: other_location_stale` means the other person's app is being asked (match.choice)
-    /// to send Find again with a fresh fix. While waiting with Find, the app re-sends Find with a
-    /// fresh fix whenever it gets match.choice.
+    /// starts and `next` is `glow` (the server calls `start_glow`, which either starts it or opens
+    /// the chat; it never leaves the match stuck). Anything else opens the chat. `next: waiting`
+    /// with `reason: other_location_stale` means the other person's location check went stale
+    /// while they waited: the server sends them match.recheck, a push that asks them to open Glow
+    /// ("Open Glow to find each other."), so their app sends Find again with a fresh fix. The app
+    /// re-sends Find with a fresh fix whenever it gets match.recheck, or opens from its push.
+    /// Timeouts this call applies are reported in `settled`, and this route sends their events.
     ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/choice`.
@@ -636,7 +691,10 @@ extension APIProtocol {
     }
     /// I tapped We met
     ///
-    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`.
+    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`. A glow
+    /// whose time already ran out comes back `expired`, reported in `settled`, and this route
+    /// sends glow.ended for it.
+    ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/glow/met`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/glow/met/post(markGlowMet)`.
@@ -3463,6 +3521,7 @@ extension Components {
         @frozen public enum GlowEventType: String, Codable, Hashable, Sendable, CaseIterable {
             case match_created = "match.created"
             case match_choice = "match.choice"
+            case match_recheck = "match.recheck"
             case match_ended = "match.ended"
             case glow_started = "glow.started"
             case glow_ended = "glow.ended"
@@ -3490,6 +3549,8 @@ extension Components {
             case match_created(Components.Schemas.MatchCreatedEvent)
             /// - Remark: Generated from `#/components/schemas/GlowEvent/MatchEndedEvent`.
             case match_ended(Components.Schemas.MatchEndedEvent)
+            /// - Remark: Generated from `#/components/schemas/GlowEvent/MatchRecheckEvent`.
+            case match_recheck(Components.Schemas.MatchRecheckEvent)
             /// - Remark: Generated from `#/components/schemas/GlowEvent/MessageCreatedEvent`.
             case message_created(Components.Schemas.MessageCreatedEvent)
             public enum CodingKeys: String, CodingKey {
@@ -3516,6 +3577,8 @@ extension Components {
                     self = .match_created(try .init(from: decoder))
                 case "match.ended":
                     self = .match_ended(try .init(from: decoder))
+                case "match.recheck":
+                    self = .match_recheck(try .init(from: decoder))
                 case "message.created":
                     self = .message_created(try .init(from: decoder))
                 default:
@@ -3541,6 +3604,8 @@ extension Components {
                 case let .match_created(value):
                     try value.encode(to: encoder)
                 case let .match_ended(value):
+                    try value.encode(to: encoder)
+                case let .match_recheck(value):
                     try value.encode(to: encoder)
                 case let .message_created(value):
                     try value.encode(to: encoder)
@@ -3619,6 +3684,48 @@ extension Components {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 self._type = try container.decode(
                     Components.Schemas.MatchChoiceEvent._TypePayload.self,
+                    forKey: ._type
+                )
+                self.matchId = try container.decode(
+                    Swift.String.self,
+                    forKey: .matchId
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "type",
+                    "matchId"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MatchRecheckEvent`.
+        public struct MatchRecheckEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/MatchRecheckEvent/type`.
+            @frozen public enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case match_recheck = "match.recheck"
+            }
+            /// - Remark: Generated from `#/components/schemas/MatchRecheckEvent/type`.
+            public var _type: Components.Schemas.MatchRecheckEvent._TypePayload
+            /// - Remark: Generated from `#/components/schemas/MatchRecheckEvent/matchId`.
+            public var matchId: Swift.String
+            /// Creates a new `MatchRecheckEvent`.
+            ///
+            /// - Parameters:
+            ///   - _type:
+            ///   - matchId:
+            public init(
+                _type: Components.Schemas.MatchRecheckEvent._TypePayload,
+                matchId: Swift.String
+            ) {
+                self._type = _type
+                self.matchId = matchId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case matchId
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self._type = try container.decode(
+                    Components.Schemas.MatchRecheckEvent._TypePayload.self,
                     forKey: ._type
                 )
                 self.matchId = try container.decode(
@@ -5727,6 +5834,215 @@ public enum Operations {
             }
         }
     }
+    /// Finish onboarding
+    ///
+    /// Moves `onboardingStep` to `complete` once the profile is filled in and at least
+    /// PROFILE_PHOTOS_MIN photos are approved. The notifications step is optional: the app calls
+    /// this whether or not the person allowed push, so declining notifications never blocks
+    /// anyone. Photos held for review (possibly under 18) don't count (P10). Anything missing is
+    /// 409 `onboarding_incomplete`, and `GET /api/me` shows what. Calling it again once complete
+    /// is harmless. Calls `complete_onboarding`.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/me/onboarding/complete`.
+    /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)`.
+    public enum CompleteOnboarding {
+        public static let id: Swift.String = "completeOnboarding"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/onboarding/complete/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CompleteOnboarding.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CompleteOnboarding.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CompleteOnboarding.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.CompleteOnboarding.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/onboarding/complete/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/onboarding/complete/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Me)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Me {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CompleteOnboarding.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CompleteOnboarding.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The person, now complete.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.CompleteOnboarding.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.CompleteOnboarding.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+            /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+            /// the generic `conflict`.
+            ///
+            ///
+            /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Register a push token
     ///
     /// Registering a token that already exists moves it to the signed-in person.
@@ -7066,7 +7382,9 @@ public enum Operations {
     /// Only a face-blurred photo ever leaves the phone (P3). The server moderates it and fails
     /// closed: a visible face, nudity or no outfit gets 422 `photo_rejected` with a `reason`, and
     /// a moderation outage gets 503 `unavailable`. Any older check-in of mine in this
-    /// room ends. Calls `create_checkin`.
+    /// room ends. Calls `create_checkin`, which also needs the passed join location check that
+    /// joinRoom recorded within JOIN_TICKET_TTL (422 `location_required` otherwise), so a QR code
+    /// or room code alone can never make a card.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/checkin`.
@@ -7624,8 +7942,10 @@ public enum Operations {
     /// Filters return up to DECK_PAGE_SIZE cards with signed image links
     ///
     /// Calls `get_deck`, which applies every deck rule, the filters and the daily view cap, in an
-    /// order that stays the same all day. Cards never carry a user ID (P1). 404 if I've never
-    /// checked in to this room.
+    /// order that stays the same all day. Cards never carry a user ID (P1). 404 only when the room
+    /// doesn't exist, or I have no check-in there and haven't checked in there today. After my
+    /// check-in expires (even once purge has deleted it), the same day answers
+    /// `emptyReason: checkin_ended`.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/deck`.
@@ -7878,7 +8198,8 @@ public enum Operations {
     ///
     /// Calls `record_tap`. The other person is never told about a one-sided tap (P5). A card
     /// that isn't in my deck right now is 404; no taps left today is 409 `tap_limit_reached`.
-    /// Tapping the same card again doesn't use a tap. On mutual, both people get match.created.
+    /// Tapping the same card again doesn't use a tap, but tapping someone again after an
+    /// unmatch is a new tap. On mutual, both people get match.created.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/taps`.
@@ -8156,7 +8477,9 @@ public enum Operations {
     /// My active and past matches
     ///
     /// Newest first. Ended matches (unmatched or blocked) never appear. "Now" in the app is
-    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`.
+    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`, which
+    /// applies timeouts first; for each one it reports in `settled`, this route sends the events
+    /// (docs/CONTRACTS.md, "Settled timeouts").
     ///
     ///
     /// - Remark: HTTP `GET /api/matches`.
@@ -8334,7 +8657,9 @@ public enum Operations {
     }
     /// One match, with the other person's first name and photo count
     ///
-    /// Applies any timeout first (choice window, glow time). Calls `get_match`.
+    /// Applies any timeout first (choice window, glow time). Calls `get_match`; for each timeout
+    /// it reports in `settled`, this route sends the events (docs/CONTRACTS.md, "Settled timeouts").
+    ///
     ///
     /// - Remark: HTTP `GET /api/matches/{id}`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/get(getMatch)`.
@@ -8714,10 +9039,13 @@ public enum Operations {
     /// Find needs `location`; the server checks it like a join (422 `not_in_room` or
     /// `location_inaccurate` on failure) before calling `set_choice`. When both chose Find, both
     /// are still checked in and both passed a check in the last GEO_FRESHNESS_FOR_GLOW, the glow
-    /// starts and `next` is `glow`. Anything else opens the chat. `next: waiting` with
-    /// `reason: other_location_stale` means the other person's app is being asked (match.choice)
-    /// to send Find again with a fresh fix. While waiting with Find, the app re-sends Find with a
-    /// fresh fix whenever it gets match.choice.
+    /// starts and `next` is `glow` (the server calls `start_glow`, which either starts it or opens
+    /// the chat; it never leaves the match stuck). Anything else opens the chat. `next: waiting`
+    /// with `reason: other_location_stale` means the other person's location check went stale
+    /// while they waited: the server sends them match.recheck, a push that asks them to open Glow
+    /// ("Open Glow to find each other."), so their app sends Find again with a fresh fix. The app
+    /// re-sends Find with a fresh fix whenever it gets match.recheck, or opens from its push.
+    /// Timeouts this call applies are reported in `settled`, and this route sends their events.
     ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/choice`.
@@ -9370,7 +9698,10 @@ public enum Operations {
     }
     /// I tapped We met
     ///
-    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`.
+    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`. A glow
+    /// whose time already ran out comes back `expired`, reported in `settled`, and this route
+    /// sends glow.ended for it.
+    ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/glow/met`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/glow/met/post(markGlowMet)`.

@@ -600,12 +600,16 @@ export const zDisplayToken = z.object({
     windowEndsAt: z.iso.datetime()
 });
 
+/**
+ * No tap count, ever: over a short window it would let an admin standing in the room time
+ * someone's one-sided tap (P5). The database keeps no tap activity at all.
+ *
+ */
 export const zRoomMetrics = z.object({
     since: z.iso.datetime(),
     activeCheckins: z.int().gte(0),
     checkins: z.int().gte(0),
     cardViews: z.int().gte(0),
-    taps: z.int().gte(0),
     matches: z.int().gte(0),
     glowsStarted: z.int().gte(0),
     glowsMet: z.int().gte(0),
@@ -660,6 +664,27 @@ export const zReportResolution = z.object({
     ])
 });
 
+export const zAdminPhoto = z.object({
+    id: z.uuid(),
+    position: z.int().gte(0).lte(2),
+    moderationStatus: zModerationStatus,
+    createdAt: z.iso.datetime(),
+    viewerCode: z.string(),
+    image: z.string()
+});
+
+export const zAdminPhotoList = z.object({
+    photos: z.array(zAdminPhoto)
+});
+
+export const zAdminPhotoReview = z.object({
+    decision: z.enum([
+        'approve',
+        'reject',
+        'ban'
+    ])
+});
+
 export const zAppleAppSiteAssociation = z.object({
     applinks: z.object({
         details: z.array(z.object({
@@ -674,6 +699,7 @@ export const zAppleAppSiteAssociation = z.object({
 export const zGlowEventType = z.enum([
     'match.created',
     'match.choice',
+    'match.recheck',
     'match.ended',
     'glow.started',
     'glow.ended',
@@ -689,6 +715,11 @@ export const zMatchCreatedEvent = z.object({
 
 export const zMatchChoiceEvent = z.object({
     type: z.enum(['match.choice']),
+    matchId: z.uuid()
+});
+
+export const zMatchRecheckEvent = z.object({
+    type: z.enum(['match.recheck']),
     matchId: z.uuid()
 });
 
@@ -730,6 +761,7 @@ export const zDeckChangedEvent = z.object({
 export const zGlowEvent = z.discriminatedUnion('type', [
     zMatchCreatedEvent.extend({ type: z.literal('match.created') }),
     zMatchChoiceEvent.extend({ type: z.literal('match.choice') }),
+    zMatchRecheckEvent.extend({ type: z.literal('match.recheck') }),
     zMatchEndedEvent.extend({ type: z.literal('match.ended') }),
     zGlowStartedEvent.extend({ type: z.literal('glow.started') }),
     zGlowEndedEvent.extend({ type: z.literal('glow.ended') }),
@@ -799,6 +831,11 @@ export const zSetPausedBody = zPauseRequest;
  * The new state.
  */
 export const zSetPausedResponse = zPauseState;
+
+/**
+ * The person, now complete.
+ */
+export const zCompleteOnboardingResponse = zMe;
 
 export const zTestLoginBody = zTestLoginRequest;
 
@@ -1161,6 +1198,35 @@ export const zAdminResolveReportPath = z.object({
  * The resolved report.
  */
 export const zAdminResolveReportResponse = zAdminReport;
+
+export const zAdminListPhotosQuery = z.object({
+    status: zModerationStatus.optional()
+});
+
+/**
+ * Photos.
+ */
+export const zAdminListPhotosResponse = zAdminPhotoList;
+
+export const zAdminPhotoImagePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * A JPEG with no metadata, never cached.
+ */
+export const zAdminPhotoImageResponse = z.string();
+
+export const zAdminReviewPhotoBody = zAdminPhotoReview;
+
+export const zAdminReviewPhotoPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * The photo after review.
+ */
+export const zAdminReviewPhotoResponse = zAdminPhoto;
 
 /**
  * The association file.

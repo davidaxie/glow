@@ -602,12 +602,16 @@ export type DisplayToken = {
     windowEndsAt: string;
 };
 
+/**
+ * No tap count, ever: over a short window it would let an admin standing in the room time
+ * someone's one-sided tap (P5). The database keeps no tap activity at all.
+ *
+ */
 export type RoomMetrics = {
     since: string;
     activeCheckins: number;
     checkins: number;
     cardViews: number;
-    taps: number;
     matches: number;
     glowsStarted: number;
     glowsMet: number;
@@ -661,6 +665,29 @@ export type ReportResolution = {
     action: 'dismiss' | 'remove_card' | 'ban';
 };
 
+export type AdminPhoto = {
+    id: string;
+    position: number;
+    moderationStatus: ModerationStatus;
+    createdAt: string;
+    /**
+     * The owner's watermark code. The admin sees no user ID.
+     */
+    viewerCode: string;
+    /**
+     * `/api/admin/photos/{id}/image`, fetched with the admin's bearer token.
+     */
+    image: string;
+};
+
+export type AdminPhotoList = {
+    photos: Array<AdminPhoto>;
+};
+
+export type AdminPhotoReview = {
+    decision: 'approve' | 'reject' | 'ban';
+};
+
 export type AppleAppSiteAssociation = {
     applinks: {
         details: Array<{
@@ -672,7 +699,7 @@ export type AppleAppSiteAssociation = {
     };
 };
 
-export type GlowEventType = 'match.created' | 'match.choice' | 'match.ended' | 'glow.started' | 'glow.ended' | 'message.created' | 'checkin.expiring' | 'deck.changed';
+export type GlowEventType = 'match.created' | 'match.choice' | 'match.recheck' | 'match.ended' | 'glow.started' | 'glow.ended' | 'message.created' | 'checkin.expiring' | 'deck.changed';
 
 /**
  * Every Realtime broadcast payload and the custom keys of every push. Only the type plus a
@@ -684,6 +711,8 @@ export type GlowEvent = ({
 } & MatchCreatedEvent) | ({
     type: 'match.choice';
 } & MatchChoiceEvent) | ({
+    type: 'match.recheck';
+} & MatchRecheckEvent) | ({
     type: 'match.ended';
 } & MatchEndedEvent) | ({
     type: 'glow.started';
@@ -704,6 +733,11 @@ export type MatchCreatedEvent = {
 
 export type MatchChoiceEvent = {
     type: 'match.choice';
+    matchId: string;
+};
+
+export type MatchRecheckEvent = {
+    type: 'match.recheck';
     matchId: string;
 };
 
@@ -1025,6 +1059,46 @@ export type SetPausedResponses = {
 };
 
 export type SetPausedResponse = SetPausedResponses[keyof SetPausedResponses];
+
+export type CompleteOnboardingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/me/onboarding/complete';
+};
+
+export type CompleteOnboardingErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+     * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+     * the generic `conflict`.
+     *
+     */
+    409: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type CompleteOnboardingError = CompleteOnboardingErrors[keyof CompleteOnboardingErrors];
+
+export type CompleteOnboardingResponses = {
+    /**
+     * The person, now complete.
+     */
+    200: Me;
+};
+
+export type CompleteOnboardingResponse = CompleteOnboardingResponses[keyof CompleteOnboardingResponses];
 
 export type TestLoginData = {
     body: TestLoginRequest;
@@ -2599,6 +2673,122 @@ export type AdminResolveReportResponses = {
 };
 
 export type AdminResolveReportResponse = AdminResolveReportResponses[keyof AdminResolveReportResponses];
+
+export type AdminListPhotosData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Defaults to held.
+         */
+        status?: ModerationStatus;
+    };
+    url: '/api/admin/photos';
+};
+
+export type AdminListPhotosErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type AdminListPhotosError = AdminListPhotosErrors[keyof AdminListPhotosErrors];
+
+export type AdminListPhotosResponses = {
+    /**
+     * Photos.
+     */
+    200: AdminPhotoList;
+};
+
+export type AdminListPhotosResponse = AdminListPhotosResponses[keyof AdminListPhotosResponses];
+
+export type AdminPhotoImageData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/photos/{id}/image';
+};
+
+export type AdminPhotoImageErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type AdminPhotoImageError = AdminPhotoImageErrors[keyof AdminPhotoImageErrors];
+
+export type AdminPhotoImageResponses = {
+    /**
+     * A JPEG with no metadata, never cached.
+     */
+    200: string;
+};
+
+export type AdminPhotoImageResponse = AdminPhotoImageResponses[keyof AdminPhotoImageResponses];
+
+export type AdminReviewPhotoData = {
+    body: AdminPhotoReview;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/photos/{id}/review';
+};
+
+export type AdminReviewPhotoErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type AdminReviewPhotoError = AdminReviewPhotoErrors[keyof AdminReviewPhotoErrors];
+
+export type AdminReviewPhotoResponses = {
+    /**
+     * The photo after review.
+     */
+    200: AdminPhoto;
+};
+
+export type AdminReviewPhotoResponse = AdminReviewPhotoResponses[keyof AdminReviewPhotoResponses];
 
 export type GetAppSiteAssociationData = {
     body?: never;

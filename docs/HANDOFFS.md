@@ -35,6 +35,28 @@ Things only David can do. None of these block Wave 0 work locally.
 
 ### For A1
 
+_From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
+
+1. **New operations that need stub routes:**
+   - `completeOnboarding` · `POST /api/me/onboarding/complete` → `server/app/api/me/onboarding/complete/route.ts` (B1)
+   - `adminListPhotos` · `GET /api/admin/photos` → `server/app/api/admin/photos/route.ts` (B7)
+   - `adminPhotoImage` · `GET /api/admin/photos/{id}/image` → `server/app/api/admin/photos/[id]/image/route.ts` (B7, raw JPEG)
+   - `adminReviewPhoto` · `POST /api/admin/photos/{id}/review` → `server/app/api/admin/photos/[id]/review/route.ts` (B7)
+2. **Event changes:**
+   - **New `match.recheck`** (`{ type, matchId }`, `MatchRecheckEvent`): a push with "Open Glow to find each other.", category `MATCH`, time-sensitive. It goes to whoever's location check went stale while both chose Find (D47).
+   - **`match.choice`** is now also sent to both people when choosing ends without a glow (a timeout, or `start_glow` answering `chat`).
+   - **`glow.ended`** can now also come from the routes that report a `settled` glow expiry, not only purge (D51).
+3. **Schema changes:** `RoomMetrics` loses `taps` (D52). New `AdminPhoto`, `AdminPhotoList`, `AdminPhotoReview` and `MatchRecheckEvent`. `GlowEvent` and `GlowEventType` include `match.recheck`. Descriptions changed for `createCheckin`, `getDeck`, `createTap`, `listMatches`, `getMatch`, `setChoice` and `markGlowMet`. Several limits now carry `x-constant`, which `codegen.sh` checks against constants.json (D55).
+4. **For `docs/SPEC.md`:**
+   - New table `room_days` (today's taps and room visits, D53 and D54).
+   - New function `complete_onboarding`.
+   - `start_glow` returns `{ result: started | chat | waiting }` instead of raising (D48).
+   - `create_checkin` needs a passed join check (D49).
+   - `get_match`, `list_matches`, `set_choice`, `start_glow` and `glow_met` report `settled` (D51).
+   - `service_role` default privileges for later migrations (D46).
+5. **CI:** no new commands. `codegen.sh` also accepts `GLOW_DB_URL` (for example `postgresql://postgres:postgres@127.0.0.1:56422/postgres?sslmode=disable`) to generate `database.ts` from a scratch stack. CI doesn't need it.
+6. **Decision numbers:** D46 to D56 follow A3's D45. Renumber at merge if yours collide.
+
 _From B9, 2026-10-24._ PRs [#5](https://github.com/davidaxie/glow/pull/5) (release pipeline) and [#17](https://github.com/davidaxie/glow/pull/17) (`cross-owner`).
 
 1. ~~**Signing in `ios/project.yml`**~~ Merged in #17, thanks: Release device builds of `Glow` and `GlowLiveActivity` sign manually with Apple Distribution and the profiles `Glow App Store` and `Glow Live Activity App Store` (B9-D1). A test in `ios/fastlane/test` checks `project.yml` keeps naming the profiles the Fastfile uses, so keep the two in step if either changes.
@@ -321,7 +343,21 @@ A limited request answers 429 `rate_limited` with `Retry-After`; the app already
 
 ### A2 · Contracts and database
 
-_2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.
+_2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts` (merged), then the Checkpoint 1 fixes in PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.
+
+**Checkpoint 1 fixes** (`0002_a2_checkpoint1.sql`, D46 to D56)
+
+- **Grants:** later migrations' tables, sequences and functions are usable by `service_role` by default; clients still get nothing.
+- **`match.recheck`:** a visible, name-free push for a stale Find.
+- **`start_glow`:** opens the chat or says why it waits, instead of raising.
+- **Check-ins:** `create_checkin` needs a passed join check.
+- **New operations:** `completeOnboarding`, plus admin review of held photos.
+- **Timeouts:** lazy timeouts are reported in `settled`, so the route that applied them notifies.
+- **Metrics:** no tap metrics at all.
+- **Tap counts:** today's taps are counted apart from the tap row, so counts are exact.
+- **Deck:** it says `checkin_ended` after purge, the same day.
+- **Limits:** limits in openapi.yaml are checked against constants.json.
+- **Known gap:** deleting an account clears a ban (D56, left for D2).
 
 **Built**
 
@@ -329,7 +365,7 @@ _2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a
 - `supabase/seed.sql`: the demo room, 4 meeting spots, and the test people below. `supabase db reset` runs clean.
 - `contracts/openapi.yaml` (every endpoint, admin included, with schemas, errors and examples), `contracts/events.json` and `contracts/constants.json`.
 - `scripts/codegen.sh` (`pnpm codegen`): checks the contract (P1 field names, no 403, events against openapi), then generates `server/src/contracts` (types, zod schemas, the route registry, constants, events with `apnsRequestFor`, database types), the Swift client and constants in `APIClient/Generated`, `supabase/tests/database/000_constants.test.sql`, and the tables in CONTRACTS.md. A second run changes nothing. `--verify` compiles both clients on their own.
-- pgTAP, 390 tests in `supabase/tests/database/`: lockdown of every table, function and bucket; Realtime channels; every deck rule including show me and blocks both ways; the tap cap and TTL; 50 simultaneous pairs making exactly 50 matches (it fails, 41 of 50, with the pair lock removed); choosing and glow, including color plus code word uniqueness; check-ins, 18+ and purge; blocks, reports and chat.
+- pgTAP, 443 tests in `supabase/tests/database/` (390 at PR #2, plus `090_checkpoint1` and the new table): lockdown of every table, function and bucket; Realtime channels; every deck rule including show me and blocks both ways; the tap cap and TTL; 50 simultaneous pairs making exactly 50 matches (it fails, 41 of 50, with the pair lock removed); choosing and glow, including color plus code word uniqueness; check-ins, 18+ and purge; blocks, reports and chat.
 
 **Demo room (local seed, test data)**
 
@@ -350,15 +386,38 @@ _2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a
 
 **Next wave needs**
 
-- **Everyone:** run `pnpm codegen` after touching `contracts/` or `supabase/migrations/`, and commit the result. Contract changes after Checkpoint 1 go through A1 in a `contract-change` PR.
-- **B1:** a trigger creates each `profiles` row on sign-up, and the database refuses under-18 birthdates (error `under_18`). `onboarding_step` is yours to advance. Use `@glow.test` addresses for test sign-in. Profile photo paths are `profile-photos/{userId}/{photoId}.jpg` (checked by a constraint).
-- **B2:** write a `location_checks` row (pass, fail or demo_skip, plus an accuracy bucket, never coordinates) for every join and Find check. Leaving: `update checkins set left_at = now()` and delete the photo. `GET /api/rooms/{id}` calls `get_room_state`. `rooms.static_qr_token` and `qr_secret` (hex) are on the room row.
-- **B3:** generate the card ID, upload to `room-cards/{roomId}/{cardId}.jpg`, then call `create_checkin` and delete any `replacedCardPaths`. The image route uses `card_visible_to`, and match photos use `match_photo_path`.
-- **B4:** `get_deck`, `record_tap` and `list_matches`. The cap and race tests already pass in the database.
-- **B5:** `eventCatalog`, `userTopic`, `roomTopic` and `apnsRequestFor` in `@/contracts` build every channel name and push payload from events.json. `userIds` in function results tell you who to notify.
-- **B7:** admin operations are in the contract. Metrics come from `room_activity`; ban with `profiles.banned_at`; remove a card with `checkins.visible = false`.
-- **B8:** `block_user`, `create_report`, `purge_expired` (it returns photo paths to delete, and events to send). Pausing is `profiles.paused`, which every deck rule reads.
-- **C2, C3, C4:** `set_choice`, `start_glow` (pass C3's word list), `glow_met`, `cancel_glow`, `get_match`, `send_message` and `unmatch`. Their result shapes are in CONTRACTS.md.
+- **Everyone:** run `pnpm codegen` after touching `contracts/` or `supabase/migrations/`, and commit the result. Contract changes after Checkpoint 1 go through A1 in a `contract-change` PR. A new table needs RLS on and no policies, and is usable by `service_role` automatically (CONTRACTS.md, "Grants for new tables and functions").
+- **Any route that calls `get_match`, `list_matches`, `set_choice`, `start_glow` or `glow_met`:** send the events for each entry in `settled` (CONTRACTS.md, "Settled timeouts"). Purge won't.
+- **B1:**
+  - A trigger creates each `profiles` row on sign-up, and the database refuses under-18 birthdates (error `under_18`).
+  - Advance `onboarding_step` through `profile` and `photos` yourself. Then `POST /api/me/onboarding/complete` (`complete_onboarding`) finishes it, whether or not push was allowed. It needs an approved photo; held ones don't count.
+  - Use `@glow.test` addresses for test sign-in.
+  - Profile photo paths are `profile-photos/{userId}/{photoId}.jpg` (checked by a constraint).
+- **B2:**
+  - Write a `location_checks` row (pass, fail or demo_skip, plus an accuracy bucket, never coordinates) for every join and Find check. `create_checkin` refuses a check-in without a passing `join` row from the last `JOIN_TICKET_TTL`.
+  - Leaving: `update checkins set left_at = now()` and delete the photo.
+  - `GET /api/rooms/{id}` calls `get_room_state`.
+  - `rooms.static_qr_token` and `qr_secret` (hex) are on the room row.
+- **B3:**
+  - Generate the card ID, upload to `room-cards/{roomId}/{cardId}.jpg`, then call `create_checkin` and delete any `replacedCardPaths`. Map `location_required` to 422.
+  - The image route uses `card_visible_to`, and match photos use `match_photo_path`.
+- **B4:** `get_deck`, `record_tap` and `list_matches` (send its `settled` events). The cap and race tests already pass in the database. A re-tap after an unmatch uses a tap (D53).
+- **B5:**
+  - `eventCatalog`, `userTopic`, `roomTopic` and `apnsRequestFor` in `@/contracts` build every channel name and push payload from events.json, including the new `match.recheck`.
+  - Payload keys are camelCase (`matchId`, `roomId`). A3's stand-in fixture guessed `match_id`.
+  - `userIds`, `recheckUserIds` and `staleUserIds` in function results tell you who to notify.
+- **B7:**
+  - Admin operations are in the contract, now with held-photo review (`adminListPhotos`, `adminPhotoImage`, `adminReviewPhoto`).
+  - Metrics come from `room_activity`, with no taps (D52).
+  - Ban with `profiles.banned_at`; remove a card with `checkins.visible = false`.
+- **B8:**
+  - `block_user`, `create_report` and `purge_expired` (it returns photo paths to delete, and events to send).
+  - Pausing is `profiles.paused`, which every deck rule reads.
+  - Moderation holds possibly-under-18 profile photos as `held`; B7 reviews them.
+- **C2, C3, C4:**
+  - `set_choice` sends `match.recheck` to `recheckUserIds`.
+  - `start_glow` (pass C3's word list) now returns `started`, `chat` or `waiting`; see CONTRACTS.md, "start_glow results".
+  - Also `glow_met`, `cancel_glow`, `get_match`, `send_message` and `unmatch`. Their result shapes are in CONTRACTS.md.
 
 ### A1 · Integrator and repo
 

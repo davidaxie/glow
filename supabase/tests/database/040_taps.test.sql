@@ -33,6 +33,9 @@ create function tests.check_in(p_user uuid, p_room uuid, p_tags jsonb default '{
 returns uuid language plpgsql as $$
 declare v_id uuid := gen_random_uuid();
 begin
+  -- The join route's passed location check, which create_checkin requires.
+  insert into public.location_checks (user_id, room_id, purpose, result, accuracy_bucket)
+  values (p_user, p_room, 'join', 'pass', 'under_20m');
   perform public.create_checkin(p_user, p_room, v_id, p_room::text || '/' || v_id::text || '.jpg', p_tags);
   return v_id;
 end $$;
@@ -135,6 +138,7 @@ select is(tests.tap('di', 'ana_card') ->> 'result', 'sent',
 -- A new day in the room's timezone gives three new taps ----------------------------------------
 update public.taps set created_at = private.room_day_start(tests.id('r')) - interval '1 minute'
  where from_user = tests.id('ana') and room_id = tests.id('r');
+update public.room_days set day = day - 1 where user_id = tests.id('ana') and room_id = tests.id('r');
 select is(tests.tap('ana', 'ed_card') ->> 'tapsLeftToday', '2',
           'taps from yesterday (in the room''s timezone) don''t count against today');
 

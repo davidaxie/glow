@@ -3,7 +3,7 @@
 -- cancel, and color plus code word unique among active glows in a room.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(35);
 
 -- Test helpers (rolled back with everything else) --------------------------------------------
 create schema tests;
@@ -34,6 +34,9 @@ create function tests.check_in(p_user uuid, p_room uuid, p_tags jsonb default '{
 returns uuid language plpgsql as $$
 declare v_id uuid := gen_random_uuid();
 begin
+  -- The join route's passed location check, which create_checkin requires.
+  insert into public.location_checks (user_id, room_id, purpose, result, accuracy_bucket)
+  values (p_user, p_room, 'join', 'pass', 'under_20m');
   perform public.create_checkin(p_user, p_room, v_id, p_room::text || '/' || v_id::text || '.jpg', p_tags);
   return v_id;
 end $$;
@@ -47,6 +50,8 @@ declare a uuid := tests.person(p_key || ' A', 'woman', '{man}'); b uuid := tests
 begin
   perform tests.check_in(a, p_room);
   perform tests.check_in(b, p_room);
+  -- Their join checks were minutes ago; each test adds the fresh checks it needs.
+  update public.location_checks set created_at = now() - interval '5 minutes' where user_id in (a, b);
   insert into public.matches (room_id, user_a, user_b, choice_deadline)
   values (p_room, least(a, b), greatest(a, b), now() + interval '10 minutes') returning id into m;
   perform tests.put(p_key || '_a', least(a, b));
@@ -72,14 +77,14 @@ select tests.located(tests.id('ff_b'), tests.id('r'));
 select is(tests.next(tests.choose('ff', 'a', 'find')), 'waiting/other_undecided', 'first Find waits for the other person');
 select is(tests.choose('ff', 'b', 'find') -> 'match' ->> 'otherHasChosen', 'true', 'the second chooser sees the other has chosen');
 select is(tests.next(tests.choose('ff', 'b', 'find')), 'glow/both_find', 'both chose Find, checked in and located: glow');
-select tests.put('ff_glow', (public.start_glow(tests.id('ff'), (select list from words)) ->> 'id')::uuid);
+select tests.put('ff_glow', (public.start_glow(tests.id('ff'), (select list from words)) -> 'glow' ->> 'id')::uuid);
 select is((select status::text from public.matches where id = tests.id('ff')), 'glowing', 'start_glow moves the match to glowing');
 select is((select ends_at - started_at from public.glow_sessions where id = tests.id('ff_glow')), interval '15 minutes',
           'a glow lasts GLOW_TTL (15 minutes)');
 select ok((select code_word = any (array['otter', 'maple', 'comet']) and spot_id is not null
              from public.glow_sessions where id = tests.id('ff_glow')),
           'the code word comes from the server''s list, and there is a meeting spot');
-select is((public.start_glow(tests.id('ff'), (select list from words)) ->> 'id')::uuid, tests.id('ff_glow'),
+select is((public.start_glow(tests.id('ff'), (select list from words)) -> 'glow' ->> 'id')::uuid, tests.id('ff_glow'),
           'start_glow is idempotent: calling it again returns the same glow');
 select is(public.get_match(tests.id('ff_a'), tests.id('ff')) -> 'glow' ->> 'codeWord',
           public.get_match(tests.id('ff_b'), tests.id('ff')) -> 'glow' ->> 'codeWord',
@@ -99,8 +104,8 @@ select tests.located(tests.id('fc_a'), tests.id('r'));
 select is(tests.next(tests.choose('fc', 'a', 'find')), 'waiting/other_undecided', 'Find, then...');
 select is(tests.next(tests.choose('fc', 'b', 'chat')), 'chat/chose_chat', '...Chat opens the chat');
 select is(tests.next(tests.choose('fc', 'a', 'find')), 'chat/already_decided', 'and it stays chat for both');
-select throws_ok(format('select public.start_glow(%L, %L)', tests.id('fc'), '{otter}'), 'P0001', 'glow_not_ready',
-                 'no glow unless both chose Find');
+select is(public.start_glow(tests.id('fc'), '{otter}') ->> 'result', 'chat',
+          'no glow unless both chose Find: start_glow says the chat is open');
 
 select tests.put('cc', tests.pair('cc', tests.id('r')));
 select is(tests.next(tests.choose('cc', 'a', 'chat')), 'chat/chose_chat', 'Chat and Chat: chat');
@@ -127,8 +132,8 @@ select tests.choose('st', 'a', 'find');
 update public.location_checks set created_at = now() - interval '3 minutes' where user_id = tests.id('st_a');
 select is(tests.next(tests.choose('st', 'b', 'find')), 'waiting/other_location_stale',
           'if the other person''s check went stale while waiting, wait for them to re-check');
-select throws_ok(format('select public.start_glow(%L, %L)', tests.id('st'), '{otter}'), 'P0001', 'glow_not_ready',
-                 'start_glow refuses while one location check is stale');
+select is(public.start_glow(tests.id('st'), '{otter}') ->> 'reason', 'location_stale',
+          'start_glow waits while one location check is stale');
 select tests.located(tests.id('st_a'), tests.id('r'));
 select is(tests.next(tests.choose('st', 'a', 'find')), 'glow/both_find', 'once they re-check, the glow can start');
 
@@ -169,7 +174,7 @@ begin
   perform tests.located(tests.id(p_key || '_b'), tests.id('busy'));
   perform tests.choose(p_key, 'a', 'find');
   perform tests.choose(p_key, 'b', 'find');
-  return public.start_glow(m, (select list from words));
+  return public.start_glow(m, (select list from words)) -> 'glow';
 end $$;
 create temporary table busy_glows as select i, tests.glowing_pair('busy' || i) as glow from generate_series(1, 8) i;
 select is((select count(distinct glow ->> 'color')::integer from busy_glows), 8,
@@ -177,8 +182,10 @@ select is((select count(distinct glow ->> 'color')::integer from busy_glows), 8,
 insert into busy_glows select i, tests.glowing_pair('busy' || i) from generate_series(9, 24) i;
 select is((select count(distinct (glow ->> 'color', glow ->> 'codeWord'))::integer from busy_glows), 24,
           '24 active glows in one room never share a color and code word');
-select throws_ok($$ select tests.glowing_pair('busy25') $$, 'P0001', 'no_code_word',
-                 'with 8 colors and 3 words, a 25th active glow can''t get a unique pair');
+select is(tests.glowing_pair('busy25'), null,
+          'with 8 colors and 3 words, a 25th active glow can''t get a unique pair');
+select is((select status::text from public.matches where id = tests.id('busy25')), 'chatting',
+          'so its chat opens instead of leaving the match stuck in choosing');
 select throws_ok($$ insert into public.glow_sessions (match_id, room_id, color, code_word, ends_at)
                     select match_id, room_id, color, code_word, ends_at from public.glow_sessions
                      where room_id = tests.id('busy') and status = 'active' limit 1 $$,
@@ -187,8 +194,8 @@ select throws_ok($$ insert into public.glow_sessions (match_id, room_id, color, 
 -- P1: a match shows only the other person's first name, never their user ID, before or after
 select is((select array_agg(k order by k) from jsonb_object_keys(public.get_match(tests.id('cc_a'), tests.id('cc'))) k),
           array['choiceDeadline', 'createdAt', 'firstName', 'id', 'otherHasChosen', 'photoCount', 'roomId', 'roomName',
-                'status', 'userIds', 'yourChoice'],
-          'get_match returns the contract''s fields plus userIds, which the route helper drops (MatchDetail has none)');
+                'settled', 'status', 'userIds', 'yourChoice'],
+          'get_match returns the contract''s fields plus userIds and settled, which the route helper drops');
 
 select * from finish();
 rollback;

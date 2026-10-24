@@ -199,6 +199,30 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
+  /api/me/onboarding/complete:
+    post:
+      operationId: completeOnboarding
+      tags: [me]
+      summary: Finish onboarding
+      description: |
+        Moves `onboardingStep` to `complete` once the profile is filled in and at least
+        PROFILE_PHOTOS_MIN photos are approved. The notifications step is optional: the app calls
+        this whether or not the person allowed push, so declining notifications never blocks
+        anyone. Photos held for review (possibly under 18) don't count (P10). Anything missing is
+        409 `onboarding_incomplete`, and `GET /api/me` shows what. Calling it again once complete
+        is harmless. Calls `complete_onboarding`.
+      x-owner: B1
+      responses:
+        "200":
+          description: The person, now complete.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
   # ------------------------------------------------------------------ dev
   /api/dev/test-login:
     post:
@@ -379,7 +403,9 @@ paths:
         Only a face-blurred photo ever leaves the phone (P3). The server moderates it and fails
         closed: a visible face, nudity or no outfit gets 422 `photo_rejected` with a `reason`, and
         a moderation outage gets 503 `unavailable`. Any older check-in of mine in this
-        room ends. Calls `create_checkin`.
+        room ends. Calls `create_checkin`, which also needs the passed join location check that
+        joinRoom recorded within JOIN_TICKET_TTL (422 `location_required` otherwise), so a QR code
+        or room code alone can never make a card.
       x-owner: B3
       x-max-body-bytes: 4200000
       requestBody:
@@ -445,8 +471,10 @@ paths:
       summary: Filters return up to DECK_PAGE_SIZE cards with signed image links
       description: |
         Calls `get_deck`, which applies every deck rule, the filters and the daily view cap, in an
-        order that stays the same all day. Cards never carry a user ID (P1). 404 if I've never
-        checked in to this room.
+        order that stays the same all day. Cards never carry a user ID (P1). 404 only when the room
+        doesn't exist, or I have no check-in there and haven't checked in there today. After my
+        check-in expires (even once purge has deleted it), the same day answers
+        `emptyReason: checkin_ended`.
       x-owner: B4
       requestBody:
         required: true
@@ -475,7 +503,8 @@ paths:
       description: |
         Calls `record_tap`. The other person is never told about a one-sided tap (P5). A card
         that isn't in my deck right now is 404; no taps left today is 409 `tap_limit_reached`.
-        Tapping the same card again doesn't use a tap. On mutual, both people get match.created.
+        Tapping the same card again doesn't use a tap, but tapping someone again after an
+        unmatch is a new tap. On mutual, both people get match.created.
       x-owner: B4
       requestBody:
         required: true
@@ -508,7 +537,9 @@ paths:
       summary: My active and past matches
       description: |
         Newest first. Ended matches (unmatched or blocked) never appear. "Now" in the app is
-        `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`.
+        `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`, which
+        applies timeouts first; for each one it reports in `settled`, this route sends the events
+        (docs/CONTRACTS.md, "Settled timeouts").
       x-owner: B4
       responses:
         "200":
@@ -527,7 +558,9 @@ paths:
       operationId: getMatch
       tags: [matches]
       summary: One match, with the other person's first name and photo count
-      description: Applies any timeout first (choice window, glow time). Calls `get_match`.
+      description: |
+        Applies any timeout first (choice window, glow time). Calls `get_match`; for each timeout
+        it reports in `settled`, this route sends the events (docs/CONTRACTS.md, "Settled timeouts").
       x-owner: C2
       responses:
         "200":
@@ -546,7 +579,7 @@ paths:
         in: path
         required: true
         description: 0-based index into the other person's approved photos, below `photoCount`.
-        schema: { type: integer, minimum: 0, maximum: 2 }
+        schema: { type: integer, minimum: 0, maximum: 2, x-constant: { maximum: "PROFILE_PHOTOS_MAX - 1" } }
     get:
       operationId: getMatchPhoto
       tags: [matches]
@@ -570,10 +603,13 @@ paths:
         Find needs `location`; the server checks it like a join (422 `not_in_room` or
         `location_inaccurate` on failure) before calling `set_choice`. When both chose Find, both
         are still checked in and both passed a check in the last GEO_FRESHNESS_FOR_GLOW, the glow
-        starts and `next` is `glow`. Anything else opens the chat. `next: waiting` with
-        `reason: other_location_stale` means the other person's app is being asked (match.choice)
-        to send Find again with a fresh fix. While waiting with Find, the app re-sends Find with a
-        fresh fix whenever it gets match.choice.
+        starts and `next` is `glow` (the server calls `start_glow`, which either starts it or opens
+        the chat; it never leaves the match stuck). Anything else opens the chat. `next: waiting`
+        with `reason: other_location_stale` means the other person's location check went stale
+        while they waited: the server sends them match.recheck, a push that asks them to open Glow
+        ("Open Glow to find each other."), so their app sends Find again with a fresh fix. The app
+        re-sends Find with a fresh fix whenever it gets match.recheck, or opens from its push.
+        Timeouts this call applies are reported in `settled`, and this route sends their events.
       x-owner: C2
       requestBody:
         required: true
@@ -637,7 +673,10 @@ paths:
       operationId: markGlowMet
       tags: [glow]
       summary: I tapped We met
-      description: When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`.
+      description: |
+        When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`. A glow
+        whose time already ran out comes back `expired`, reported in `settled`, and this route
+        sends glow.ended for it.
       x-owner: C3
       responses:
         "200":
@@ -693,7 +732,7 @@ paths:
           in: query
           required: false
           description: At most MESSAGES_PAGE_SIZE (the default).
-          schema: { type: integer, minimum: 1, maximum: 50 }
+          schema: { type: integer, minimum: 1, maximum: 50, x-constant: { maximum: MESSAGES_PAGE_SIZE } }
       responses:
         "200":
           description: A page of messages.
@@ -1101,6 +1140,73 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
+  /api/admin/photos:
+    get:
+      operationId: adminListPhotos
+      tags: [admin]
+      summary: Profile photos waiting for review
+      description: |
+        Photos B8's moderation held for a person to look at (for example possibly under 18),
+        oldest first. Held photos never count toward onboarding and are never served to matches.
+      x-owner: B7
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Defaults to held.
+          schema: { $ref: "#/components/schemas/ModerationStatus" }
+      responses:
+        "200":
+          description: Photos.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPhotoList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/photos/{id}/image:
+    parameters:
+      - $ref: "#/components/parameters/PhotoId"
+    get:
+      operationId: adminPhotoImage
+      tags: [admin]
+      summary: A profile photo for review, watermarked with the admin's code
+      x-owner: B7
+      responses:
+        "200": { $ref: "#/components/responses/JpegImage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/photos/{id}/review:
+    parameters:
+      - $ref: "#/components/parameters/PhotoId"
+    post:
+      operationId: adminReviewPhoto
+      tags: [admin]
+      summary: Approve or reject a held profile photo, or ban its owner
+      description: |
+        `approve` lets it count and be shown to matches. `reject` deletes the photo. `ban` deletes
+        it and sets the owner's `banned_at`, which hides them everywhere at once.
+      x-owner: B7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminPhotoReview" }
+      responses:
+        "200":
+          description: The photo after review.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPhoto" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
   # ------------------------------------------------------------------ web
   /.well-known/apple-app-site-association:
     get:
@@ -1451,6 +1557,7 @@ components:
         photos:
           type: array
           maxItems: 3
+          x-constant: { maxItems: PROFILE_PHOTOS_MAX }
           items: { $ref: "#/components/schemas/MyPhoto" }
         onboardingStep: { $ref: "#/components/schemas/OnboardingStep" }
         isAdmin: { type: boolean }
@@ -1484,7 +1591,7 @@ components:
       required: [id, position, moderationStatus, url]
       properties:
         id: { type: string, format: uuid }
-        position: { type: integer, minimum: 0, maximum: 2 }
+        position: { type: integer, minimum: 0, maximum: 2, x-constant: { maximum: "PROFILE_PHOTOS_MAX - 1" } }
         moderationStatus: { $ref: "#/components/schemas/ModerationStatus" }
         url:
           type: string
@@ -1510,12 +1617,13 @@ components:
       additionalProperties: false
       required: [position, photo]
       properties:
-        position: { type: integer, minimum: 0, maximum: 2 }
+        position: { type: integer, minimum: 0, maximum: 2, x-constant: { maximum: "PROFILE_PHOTOS_MAX - 1" } }
         photo:
           type: string
           contentEncoding: base64
           contentMediaType: image/jpeg
           maxLength: 4000000
+          x-constant: { maxLength: "base64(PHOTO_MAX_BYTES)" }
           description: Base64 JPEG, cropped to 4:5, metadata removed, at most PHOTO_MAX_BYTES before encoding.
     PauseRequest:
       type: object
@@ -1669,6 +1777,7 @@ components:
           contentEncoding: base64
           contentMediaType: image/jpeg
           maxLength: 4000000
+          x-constant: { maxLength: "base64(PHOTO_MAX_BYTES)" }
           description: |
             Base64 JPEG of today's outfit with every face blurred on the phone, at most
             PHOTO_MAX_DIMENSION on the long side, quality PHOTO_JPEG_QUALITY, no metadata.
@@ -1763,6 +1872,7 @@ components:
         cards:
           type: array
           maxItems: 10
+          x-constant: { maxItems: DECK_PAGE_SIZE }
           items: { $ref: "#/components/schemas/Card" }
         viewsLeftToday: { type: integer, minimum: 0 }
         hasMore: { type: boolean }
@@ -1827,6 +1937,7 @@ components:
           type: integer
           minimum: 0
           maximum: 3
+          x-constant: { maximum: PROFILE_PHOTOS_MAX }
           description: How many of their photos `/api/matches/{id}/photos/{n}` serves.
         roomId: { type: string, format: uuid }
         roomName: { type: string }
@@ -1922,7 +2033,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         fromMe: { type: boolean, description: Messages carry no sender ID. }
-        body: { type: string, minLength: 1, maxLength: 1000 }
+        body: { type: string, minLength: 1, maxLength: 1000, x-constant: { maxLength: MESSAGE_MAX_CHARS } }
         createdAt: { type: string, format: date-time }
         clientId: { type: string, format: uuid, description: Echoed back on my own messages. }
     MessagePage:
@@ -1933,6 +2044,7 @@ components:
         messages:
           type: array
           maxItems: 50
+          x-constant: { maxItems: MESSAGES_PAGE_SIZE }
           items: { $ref: "#/components/schemas/Message" }
         hasMore: { type: boolean }
         nextBefore:
@@ -1944,7 +2056,7 @@ components:
       additionalProperties: false
       required: [body]
       properties:
-        body: { type: string, minLength: 1, maxLength: 1000 }
+        body: { type: string, minLength: 1, maxLength: 1000, x-constant: { maxLength: MESSAGE_MAX_CHARS } }
         clientId:
           type: string
           format: uuid
@@ -1969,7 +2081,7 @@ components:
         context: { $ref: "#/components/schemas/ReportContext" }
         contextId: { type: string, format: uuid }
         reason: { $ref: "#/components/schemas/ReportReason" }
-        details: { type: string, maxLength: 1000 }
+        details: { type: string, maxLength: 1000, x-constant: { maxLength: REPORT_DETAILS_MAX_CHARS } }
     CaptureRequest:
       type: object
       additionalProperties: false
@@ -2054,6 +2166,7 @@ components:
           type: array
           minItems: 3
           maxItems: 5
+          x-constant: { minItems: MEETING_SPOTS_MIN, maxItems: MEETING_SPOTS_MAX }
           items:
             type: string
             minLength: 1
@@ -2081,6 +2194,7 @@ components:
           type: array
           minItems: 3
           maxItems: 5
+          x-constant: { minItems: MEETING_SPOTS_MIN, maxItems: MEETING_SPOTS_MAX }
           items:
             type: string
             minLength: 1
@@ -2096,13 +2210,15 @@ components:
     RoomMetrics:
       type: object
       additionalProperties: false
-      required: [since, activeCheckins, checkins, cardViews, taps, matches, glowsStarted, glowsMet, reports]
+      description: |
+        No tap count, ever: over a short window it would let an admin standing in the room time
+        someone's one-sided tap (P5). The database keeps no tap activity at all.
+      required: [since, activeCheckins, checkins, cardViews, matches, glowsStarted, glowsMet, reports]
       properties:
         since: { type: string, format: date-time }
         activeCheckins: { type: integer, minimum: 0 }
         checkins: { type: integer, minimum: 0 }
         cardViews: { type: integer, minimum: 0 }
-        taps: { type: integer, minimum: 0 }
         matches: { type: integer, minimum: 0 }
         glowsStarted: { type: integer, minimum: 0 }
         glowsMet: { type: integer, minimum: 0 }
@@ -2175,6 +2291,36 @@ components:
         action:
           type: string
           enum: [dismiss, remove_card, ban]
+    AdminPhoto:
+      type: object
+      additionalProperties: false
+      required: [id, position, moderationStatus, createdAt, viewerCode, image]
+      properties:
+        id: { type: string, format: uuid }
+        position: { type: integer, minimum: 0, maximum: 2, x-constant: { maximum: "PROFILE_PHOTOS_MAX - 1" } }
+        moderationStatus: { $ref: "#/components/schemas/ModerationStatus" }
+        createdAt: { type: string, format: date-time }
+        viewerCode: { type: string, description: "The owner's watermark code. The admin sees no user ID." }
+        image:
+          type: string
+          format: uri-reference
+          description: "`/api/admin/photos/{id}/image`, fetched with the admin's bearer token."
+    AdminPhotoList:
+      type: object
+      additionalProperties: false
+      required: [photos]
+      properties:
+        photos:
+          type: array
+          items: { $ref: "#/components/schemas/AdminPhoto" }
+    AdminPhotoReview:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, reject, ban]
 
     # ---------------------------------------------------------------- web
     AppleAppSiteAssociation:
@@ -2204,7 +2350,7 @@ components:
     # ---------------------------------------------------------------- events (contracts/events.json)
     GlowEventType:
       type: string
-      enum: [match.created, match.choice, match.ended, glow.started, glow.ended, message.created, checkin.expiring, deck.changed]
+      enum: [match.created, match.choice, match.recheck, match.ended, glow.started, glow.ended, message.created, checkin.expiring, deck.changed]
     GlowEvent:
       description: |
         Every Realtime broadcast payload and the custom keys of every push. Only the type plus a
@@ -2212,6 +2358,7 @@ components:
       oneOf:
         - $ref: "#/components/schemas/MatchCreatedEvent"
         - $ref: "#/components/schemas/MatchChoiceEvent"
+        - $ref: "#/components/schemas/MatchRecheckEvent"
         - $ref: "#/components/schemas/MatchEndedEvent"
         - $ref: "#/components/schemas/GlowStartedEvent"
         - $ref: "#/components/schemas/GlowEndedEvent"
@@ -2223,6 +2370,7 @@ components:
         mapping:
           match.created: "#/components/schemas/MatchCreatedEvent"
           match.choice: "#/components/schemas/MatchChoiceEvent"
+          match.recheck: "#/components/schemas/MatchRecheckEvent"
           match.ended: "#/components/schemas/MatchEndedEvent"
           glow.started: "#/components/schemas/GlowStartedEvent"
           glow.ended: "#/components/schemas/GlowEndedEvent"
@@ -2242,6 +2390,13 @@ components:
       required: [type, matchId]
       properties:
         type: { type: string, enum: [match.choice] }
+        matchId: { type: string, format: uuid }
+    MatchRecheckEvent:
+      type: object
+      additionalProperties: false
+      required: [type, matchId]
+      properties:
+        type: { type: string, enum: [match.recheck] }
         matchId: { type: string, format: uuid }
     MatchEndedEvent:
       type: object
