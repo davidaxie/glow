@@ -366,6 +366,38 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 
 **Why.** Contrast only goes up during a pulse, and the flash limits hold with margin.
 
+### B6-D4 · A recorded screen hides the card instead of blurring it
+
+**Question.** The brief asks for a card tile that blurs while the screen is captured (P12). A blur still draws the photo's colors and shapes into the recording.
+
+**Choice.** `glowHiddenWhenCaptured()` doesn't draw the content at all while `isSceneCaptured` is true (opacity 0, hidden from VoiceOver). In its place it shows a soft cover that looks blurred, with "Hidden while your screen is shared". The layout keeps its size. Tests and Debug builds can fake a capture with `.environment(\.isSceneCaptured, true)`. Logging screenshots stays C1's job.
+
+**Why.** Nothing from the photo can be recovered from a recording. It looks just as calm as a blur.
+
+### B6-D5 · The launch screen stays a plain background color
+
+**Question.** The launch screen could show the glow mark, but that needs a `UILaunchScreen` image key in A1's `Info.plist`.
+
+**Choice.** Keep `UILaunchScreen` as the `LaunchBackground` color, #0B0B10 (the `background` token), with no image. B6 owns the color, and the app icon carries the mark.
+
+**Why.** Apple's guidance is a launch screen that looks like the first screen, with no branding. A plain dark screen opens straight into the dark app with no flash, and needs no change outside B6's paths.
+
+### B6-D6 · Screen helpers count holders and work only in the app
+
+**Question.** Two glow views can be on screen at once during a transition. If each one saved the brightness when it appeared, the second would save the first's raised level as the person's own, and leave their screen at full brightness after the glow.
+
+**Choice.** `GlowBrightness` and `GlowKeepAwake` count holders. The first saves the person's level, and the last one restores it. Leaving the foreground, opening Control Center or the view disappearing all count as letting go. Coming back raises the level again from wherever the person set it in the meantime. The screen comes from the view's own window scene, never `UIScreen.main` (deprecated in iOS 26). The idle timer needs `UIApplication`, so `glowKeepAwake` and `GlowSurface` are marked unavailable in app extensions.
+
+**Why.** "Always restores brightness" holds in every order of events, and tests cover each order.
+
+### B6-D7 · The glow's haptic is three soft beats, not a 15-minute buzz
+
+**Question.** The brief asks for a haptic for the glow pulse. A haptic on every pulse for the whole 15 minutes would drain the battery and wear on the person.
+
+**Choice.** `GlowHapticPattern.glowPulse` is three soft double beats, timed to the visual pulse (1.25 s apart). C3 plays it when the glow starts, and can play it again on demand. `heartbeat(beats:)` makes longer or shorter versions.
+
+**Why.** The person feels the glow start, and can still put the phone in a pocket.
+
 ## B8 · Safety, moderation and cleanup
 
 ### B8-D1 · Moderation runs on Claude, with a fake only in local development
