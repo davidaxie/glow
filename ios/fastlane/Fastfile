@@ -1,0 +1,427 @@
+# Glow's release lanes. Owner: B9. docs/RELEASE.md explains every step and every variable.
+#
+# Run them with ios/fastlane/ship, which sets up the gems first:
+#
+#   ios/fastlane/ship check            no Apple account needed: settings, privacy answers, beta texts
+#   ios/fastlane/ship verify_release   no Apple account needed (macOS): unsigned Release build, checked
+#   ios/fastlane/ship beta             build number + 1, archive, check, upload to TestFlight
+#   ios/fastlane/ship external         send a build to the Public group for external beta review
+#   ios/fastlane/ship status           latest build, its review state and the public link
+#   ios/fastlane/ship privacy          upload the App Privacy answers (David signs in, on his Mac)
+#
+# Secrets only ever come from the environment (GitHub secrets in CI), never from git.
+
+require 'base64'
+require 'fileutils'
+require 'json'
+require 'securerandom'
+require 'time'
+require 'tmpdir'
+require 'cfpropertylist'
+require 'plist'
+require_relative 'glow_release'
+
+opt_out_usage # don't send usage data to fastlane
+skip_docs # don't write fastlane/README.md
+default_platform(:ios)
+
+# __dir__ is relative inside a Fastfile, so paths start from the helper file's absolute location.
+FASTLANE_DIR = GlowRelease::DIR
+IOS = File.dirname(FASTLANE_DIR)
+ROOT = File.dirname(IOS)
+SPEC = File.join(IOS, 'project.yml')
+PROJECT = File.join(IOS, 'Glow.xcodeproj')
+SCHEME = 'Glow'
+CONFIG_DIR = File.join(IOS, 'Glow', 'Config')
+MANIFEST = File.join(IOS, 'Glow', 'PrivacyInfo.xcprivacy')
+BUILD_DIR = File.join(IOS, 'build')
+RELEASE_DIR = File.join(BUILD_DIR, 'release')
+PACKAGES_DIR = File.join(BUILD_DIR, 'SourcePackages')
+PRIVACY_ANSWERS = File.join(FASTLANE_DIR, 'app-privacy.json')
+TESTFLIGHT_TEXT = File.join(FASTLANE_DIR, 'testflight')
+
+# Names David gives things in the Apple portals (docs/RELEASE.md). project.yml uses the same
+# profile names; `check` makes sure.
+PROFILES = {
+  'Glow' => 'Glow App Store',
+  'GlowLiveActivity' => 'Glow Live Activity App Store',
+}.freeze
+EXTERNAL_GROUP = 'Public'
+
+platform :ios do
+  desc 'Checks everything that needs no Apple account, and lists what beta still needs'
+  lane :check do
+    problems = []
+
+    manifest = Plist.parse_xml(MANIFEST)
+    expected = GlowRelease.privacy_answers(manifest)
+    committed = JSON.parse(File.read(PRIVACY_ANSWERS))
+    differences = GlowRelease.privacy_differences(expected, committed)
+    unless differences.empty?
+      problems.concat(differences)
+      problems << 'ios/Glow/PrivacyInfo.xcprivacy and ios/fastlane/app-privacy.json disagree. ' \
+                  'Run `ios/fastlane/ship privacy_answers`, commit the result, update the table in ' \
+                  "docs/RELEASE.md, and change App Store Connect's App Privacy answers to match."
+    end
+    problems.concat(GlowRelease.text_problems(TESTFLIGHT_TEXT))
+
+    settings = release_settings
+    if settings['GLOW_APP_BUNDLE_ID'] != 'com.davidxie.glow' ||
+       settings['GLOW_LIVE_ACTIVITY_BUNDLE_ID'] != 'com.davidxie.glow.LiveActivity'
+      problems << 'The bundle IDs in Shared.xcconfig changed. Update docs/RELEASE.md and the Apple ' \
+                  'portal to match, then this check.'
+    end
+
+    report = GlowRelease.preflight(settings: settings, env: ENV, ci: true,
+                                   project_yml: File.read(SPEC), profiles: PROFILES)
+    problems.concat(report.reject(&:blocked?).map(&:to_s))
+    blocked = report.select(&:blocked?)
+
+    UI.header('What beta still needs')
+    if blocked.empty?
+      UI.success('Nothing: beta can run once its secrets are in the environment.')
+    else
+      blocked.each { |problem| UI.important("- #{problem}") }
+    end
+
+    UI.user_error!("Release checks failed:\n- #{problems.join("\n- ")}") unless problems.empty?
+    UI.success('Privacy answers match the manifest, beta texts fit, release settings agree.')
+  end
+
+  desc 'Rewrites app-privacy.json from the privacy manifest'
+  lane :privacy_answers do
+    answers = GlowRelease.privacy_answers(Plist.parse_xml(MANIFEST))
+    File.write(PRIVACY_ANSWERS, "#{JSON.pretty_generate(answers)}\n")
+    UI.success("Wrote #{PRIVACY_ANSWERS}")
+  end
+
+  desc 'Unsigned Release build for a device, then the checks beta runs on the real archive'
+  lane :verify_release do
+    generate_project
+    derived = File.join(BUILD_DIR, 'ReleaseCheck')
+    sh('xcodebuild', '-project', PROJECT, '-scheme', SCHEME, '-configuration', 'Release',
+       '-destination', 'generic/platform=iOS', '-derivedDataPath', derived,
+       '-clonedSourcePackagesDirPath', PACKAGES_DIR, '-onlyUsePackageVersionsFromResolvedFile',
+       '-skipPackagePluginValidation', '-skipMacroValidation', '-quiet', 'CODE_SIGNING_ALLOWED=NO',
+       'build')
+    app = File.join(derived, 'Build', 'Products', 'Release-iphoneos', 'Glow.app')
+    verify_built_app(app, strict: false)
+  end
+
+  desc 'Bumps the build number, archives, checks the result and uploads it to TestFlight'
+  lane :beta do
+    settings = release_settings
+    report = GlowRelease.preflight(settings: settings, env: ENV, ci: ci?,
+                                   project_yml: File.read(SPEC), profiles: PROFILES)
+    stop_unless_clear(report)
+
+    api_key = connect_api_key
+    version = settings.fetch('MARKETING_VERSION')
+    build = next_build_number(api_key)
+    UI.message("Building Glow #{version} (#{build})")
+
+    workdir = Dir.mktmpdir('glow-release')
+    keychain = nil
+    begin
+      keychain = install_signing_assets(workdir) if signing_assets_in_env?
+      generate_project
+      overrides = write_overrides(workdir, build)
+      name = "Glow-#{version}-#{build}"
+      ipa = build_app(
+        project: PROJECT,
+        scheme: SCHEME,
+        configuration: 'Release',
+        clean: true,
+        output_directory: RELEASE_DIR,
+        output_name: name,
+        archive_path: File.join(RELEASE_DIR, "#{name}.xcarchive"),
+        derived_data_path: File.join(BUILD_DIR, 'ReleaseDerivedData'),
+        cloned_source_packages_path: PACKAGES_DIR,
+        disable_package_automatic_updates: true,
+        xcconfig: overrides,
+        xcargs: '-skipPackagePluginValidation -skipMacroValidation',
+        export_method: 'app-store',
+        export_team_id: settings.fetch('DEVELOPMENT_TEAM'),
+        export_options: {
+          signingStyle: 'manual',
+          provisioningProfiles: {
+            settings.fetch('GLOW_APP_BUNDLE_ID') => PROFILES.fetch('Glow'),
+            settings.fetch('GLOW_LIVE_ACTIVITY_BUNDLE_ID') => PROFILES.fetch('GlowLiveActivity'),
+          },
+          uploadSymbols: true,
+          manageAppVersionAndBuildNumber: false,
+        },
+      )
+
+      verify_ipa(ipa, settings: settings, version: version, build: build)
+
+      upload_to_testflight(
+        api_key: api_key,
+        app_identifier: settings.fetch('GLOW_APP_BUNDLE_ID'),
+        ipa: ipa,
+        changelog: what_to_test(build),
+        distribute_external: false,
+        submit_beta_review: false,
+        uses_non_exempt_encryption: false,
+        # CI doesn't pay for macOS minutes while Apple processes the build: it sets What to Test
+        # as soon as the build appears and stops. Internal testers get it when processing ends.
+        skip_waiting_for_build_processing: ci? && ENV['GLOW_WAIT_FOR_PROCESSING'] != '1',
+        wait_processing_timeout_duration: 3600,
+      )
+      record_release(version: version, build: build)
+    ensure
+      delete_keychain(name: keychain) if keychain
+      FileUtils.rm_rf(workdir)
+    end
+  end
+
+  desc 'Sends a TestFlight build to the Public group for external beta review'
+  lane :external do |options|
+    settings = release_settings
+    contact, problems = GlowRelease.review_contact(ENV)
+    problems.concat(GlowRelease.api_key_problems(ENV))
+    problems.concat(GlowRelease.domain_problems(settings))
+    stop_unless_clear(problems)
+
+    api_key = connect_api_key
+    app_id = settings.fetch('GLOW_APP_BUNDLE_ID')
+    # The workflow passes an empty GLOW_BUILD_NUMBER when no build was chosen: that means the latest.
+    build = [options[:build], ENV['GLOW_BUILD_NUMBER']].map { |v| v.to_s.strip }.find { |v| !v.empty? }
+    build ||= latest_testflight_build_number(api_key: api_key, app_identifier: app_id)
+    version = [options[:version], ENV['GLOW_APP_VERSION']].map { |v| v.to_s.strip }.find { |v| !v.empty? } ||
+              lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION] ||
+              settings.fetch('MARKETING_VERSION')
+    domain = settings.fetch('GLOW_WEB_DOMAIN')
+
+    notes = File.read(File.join(TESTFLIGHT_TEXT, 'review-notes.txt')).strip
+    video = ENV['GLOW_REVIEW_VIDEO_URL'].to_s.strip
+    notes += "\n\nA recording of the full loop at a venue: #{video}" unless video.empty?
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: app_id,
+      distribute_only: true,
+      app_version: version.to_s,
+      build_number: build.to_s,
+      distribute_external: true,
+      groups: [EXTERNAL_GROUP],
+      notify_external_testers: true,
+      submit_beta_review: true,
+      demo_account_required: false,
+      beta_app_review_info: contact.merge(notes: notes),
+      localized_app_info: {
+        'default' => {
+          feedback_email: ENV.fetch('GLOW_FEEDBACK_EMAIL'),
+          description: File.read(File.join(TESTFLIGHT_TEXT, 'description.txt')).strip,
+          privacy_policy_url: ENV.fetch('GLOW_PRIVACY_POLICY_URL', "https://#{domain}/privacy"),
+        },
+      },
+      changelog: what_to_test(build),
+      uses_non_exempt_encryption: false,
+    )
+    UI.success("Glow #{version} (#{build}) is waiting for beta review in the #{EXTERNAL_GROUP} group.")
+    status
+  end
+
+  desc 'Prints the latest build, its review state and the public TestFlight link'
+  lane :status do
+    connect_api_key
+    app_id = release_settings.fetch('GLOW_APP_BUNDLE_ID')
+    app = Spaceship::ConnectAPI::App.find(app_id)
+    UI.user_error!("App Store Connect has no app record for #{app_id} yet.") unless app
+
+    build = Spaceship::ConnectAPI.get_builds(
+      filter: { app: app.id }, includes: 'buildBetaDetail,preReleaseVersion',
+      sort: '-uploadedDate', limit: 1
+    ).to_models.first
+    group = app.get_beta_groups(filter: { name: EXTERNAL_GROUP }).first
+
+    lines = []
+    if build
+      detail = build.build_beta_detail
+      lines << "Latest build: #{build.app_version} (#{build.version}), uploaded #{build.uploaded_date}"
+      lines << "Processing: #{build.processing_state}"
+      lines << "Internal testing: #{detail&.internal_build_state || 'unknown'}"
+      lines << "External testing: #{detail&.external_build_state || 'unknown'}"
+    else
+      lines << 'No builds uploaded yet.'
+    end
+    lines << if group.nil?
+               "No #{EXTERNAL_GROUP} group yet (docs/RELEASE.md, step 9)."
+             elsif group.public_link_enabled && group.public_link
+               "Public link: #{group.public_link}"
+             else
+               "The #{EXTERNAL_GROUP} group's public link isn't turned on yet."
+             end
+    lines.each { |line| UI.message(line) }
+    summary("### TestFlight status\n\n#{lines.map { |l| "- #{l}" }.join("\n")}\n")
+  end
+
+  desc "Uploads the App Privacy answers to App Store Connect (signs in with David's Apple ID)"
+  lane :privacy do
+    # Apple's API keys can't edit App Privacy, so this signs in as a person. Run it on David's Mac.
+    UI.user_error!('Set GLOW_APPLE_ID to the Apple ID that signs in to App Store Connect.') if ENV['GLOW_APPLE_ID'].to_s.empty?
+    upload_app_privacy_details_to_app_store(
+      username: ENV.fetch('GLOW_APPLE_ID'),
+      app_identifier: release_settings.fetch('GLOW_APP_BUNDLE_ID'),
+      json_path: PRIVACY_ANSWERS,
+      skip_publish: true, # David reviews and publishes in App Store Connect
+    )
+  end
+end
+
+# -------------------------------------------------------------------------------------------------
+# Helpers
+
+def ci?
+  ENV['CI'].to_s == 'true' || ENV['GITHUB_ACTIONS'].to_s == 'true'
+end
+
+def release_settings
+  GlowRelease.release_settings(CONFIG_DIR)
+end
+
+def stop_unless_clear(problems)
+  return if problems.empty?
+
+  blocked = problems.select { |p| p.respond_to?(:blocked?) && p.blocked? }
+  message = "Can't release yet:\n- #{problems.map(&:to_s).join("\n- ")}"
+  message += "\n\nSee docs/RELEASE.md for where each value comes from." unless blocked.empty?
+  UI.user_error!(message)
+end
+
+def generate_project
+  sh('xcodegen', 'generate', '--spec', SPEC, '--quiet')
+end
+
+def connect_api_key
+  stop_unless_clear(GlowRelease.api_key_problems(ENV))
+  common ={ key_id: ENV.fetch('ASC_KEY_ID').strip, issuer_id: ENV.fetch('ASC_ISSUER_ID').strip,
+             duration: 1200, in_house: false }
+  path = ENV['ASC_KEY_PATH'].to_s
+  if path.empty?
+    app_store_connect_api_key(**common, key_content: GlowRelease.p8_content(ENV.fetch('ASC_KEY')))
+  else
+    app_store_connect_api_key(**common, key_filepath: path)
+  end
+end
+
+def next_build_number(api_key)
+  override = ENV['GLOW_BUILD_NUMBER'].to_s.strip
+  return Integer(override, 10) unless override.empty?
+
+  latest = latest_testflight_build_number(api_key: api_key,
+                                          app_identifier: release_settings.fetch('GLOW_APP_BUNDLE_ID'),
+                                          initial_build_number: 0)
+  Integer(latest.to_s.split('.').first, 10) + 1
+end
+
+def signing_assets_in_env?
+  GlowRelease::SIGNING_SECRETS.all? { |name| !ENV[name].to_s.strip.empty? }
+end
+
+# Puts the distribution certificate in a throwaway keychain and installs both profiles. Locally,
+# without these variables, the lane uses what's already in the login keychain.
+def install_signing_assets(dir)
+  keychain = "glow-release-#{SecureRandom.hex(4)}"
+  password = SecureRandom.base64(24)
+  create_keychain(name: keychain, password: password, default_keychain: ci?, unlock: true,
+                  timeout: 3600, lock_when_sleeps: false, add_to_search_list: true)
+  cert = File.join(dir, 'distribution.p12')
+  File.binwrite(cert, Base64.decode64(ENV.fetch('DIST_CERT_P12_BASE64')))
+  File.chmod(0o600, cert)
+  import_certificate(certificate_path: cert, certificate_password: ENV.fetch('DIST_CERT_PASSWORD'),
+                     keychain_name: keychain, keychain_password: password, log_output: false)
+  { 'PROFILE_APP_BASE64' => 'app', 'PROFILE_LIVE_ACTIVITY_BASE64' => 'live-activity' }.each do |name, file|
+    path = File.join(dir, "#{file}.mobileprovision")
+    File.binwrite(path, Base64.decode64(ENV.fetch(name)))
+    install_provisioning_profile(path: path)
+  end
+  keychain
+end
+
+# Release values that aren't in git go in through an xcconfig passed to xcodebuild, so they never
+# touch the repo and don't show up in the printed command.
+def write_overrides(dir, build)
+  path = File.join(dir, 'release-overrides.xcconfig')
+  File.write(path, GlowRelease.overrides_xcconfig(build, ENV))
+  File.chmod(0o600, path)
+  path
+end
+
+def verify_ipa(ipa, settings:, version:, build:)
+  Dir.mktmpdir('glow-ipa') do |dir|
+    sh('unzip', '-q', ipa, '-d', dir, log: false)
+    app = File.join(dir, 'Payload', 'Glow.app')
+    verify_built_app(app, strict: true, settings: settings, version: version, build: build)
+  end
+end
+
+def verify_built_app(app, strict:, settings: release_settings, version: nil, build: nil)
+  UI.user_error!("No app at #{app}") unless File.directory?(app)
+
+  extension = File.join(app, 'PlugIns', 'GlowLiveActivity.appex', 'Info.plist')
+  problems, warnings = GlowRelease.verify_app(
+    info: read_plist(File.join(app, 'Info.plist')),
+    extension_info: File.exist?(extension) ? read_plist(extension) : nil,
+    entitlements: signed_entitlements(app),
+    files: bundle_files(app),
+    expect: {
+      bundle_id: settings.fetch('GLOW_APP_BUNDLE_ID'),
+      live_activity_bundle_id: settings.fetch('GLOW_LIVE_ACTIVITY_BUNDLE_ID'),
+      domain: settings.fetch('GLOW_WEB_DOMAIN'),
+      version: version,
+      build: build,
+      supabase_url: strict ? ENV['SUPABASE_URL'].to_s.strip : nil,
+      anon_key: strict ? ENV['SUPABASE_ANON_KEY'].to_s.strip : nil,
+      strict: strict,
+    },
+  )
+  warnings.each { |warning| UI.important("Release check: #{warning}") }
+  UI.user_error!("The Release build failed its checks:\n- #{problems.join("\n- ")}") unless problems.empty?
+  UI.success("Release checks passed for #{File.basename(app)}")
+end
+
+def read_plist(path)
+  CFPropertyList.native_types(CFPropertyList::List.new(file: path).value)
+end
+
+# The entitlements the app is signed with, or nil for an unsigned build.
+def signed_entitlements(app)
+  xml = sh('codesign', '-d', '--entitlements', '-', '--xml', app, log: false,
+           error_callback: ->(_) {})
+  xml.to_s.include?('<plist') ? Plist.parse_xml(xml[xml.index('<?xml') || xml.index('<plist')..]) : nil
+rescue StandardError
+  nil
+end
+
+def bundle_files(app)
+  Dir.glob(File.join(app, '**', '*'), File::FNM_DOTMATCH)
+     .select { |path| File.file?(path) && !File.symlink?(path) }
+     .to_h { |path| [path.delete_prefix("#{File.dirname(app)}/"), File.binread(path)] }
+end
+
+def what_to_test(build)
+  text = File.read(File.join(TESTFLIGHT_TEXT, 'what-to-test.txt')).strip
+  commit = ENV['GITHUB_SHA'].to_s[0, 7]
+  commit = sh('git', '-C', ROOT, 'rev-parse', '--short', 'HEAD', log: false).strip if commit.empty?
+  "#{text}\n\nBuild #{build} from #{commit}."
+rescue StandardError
+  text
+end
+
+def record_release(version:, build:)
+  FileUtils.mkdir_p(RELEASE_DIR)
+  commit = ENV['GITHUB_SHA'].to_s
+  commit = sh('git', '-C', ROOT, 'rev-parse', 'HEAD', log: false).strip if commit.empty?
+  record = { version: version, build: build, commit: commit, uploaded_at: Time.now.utc.iso8601 }
+  File.write(File.join(RELEASE_DIR, 'last-build.json'), "#{JSON.pretty_generate(record)}\n")
+  UI.success("Uploaded Glow #{version} (#{build}). Put the build number in docs/HANDOFFS.md (B9).")
+  summary("### TestFlight upload\n\nGlow #{version} (#{build}) from `#{record[:commit][0, 7]}`.\n" \
+          "Internal testers get it when Apple finishes processing.\n")
+end
+
+def summary(markdown)
+  path = ENV['GITHUB_STEP_SUMMARY'].to_s
+  File.write(path, "#{markdown}\n", mode: 'a') unless path.empty?
+end

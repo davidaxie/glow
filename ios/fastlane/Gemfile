@@ -1,0 +1,11 @@
+# fastlane for Glow's release lanes. Owner: B9. See docs/RELEASE.md.
+# ios/fastlane/ship runs the lanes with this Gemfile; by hand, from ios/:
+#   BUNDLE_GEMFILE=fastlane/Gemfile bundle exec fastlane <lane>
+source "https://rubygems.org"
+
+gem "fastlane", "~> 2.241"
+
+group :test do
+  # ios/fastlane/test: ruby -Ilib -e 'Dir["test/*_test.rb"].each { |f| require_relative f }'
+  gem "minitest", "~> 5.25"
+end

@@ -1,0 +1,3 @@
+Sign in, join the room with its QR code (or type the room code), check in with a photo of your outfit, and tap someone you noticed. If they tap you back, choose Find each other or Just chat.
+
+Tell us anything that feels confusing, slow or uncomfortable. Use Send Beta Feedback in the TestFlight app and describe what happened in words. Please don't take screenshots of other people's cards: Glow treats screenshots of the deck as a safety signal.

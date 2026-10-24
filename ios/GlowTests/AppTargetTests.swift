@@ -5,14 +5,27 @@ import Testing
 
 /// Tests for the app target itself, hosted in the Debug app.
 struct AppTargetTests {
-    @Test func debugConfigComesFromTheXcconfig() {
+    /// The URLs come from the build: `localhost:3000` and the shared Supabase by default, or an
+    /// agent's own port and stack when `scripts/agent-env.sh` overrides them (AGENTS.md). So check
+    /// that the config matches what this build put in Info.plist, and that Debug stays local.
+    @Test func debugConfigComesFromTheBuild() throws {
         let config = AppComposition.loadConfig()
         #expect(config.environment == .debug)
-        #expect(config.apiBaseURL.absoluteString == "http://localhost:3000")
-        #expect(config.supabaseURL?.absoluteString == "http://127.0.0.1:54421")
+
+        let builtAPI = try #require(Bundle.main.object(forInfoDictionaryKey: "GlowAPIBaseURL") as? String)
+        #expect(config.apiBaseURL.absoluteString == builtAPI)
+        #expect(config.apiBaseURL.scheme == "http")
+        #expect(Self.localHosts.contains(config.apiBaseURL.host() ?? ""))
+
+        let builtSupabase = try #require(Bundle.main.object(forInfoDictionaryKey: "GlowSupabaseURL") as? String)
+        #expect(config.supabaseURL?.absoluteString == builtSupabase)
+        #expect(Self.localHosts.contains(config.supabaseURL?.host() ?? ""))
+
         #expect(config.allowsCustomScheme)
         #expect(!config.webDomain.isEmpty)
     }
+
+    private static let localHosts: Set = ["localhost", "127.0.0.1"]
 
     @Test func debugBuildRegistersTheGlowScheme() throws {
         let types = try #require(Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]])

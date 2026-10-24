@@ -365,3 +365,59 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** The glow color stays at full strength. A soft white bloom (at most 15% white at its center) fades in and out on top every 1.25 s (0.8 times a second). The dimmest moment is 76% of the brightest in luminance on the darkest color (Violet), and tests check all eight against 70%. Under Reduce Motion the bloom doesn't scale: it only fades, on a slower 4 s cycle.
 
 **Why.** Contrast only goes up during a pulse, and the flash limits hold with margin.
+
+## B8 · Safety, moderation and cleanup
+
+### B8-D1 · Moderation runs on Claude, with a fake only in local development
+
+**Question.** Moderation uses `claude-haiku-5-5`, but there's no `ANTHROPIC_API_KEY` yet, and check-ins must still work in the Simulator.
+
+**Choice.** `server/src/server/moderation` hides the model behind an interface. With `ANTHROPIC_API_KEY` set (anywhere, including a laptop), it's Claude: `claude-haiku-5-5`, thinking off, effort `low`, structured outputs that return booleans only, and the photo decoded, stripped of metadata and downscaled to at most 768 px before it's sent. Without the key, and only when the env profile is `local` (laptop, CI, Vitest), it's a deterministic fake that approves everything except fixtures carrying a marker (`moderationFixtureJpeg(['face_visible'])`, `[glow-test:flag]`). On Vercel the key is required by `server/src/env.ts` (D1), so the fake can't run there; a test fails if that rule is ever relaxed, and the module also refuses to fall back outside `local`. The model never describes the person and nothing is logged but the decision, reason, model and time.
+
+**Why.** The 2.5 s budget (MODERATION_TIMEOUT) needs the fastest settings, and a small image is plenty to see a face, nudity or an outfit. Booleans leave the model nothing to say about anyone. The fake keeps every agent unblocked without weakening what runs on the internet.
+
+### B8-D2 · What moderation refuses, holds and lets through
+
+**Choice.** Card photos: rejected for nudity, a recognizable face, someone who may be under 18, no person, or no visible outfit (that order picks the `reason`). Profile photos: rejected for nudity or nobody in the photo, and *held* for human review when the person may be under 18 (B7's queue). A photo that isn't a readable JPEG is rejected `unreadable` without calling the model, and a model refusal counts as a rejection. Any timeout or outage throws a 503 `unavailable` (reason `moderation`) for both kinds, so nothing unmoderated is stored. Chat: a flagged message is refused (422 `message_rejected`, not stored); if moderation doesn't answer in 2.5 s the message goes through as `pending`, and B8's purge cron reviews pending messages afterwards.
+
+**Why.** Failing closed for photos is the spec's rule for cards, and for profile photos a retry costs the person a tap while storing an unchecked photo costs privacy. "Possibly under 18" is rejected on a card because cards are live in a room right now; on a profile it's held, since a person can still finish other steps while an admin looks. Refusing a flagged message, rather than storing and hiding it, means harmful text never reaches the database or the other person.
+
+### B8-D3 · Rate limit keys are hashed, and limits fail open
+
+**Choice.** `rateLimit(key, policy)` has one sliding window per policy (`signIn`, `join`, `checkin`, `deck`, `taps`, `messages`, `reports`, `blocks`, `capture`, `photos`, `account`, `admin`, `api`). Signed-in requests are keyed by the person's ID, others by client IP. The store only ever sees HMAC-SHA256(policy and key) under a key derived with HKDF from the service role key. Upstash when it's configured (required on Vercel), an in-memory window locally. If Upstash doesn't answer within 1 second, the request is allowed and the outage logged. The purge cron has no limit.
+
+**Why.** Upstash is a third party, so it shouldn't learn user IDs or IP addresses. The service role key never leaves the server, so a dictionary of IPs doesn't help anyone who reads Redis. Failing open means a Redis blip slows nobody down; the caps that matter for privacy (taps, views) are enforced in the database regardless.
+
+## B9 · Release and TestFlight
+
+### B9-D1 · Release builds sign manually, with the signing files in CI secrets
+
+**Question.** How should TestFlight builds be signed: Xcode's automatic signing (cloud signing with an API key), fastlane match, or a certificate and profiles supplied to CI?
+
+**Choice.** Release device builds of the app and the Live Activity sign manually with the Apple Distribution certificate and two App Store profiles named `Glow App Store` and `Glow Live Activity App Store` (B9's `cross-owner` PR #17 to `ios/project.yml`). CI gets the `.p12` and both profiles as base64 GitHub secrets, puts them in a throwaway keychain and deletes it afterwards. The App Store Connect API key is **App Manager**, not Admin. The team stays one value, `DEVELOPMENT_TEAM` in `Shared.xcconfig`. Debug keeps automatic signing; Simulator and CI test builds stay unsigned.
+
+**Why.** An automatically signed archive uses the development profile, which can't carry the Release entitlement `aps-environment = production`, so it fails to sign (and push from TestFlight needs production). Cloud signing in CI needs an Admin-role key, a registered device, and makes a new development certificate on every run. match needs another repository or bucket, which is another account. Manual signing needs the least access: the key that can upload builds can't touch certificates, profiles or users.
+
+### B9-D2 · Build numbers come from TestFlight, and a release commits nothing
+
+**Question.** "Bump the build number" usually means editing the project and committing. Who commits, and where?
+
+**Choice.** `beta` asks TestFlight for the newest build number and uses that plus 1 (`GLOW_BUILD_NUMBER` overrides it). The number, and the hosted Supabase URL and anon key, PostHog key and Sentry DSN, go into the build through an xcconfig handed to `xcodebuild -xcconfig`, written to a temporary folder with owner-only permissions. Nothing is committed to `main`, and the workflow only has `contents: read`. A release is a `beta-*` tag (`ios/fastlane/ship release`) or A1's `wave-*-done` tag. In CI the lane stops waiting once the build appears on App Store Connect and its What to Test is set, instead of paying for macOS minutes while Apple processes it (the repo is private, where macOS minutes cost ten times as much); the unsigned Release build check runs on demand (`ios/fastlane/ship verify_release`) rather than on every PR, for the same reason. fastlane's usage reporting is off.
+
+**Why.** CI that can push to `main` is a bigger target than CI that can't, and two releases racing to commit a build number would conflict. TestFlight is already the source of truth for which numbers are taken.
+
+### B9-D3 · The release lane refuses a build that would loosen privacy
+
+**Question.** Release builds differ from the Debug builds everyone tests: the hosted endpoints, no `glow://`, no local networking, production push. What stops a broken or leaky Release build from reaching testers?
+
+**Choice.** Before building, `beta` refuses a Supabase key that isn't the anon key (a `sb_secret_` key, a JWT whose role is `service_role`, or the local demo key), a PostHog personal key, a local or non-https endpoint, and the placeholder domain. After exporting, it unzips the `.ipa` and refuses to upload if the Info.plist has the Debug-only scheme or any App Transport Security exception (D34), if `aps-environment` isn't production or Associated Domains isn't exactly `applinks:{DOMAIN}`, if `get-task-allow` is on, or if any file in the app contains a secret key, a private key, the test sign-in route (D6, D22) or a `GlowDebug…` launch argument. The checks are plain Ruby in `ios/fastlane/glow_release.rb` with unit tests, and `verify_release` runs them on an unsigned Release build without the Apple account.
+
+**Why.** AGENTS.md says the app only ever holds the anon key and the API URL; this makes that a gate rather than a hope, at the last moment before a build reaches real phones.
+
+### B9-D4 · Beta review gets notes, not a back door, and contact details stay out of git
+
+**Question.** Apple's reviewers aren't at a venue, so they can't pass the location check. Should there be a review room that accepts any location, or a demo account that skips it? And where do the reviewer contact details live?
+
+**Choice.** No bypass. The review notes (`ios/fastlane/testflight/review-notes.txt`) explain that rooms only open inside a venue, what a reviewer can do without one (sign in, onboarding, the scanner and code entry), and the privacy design; `GLOW_REVIEW_VIDEO_URL` can add a recording of the full loop. Sign in with Apple or the email code works for any reviewer, so no demo account is needed. The contact name, email and phone, and the feedback email, come only from GitHub secrets (`GLOW_REVIEW_*`, `GLOW_FEEDBACK_EMAIL`).
+
+**Why.** Any way around the location check that works for a reviewer works for anyone who learns it, and the location check is what keeps strangers outside the room out of everyone's deck. David's phone number doesn't belong in a repository many agents read.
