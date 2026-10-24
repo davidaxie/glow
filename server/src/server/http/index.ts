@@ -1,4 +1,10 @@
-export { route, type RouteHandler, type RouteInput, type RouteReply } from './route';
+export {
+  route,
+  type RouteHandler,
+  type RouteInput,
+  type RouteOptions,
+  type RouteReply,
+} from './route';
 export {
   HttpError,
   badRequest,
