@@ -66,9 +66,15 @@ public struct GlowSession: Hashable, Sendable {
         case .canceled: return .canceled
         case .expired: return .expired
         case .active:
-            if now >= endsAt { return .expired }
-            if youMet { return .youMet }
-            if theyMet { return .theyMet }
+            if now >= endsAt {
+                return .expired
+            }
+            if youMet {
+                return .youMet
+            }
+            if theyMet {
+                return .theyMet
+            }
             return .glowing
         }
     }

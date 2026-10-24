@@ -36,19 +36,19 @@ struct GlowSnapshotTests {
     }
 
     func model(_ state: State) async -> GlowModel {
-        let h = Harness(state.client)
+        let harness = Harness(state.client)
         if state != .loading {
-            await h.model.refresh()
+            await harness.model.refresh()
         }
         if state == .actionFailed {
-            await h.model.markMet()
+            await harness.model.markMet()
         }
-        return h.model
+        return harness.model
     }
 
     @Test(arguments: State.allCases, [DynamicTypeSize.large, .accessibility5])
     func state(_ state: State, size: DynamicTypeSize) async {
-        let view = GlowScreen(model: await model(state), events: nil, frozenAt: frozenNow)
+        let view = await GlowScreen(model: model(state), events: nil, frozenAt: frozenNow)
             .environment(\.dynamicTypeSize, size)
             .environment(\.colorScheme, .dark)
         assertSnapshot(

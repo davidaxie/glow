@@ -2,8 +2,8 @@ import APIClient
 import AppCore
 import DesignSystem
 import Foundation
-@testable import FeatureGlow
 import LiveActivityShared
+@testable import FeatureGlow
 
 // Owner: C3. Test doubles for the glow screen. Test data only.
 

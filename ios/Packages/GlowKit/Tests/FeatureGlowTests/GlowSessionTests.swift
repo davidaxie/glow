@@ -1,9 +1,9 @@
 import APIClient
 import DesignSystem
 import Foundation
+import LiveActivityShared
 import Testing
 @testable import FeatureGlow
-import LiveActivityShared
 
 // Owner: C3. From the API's Glow to what the screen and the lock screen show.
 

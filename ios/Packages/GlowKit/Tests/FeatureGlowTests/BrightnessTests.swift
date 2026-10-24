@@ -49,33 +49,33 @@ struct BrightnessTests {
             met: [.success(.test(status: .met))],
             end: [.success(.test(status: .canceled))],
         )
-        let h = Harness(client, clock: clock)
+        let harness = Harness(client, clock: clock)
         let screen = FakeScreen(0.3)
         let surface = SurfaceDriver(controller: GlowBrightness(), screen: screen)
 
-        h.model.isVisible = true
-        await h.model.refresh()
-        surface.follow(h.model)
+        harness.model.isVisible = true
+        await harness.model.refresh()
+        surface.follow(harness.model)
         #expect(screen.brightness == 1)
 
         switch exit {
         case .bothMet:
-            await h.model.markMet()
+            await harness.model.markMet()
         case .endGlow:
-            _ = await h.model.end(as: .cancel)
+            _ = await harness.model.end(as: .cancel)
         case .switchToChat:
-            _ = await h.model.end(as: .switchToChat)
+            _ = await harness.model.end(as: .switchToChat)
         case .timeRanOut:
             clock.advance(by: 13 * 60)
-            await h.model.tick()
+            await harness.model.tick()
         case .matchEnded:
             client.then(glow: .failure(.notFound))
-            await h.model.refresh()
-            await h.model.refresh()
+            await harness.model.refresh()
+            await harness.model.refresh()
         case .leftTheScreen:
-            h.model.isVisible = false
+            harness.model.isVisible = false
         }
-        surface.follow(h.model)
+        surface.follow(harness.model)
         #expect(screen.brightness == 0.3)
         #expect(!surface.controller.isRaised)
     }

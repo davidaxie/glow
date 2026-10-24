@@ -80,7 +80,11 @@ public final class GlowModel {
     }
 
     public var isGlowing: Bool {
-        if case .glowing = phase { true } else { false }
+        if case .glowing = phase {
+            true
+        } else {
+            false
+        }
     }
 
     /// Full brightness and keep-awake: only while the glow is on and this screen shows it.
@@ -110,7 +114,7 @@ public final class GlowModel {
                         waited += .seconds(1)
                         await self?.tick()
                     }
-                    guard let self, await self.isGlowing else { continue }
+                    guard let self, await isGlowing else { continue }
                     await refresh()
                 }
             }
