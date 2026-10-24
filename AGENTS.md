@@ -249,7 +249,7 @@ GitHub Actions isn't starting jobs (Needs David: billing), so local CI is the me
 
 1. Rebase on `main`, commit everything, then run `scripts/ci-local.sh <your ID>` (or `pnpm ci:local <your ID>`) from your worktree. It runs both CI jobs in your agent slot: your own Supabase stack (`--own-db --reset`, so the database matches your migrations), your port, and `Glow A ({ID})`. It takes about 10 minutes. Add `--server-only` only when the PR changes nothing in `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh`.
 2. Post its last line, the summary, as a PR comment, for example `ci-local B1 3f2a9c1 (rebased on main 9de2799): ubuntu pass, macos pass, 9m40s`.
-3. A PR is mergeable when its author's latest summary names the PR's current head SHA, says `rebased on main`, and shows `ubuntu pass` and `macos pass` (or `macos skipped` with `--server-only`, when allowed). A1 merges. Any push after the summary needs a new run.
+3. A PR is mergeable when its author's latest summary names the PR's current head SHA, says `rebased on main` (or `N commits behind main ..., none touching this branch's files`: main moves while a run goes, so ci-local accepts a branch up to 25 commits behind when main changed none of the files the branch changed, ignoring HANDOFFS.md and DECISIONS.md, and checks again when the run ends), and shows `ubuntu pass` and `macos pass` (or `macos skipped` with `--server-only`, when allowed). A1 merges. Any push after the summary needs a new run.
 
 
 - Branch `w{wave}/{agent id}-{short name}`, draft PR in your first hour, push often.

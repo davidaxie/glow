@@ -51,13 +51,44 @@ head="$(git rev-parse --short HEAD)"
 # Free Simulator slots left behind by runs that died (an outage, a crash), and shut their
 # Simulators down, before taking anything ourselves.
 scripts/sim.sh slots >/dev/null 2>&1 || true
-git fetch -q origin main 2>/dev/null || true
-main="$(git rev-parse --short origin/main 2>/dev/null || echo unknown)"
-if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
-  base="rebased on main $main"
-else
-  base="NOT rebased on main $main"
-fi
+
+# How this branch stands against main. Main moves all the time (a run takes minutes, and a dozen
+# agents are merging), so "not exactly on top of main" isn't a failure when what main gained
+# touches none of this branch's files:
+#   rebased on main X                         HEAD already contains main
+#   based on main B, N commits behind main X, none touching this branch's files
+#   NOT rebased on main X                     too far behind, or main changed files this branch changed
+# HANDOFFS.md and DECISIONS.md don't count: git merges them by union (.gitattributes).
+MAX_BEHIND="${GLOW_CI_MAX_BEHIND:-25}"
+compute_base() {
+  git fetch -q origin main 2>/dev/null || true
+  main="$(git rev-parse --short origin/main 2>/dev/null || echo unknown)"
+  if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+    base="rebased on main $main"
+    return
+  fi
+  local mb behind mine theirs overlap
+  mb="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+  if [ -z "$mb" ]; then
+    base="NOT rebased on main $main"
+    return
+  fi
+  behind="$(git rev-list --count "$mb..origin/main")"
+  mine="$(git diff --name-only "$mb" HEAD | grep -vE '^docs/(HANDOFFS|DECISIONS)\.md$' | sort || true)"
+  theirs="$(git diff --name-only "$mb" origin/main | grep -vE '^docs/(HANDOFFS|DECISIONS)\.md$' | sort || true)"
+  overlap="$(comm -12 <(printf '%s\n' "$mine") <(printf '%s\n' "$theirs") | grep -v '^$' || true)"
+  if [ "$behind" -le "$MAX_BEHIND" ] && [ -z "$overlap" ]; then
+    base="based on main $(git rev-parse --short "$mb"), $behind commits behind main $main, none touching this branch's files"
+  else
+    base="NOT rebased on main $main"
+    if [ -n "$overlap" ]; then
+      echo "ci-local: main changed files this branch also changed: $(printf '%s' "$overlap" | head -3 | tr '\n' ' ')" >&2
+    else
+      echo "ci-local: this branch is $behind commits behind main (limit $MAX_BEHIND)." >&2
+    fi
+  fi
+}
+compute_base
 
 ubuntu=pass
 macos=skipped
@@ -200,6 +231,8 @@ if [ "$IOS" -eq 1 ] && [ "$ubuntu" = pass ]; then
 fi
 
 elapsed=$(($(date +%s) - started))
+# Main may have moved while this ran; judge the branch against main as it is now.
+compute_base
 summary="ci-local $AGENT $head ($base): ubuntu $ubuntu, macos $macos, $((elapsed / 60))m$(printf '%02d' $((elapsed % 60)))s"
 echo
 echo "$summary"

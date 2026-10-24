@@ -134,8 +134,8 @@ MAX_BUILDS="${GLOW_MAX_BUILDS:-4}"
 BUILD_WAIT="${GLOW_BUILD_SLOT_WAIT:-3600}"
 BUILD_SLOT=""
 
-reg_field() { # <udid> <key>
-  sed -nE "s/^$2=//p" "$SIM_REG/$1" 2>/dev/null | head -1
+reg_field() { # <udid> <key>; empty when there's no record (and never an error, under set -e)
+  { sed -nE "s/^$2=//p" "$SIM_REG/$1" 2>/dev/null || true; } | head -1
 }
 
 # The slot recorded for <udid> still exists and still belongs to the process that took it
@@ -881,6 +881,16 @@ test shuts Glow A down and frees its slot when it finishes.
 EOF
 }
 
+# Slot plumbing for tests, no Simulator involved: _slot acquire|release|reap <fake udid> [name]
+cmd__slot() {
+  case "${1:-}" in
+    acquire) acquire_slot "${2:?udid}" "${3:-test}" ;;
+    release) release_slot "${2:?udid}" ;;
+    reap) reap_slots ;;
+    *) die "usage: sim.sh _slot acquire|release|reap" ;;
+  esac
+}
+
 # Run the command, unless this file was sourced (the slot tests do that).
 if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0 2>/dev/null || true; fi
 
@@ -907,6 +917,7 @@ case "$command" in
   teardown) cmd_teardown "$@" ;;
   release) cmd_release "$@" ;;
   slots) cmd_slots "$@" ;;
+  _slot) cmd__slot "$@" ;;
   help | -h | --help) cmd_help ;;
   *) die "unknown command '$command'. Run: scripts/sim.sh help" ;;
 esac

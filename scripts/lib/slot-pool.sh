@@ -49,7 +49,7 @@ owner_pid() {
   fi
   local pid="$PPID" comm i
   for i in 1 2 3 4 5 6 7 8; do
-    comm="$(ps -o comm= -p "$pid" 2>/dev/null | sed 's#.*/##; s/^-//')"
+    comm="$({ ps -o comm= -p "$pid" 2>/dev/null || true; } | sed 's#.*/##; s/^-//')"
     case "$comm" in
       bash | zsh | sh | dash | fish | env | sudo | timeout | "") ;;
       *)
@@ -57,7 +57,7 @@ owner_pid() {
         return
         ;;
     esac
-    pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    pid="$({ ps -o ppid= -p "$pid" 2>/dev/null || true; } | tr -d ' ')"
     if [ -z "$pid" ] || [ "$pid" -le 1 ]; then break; fi
   done
   echo 0
@@ -65,7 +65,7 @@ owner_pid() {
 
 # The first field of a mac-slots slot's owner file: the owning process.
 pool_slot_pid() { # <slot path>
-  cut -d' ' -f1 "$1/owner" 2>/dev/null
+  cut -d' ' -f1 "$1/owner" 2>/dev/null || true
 }
 
 pool_slot_alive() { # <slot path>: the slot still exists and its owner process is running
