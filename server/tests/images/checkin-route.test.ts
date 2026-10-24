@@ -2,10 +2,10 @@ import { NextRequest } from 'next/server';
 import sharp from 'sharp';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { zMyCheckin } from '@/contracts';
-import { signJoinTicketForTests } from '@/server/images/deps';
 import { isValidCardImageLink } from '@/server/images/signed-link';
 import { moderationFixtureJpeg, withJpegComment } from '@/server/moderation';
 import { setRateLimitStoreForTests } from '@/server/ratelimit';
+import { issueJoinTicket } from '@/server/rooms';
 import { POST } from '../../app/api/rooms/[id]/checkin/route';
 import { fakeAccessToken, mockVerify, USER_ID } from '../helpers/auth';
 import { dbError, fakeSupabase, type FakeSupabase } from './fake-supabase';
@@ -25,15 +25,29 @@ vi.mock('@/server/images/supabase', async (importOriginal) => {
 const ROOM = 'de000000-0000-4000-8000-000000000001';
 const OTHER_ROOM = 'de000000-0000-4000-8000-000000000002';
 const TAGS = { topColor: 'green', hairLength: 'short', extras: ['glasses', 'glasses'] } as const;
+const LOCATION_CHECK = '00000000-0000-4000-8000-00000000c0de';
+
+/** A real join ticket from B2's issuer, as the join route hands out after a passed check. */
+async function ticketFor(userId = USER_ID, roomId = ROOM, now?: Date): Promise<string> {
+  const issued = await issueJoinTicket({
+    userId,
+    roomId,
+    locationCheckId: LOCATION_CHECK,
+    result: 'pass',
+    ...(now ? { now } : {}),
+  });
+  return issued.ticket;
+}
 
 async function checkIn(
   photo: Uint8Array,
   {
     room = ROOM,
-    ticket = signJoinTicketForTests({ userId: USER_ID, roomId: room }),
+    ticket,
     tags = TAGS as unknown,
-  } = {},
+  }: { room?: string; ticket?: string; tags?: unknown } = {},
 ) {
+  ticket ??= await ticketFor(USER_ID, room);
   const req = new NextRequest(`http://localhost/api/rooms/${room}/checkin`, {
     method: 'POST',
     headers: { authorization: `Bearer ${fakeAccessToken()}`, 'content-type': 'application/json' },
@@ -165,26 +179,14 @@ describe('POST /api/rooms/{id}/checkin', () => {
   });
 
   it.each([
-    [
-      'someone else',
-      () =>
-        signJoinTicketForTests({ userId: '00000000-0000-4000-8000-0000000000aa', roomId: ROOM }),
-    ],
-    ['another room', () => signJoinTicketForTests({ userId: USER_ID, roomId: OTHER_ROOM })],
-    [
-      'expired',
-      () =>
-        signJoinTicketForTests({
-          userId: USER_ID,
-          roomId: ROOM,
-          now: new Date(Date.now() - 11 * 60_000),
-        }),
-    ],
-    ['edited', () => `${signJoinTicketForTests({ userId: USER_ID, roomId: ROOM })}x`],
-    ['garbage', () => 'not-a-ticket'],
+    ['someone else', () => ticketFor('00000000-0000-4000-8000-0000000000aa', ROOM)],
+    ['another room', () => ticketFor(USER_ID, OTHER_ROOM)],
+    ['expired', () => ticketFor(USER_ID, ROOM, new Date(Date.now() - 11 * 60_000))],
+    ['edited', async () => `${await ticketFor()}x`],
+    ['garbage', async () => 'not-a-ticket'],
   ])('refuses a join ticket for %s with 422 join_ticket_invalid', async (_name, ticket) => {
     acceptCheckins();
-    const { res, json } = await checkIn(await syntheticPhoto(), { ticket: ticket() });
+    const { res, json } = await checkIn(await syntheticPhoto(), { ticket: await ticket() });
     expect(res.status).toBe(422);
     expect((json.error as { code: string }).code).toBe('join_ticket_invalid');
     expect(cards().size).toBe(0);
