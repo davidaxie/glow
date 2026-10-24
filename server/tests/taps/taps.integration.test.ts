@@ -165,8 +165,8 @@ describe.runIf(IT)('taps (integration)', { timeout: 180_000 }, () => {
       const card = new Map<string, string>();
       for (const p of [...women, ...men]) card.set(p.id, await world.checkIn(p, room));
       // Everyone scrolls their whole deck first, as the app would, so every card was shown.
-      for (let i = 0; i < women.length + men.length; i += 20) {
-        await Promise.all([...women, ...men].slice(i, i + 20).map((p) => world.wholeDeck(p, room)));
+      for (let i = 0; i < women.length + men.length; i += 10) {
+        await Promise.all([...women, ...men].slice(i, i + 10).map((p) => world.wholeDeck(p, room)));
       }
       // Round 1 pairs woman i with man i; round 2 with man i+1, so the pairs differ.
       const pairs = women.map((w, i) => [w, men[(i + round - 1) % PAIRS]!] as const);

@@ -262,9 +262,24 @@ export class World {
   /** POST /api/rooms/{id}/deck through the real route. */
   async deck(person: Person, roomId: string, body: DeckRequest = {}): Promise<Response> {
     const { deck } = await this.loadRoutes();
-    return deck(World.request(`/api/rooms/${roomId}/deck`, person.token, 'POST', body), {
-      params: Promise.resolve({ id: roomId }),
-    });
+    return World.retryUnavailable(() =>
+      deck(World.request(`/api/rooms/${roomId}/deck`, person.token, 'POST', body), {
+        params: Promise.resolve({ id: roomId }),
+      }),
+    );
+  }
+
+  /**
+   * Like the app, tries a read again after a 503 (Supabase Auth or the database took too
+   * long, which happens on a busy shared machine). Taps are never retried here, so the
+   * simultaneous-taps test sees exactly what each first request got.
+   */
+  private static async retryUnavailable(call: () => Promise<Response>): Promise<Response> {
+    for (let attempt = 1; ; attempt++) {
+      const res = await call();
+      if (res.status !== 503 || attempt === 3) return res;
+      await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+    }
   }
 
   /** POST /api/rooms/{id}/taps through the real route. */
@@ -278,9 +293,11 @@ export class World {
   /** GET /api/matches through the real route. */
   async matches(person: Person): Promise<Response> {
     const { matches } = await this.loadRoutes();
-    return matches(World.request('/api/matches', person.token, 'GET'), {
-      params: Promise.resolve({}),
-    });
+    return World.retryUnavailable(() =>
+      matches(World.request('/api/matches', person.token, 'GET'), {
+        params: Promise.resolve({}),
+      }),
+    );
   }
 
   /** Every card ID in the person's deck, page by page, as the app would scroll it. */
