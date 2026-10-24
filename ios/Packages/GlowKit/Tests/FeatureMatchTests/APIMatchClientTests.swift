@@ -36,7 +36,11 @@ private final class Recorder: Sendable {
 
     var api: GlowAPI {
         GlowAPI.mock(MockTransport { [self] request, body, _, operation in
-            let data: Data? = if let body { try await Data(collecting: body, upTo: 1 << 20) } else { nil }
+            let data: Data? = if let body {
+                try await Data(collecting: body, upTo: 1 << 20)
+            } else {
+                nil
+            }
             sent.withLock { $0.append(Sent(operation: operation, path: request.path, body: data)) }
             let response = responses[operation] ?? .status(.notImplemented)
             var fields = HTTPFields()

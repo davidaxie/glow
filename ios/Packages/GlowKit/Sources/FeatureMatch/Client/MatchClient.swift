@@ -146,16 +146,21 @@ public struct APIMatchClient: MatchClient {
             return outcome
         case let .unprocessableContent(response):
             guard case let .json(body) = response.body else { throw .failed }
-            switch body.error.code {
-            case .notInRoom: throw .notInRoom
-            // The server refused a fix that was too rough, or a stale check: try a fresh fix.
-            case .locationInaccurate, .locationRequired: throw .locationInaccurate
-            default: throw .failed
-            }
+            throw Self.locationRefusal(body.error.code)
         case .notFound: throw .notFound
         case .unauthorized: throw .unauthorized
         case .tooManyRequests: throw .rateLimited
         case .badRequest, .default: throw .failed
+        }
+    }
+
+    /// A 422 from Find: outside the room, or a fix too rough (or a check gone stale) to use.
+    static func locationRefusal(_ code: Components.Schemas.ErrorCode) -> MatchError {
+        switch code {
+        case .notInRoom: .notInRoom
+        // The server refused a fix that was too rough, or a stale check: try a fresh fix.
+        case .locationInaccurate, .locationRequired: .locationInaccurate
+        default: .failed
         }
     }
 

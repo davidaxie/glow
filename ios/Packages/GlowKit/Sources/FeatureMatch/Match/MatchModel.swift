@@ -63,7 +63,7 @@ public final class MatchModel {
     /// Loads the match, or refreshes it.
     public func load() async {
         do {
-            apply(try await client.match(matchID))
+            try await apply(client.match(matchID))
         } catch MatchError.notFound {
             becomeGone()
         } catch {
@@ -182,8 +182,8 @@ public final class MatchModel {
     /// The other person's photo `index`, decoded. Only once the match has loaded, and only below
     /// its `photoCount` (P1). Held by whoever shows it, never cached.
     public func photo(_ index: Int) async -> UIImage? {
-        guard let snapshot, index >= 0, index < snapshot.photoCount else { return nil }
-        guard let data = try? await client.photo(matchID, index: index) else { return nil }
+        guard let snapshot, index >= 0, index < snapshot.photoCount,
+              let data = try? await client.photo(matchID, index: index) else { return nil }
         return UIImage(data: data)
     }
 

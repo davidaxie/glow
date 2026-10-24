@@ -148,7 +148,9 @@ public final class FixtureMatchClient: MatchClient {
     // MARK: MatchClient
 
     public func match(_ id: MatchID) async throws(MatchError) -> MatchSnapshot {
-        if let failure { throw failure }
+        if let failure {
+            throw failure
+        }
         let match = state.withLockUnchecked { state -> MatchSnapshot? in
             guard var match = state.matches[id] else { return nil }
             // The server applies the timeout lazily, like this.
@@ -163,12 +165,17 @@ public final class FixtureMatchClient: MatchClient {
     }
 
     public func choose(_ choice: MatchSnapshot.Choice, for id: MatchID, fix _: LocationFix?) async throws(MatchError) -> ChoiceOutcome {
-        if let failure { throw failure }
+        if let failure {
+            throw failure
+        }
         let result = state.withLockUnchecked { state -> (ChoiceOutcome, Partner)? in
             guard var match = state.matches[id] else { return nil }
             state.choices.append((choice, id))
             guard match.status == .choosing else {
-                return (ChoiceOutcome(next: match.status == .glowing ? .glow : .chat, reason: .alreadyDecided, match: match), .staysUndecided)
+                return (
+                    ChoiceOutcome(next: match.status == .glowing ? .glow : .chat, reason: .alreadyDecided, match: match),
+                    .staysUndecided,
+                )
             }
             match.yourChoice = choice
             if choice == .chat {
@@ -196,7 +203,9 @@ public final class FixtureMatchClient: MatchClient {
     }
 
     public func matches() async throws(MatchError) -> [MatchSummary] {
-        if let failure { throw failure }
+        if let failure {
+            throw failure
+        }
         return state.withLockUnchecked { state in
             state.matches.values
                 .sorted { $0.createdAt > $1.createdAt }
@@ -214,7 +223,9 @@ public final class FixtureMatchClient: MatchClient {
     }
 
     public func photo(_ id: MatchID, index: Int) async throws(MatchError) -> Data {
-        if let failure { throw failure }
+        if let failure {
+            throw failure
+        }
         let exists = state.withLockUnchecked { state -> Bool in
             state.photoRequests.append((id, index))
             guard let match = state.matches[id] else { return false }
