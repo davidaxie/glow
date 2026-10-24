@@ -1,4 +1,5 @@
-// Owner: B2. Replace `notImplemented` with a handler that lives in `server/src/server/rooms`.
-import { notImplemented, route } from '@/server/http';
+// Owner: B2. The file lives in `server/src/server/rooms/web.ts`.
+import { route } from '@/server/http';
+import { getAppSiteAssociation } from '@/server/rooms';
 
-export const GET = route('getAppSiteAssociation', notImplemented);
+export const GET = route('getAppSiteAssociation', getAppSiteAssociation);

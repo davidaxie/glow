@@ -1,5 +1,5 @@
-// Owner: B2. Replace `notImplemented` with a handler that lives in `server/src/server/rooms`.
-// B2 may replace this file with a page.tsx (a segment cannot have both).
-import { notImplemented, route } from '@/server/http';
+// Owner: B2. The page lives in `server/src/server/rooms/web.ts`.
+import { route } from '@/server/http';
+import { getRoomWebPage } from '@/server/rooms';
 
-export const GET = route('getRoomWebPage', notImplemented);
+export const GET = route('getRoomWebPage', getRoomWebPage);

@@ -475,3 +475,34 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** `ios/fixtures/push/` has a fixture for every event. The ones with a push are exactly the server's payload (`server/tests/notify/fixtures.test.ts` fails if they drift). The others are Simulator-only stand-ins, marked `"glowFixture": "simulator-only…"`, with the alert text "Simulator test: {event}". The server never pushes those events: `apnsRequestFor` returns null for them, and a test checks it.
 
 **Why.** It lets us check every event's screen in the Simulator without inventing lock screen text the server would ever send.
+## B2 · Rooms and joining
+
+### B2-D1 · Join tickets are encrypted, not just signed
+
+**Question.** The brief says a join ticket is "a JWT with person, room and time". A signed JWT (JWS) can be read by anyone who holds it: the person's user ID and the room ID sit in plain base64.
+
+**Choice.** The ticket is an encrypted JWT (JWE, `dir` with `A256GCM`), keyed with HKDF-SHA256 of `JOIN_TICKET_SECRET`. Claims: `sub` (user ID), `room`, `chk` (the `location_checks` row), `res` (`pass` or `demo_skip`), `iat`, `exp` (`iat` + JOIN_TICKET_TTL), `iss` and `aud`. `verifyJoinTicket` in `server/src/server/rooms/ticket.ts` returns null for anything expired, edited, another person's or another room's, and never throws.
+
+**Why.** The contract calls the ticket opaque, and D20 keeps user IDs out of everything the app holds. AES-GCM authenticates as well as hides, so it's still unforgeable.
+
+### B2-D2 · How a rotating QR token is computed
+
+**Question.** The spec says "the first 8 base32 characters of an HMAC-SHA256 of the current 30-second window, keyed with the room's secret", but not how the window is encoded or which base32.
+
+**Choice.** window = floor(unix seconds / QR_ROTATION). The HMAC key is the 32 bytes of `rooms.qr_secret` (hex-decoded), the message is the window as an 8-byte unsigned big-endian integer (the TOTP counter of RFC 4226), and the token is the first QR_TOKEN_LENGTH characters of RFC 4648 base32 (A-Z, 2-7, no padding). The current and previous windows are accepted, every candidate is compared in constant time with no early exit, and poster tokens are compared even when `allow_static_qr` is off so both cases take the same time. B7's display page calls `displayToken(qrSecret, now)` from `@/server/qr`.
+
+### B2-D3 · The link file with no Apple app ID
+
+**Question.** `apple-app-site-association` needs `{TEAM_ID}.{BUNDLE_ID}`, and there's no Apple Developer account yet.
+
+**Choice.** The app ID is `APPLE_APP_ID` (`{TEAM_ID}.{BUNDLE_ID}`, optional in `server/src/env.ts`, set by B9). While it's unset, the file is served with an empty `details` list: valid JSON that opens nothing, rather than a made-up ID. It's `application/json`, no redirect, and cacheable for an hour (it's the same for everyone). Links then open the `/r/{slug}` page, and the Debug app still takes `glow://`.
+
+### B2-D4 · The web page for room links never looks the room up
+
+**Question.** `/r/{slug}` is public. Should it show the room's name?
+
+**Choice.** No. The page is identical for every slug and token: what Glow is, three steps, and the TestFlight link (or "ask the host for an invite" until `TESTFLIGHT_URL` exists). It never reads the database, so it can't confirm a room exists, and it never shows the token or the room's location. It has no scripts, a strict CSP, `no-referrer` (so the token never leaks to TestFlight in a Referer header) and `no-store`.
+
+### B2-D5 · Join checks happen in an order that leaks nothing
+
+**Choice.** `POST /api/rooms/{id}/join` checks sign-in, then onboarding (409), then the room and the code or token together (a wrong token for a real room is the same 404 as no room), then whether the room is open (409 `room_not_live`), and only then the location (422). A room code or QR token must open the room in the path, so a code for one room can't be used to join another. Too-rough fixes (`location_inaccurate`) and fixes outside (`not_in_room`) are both stored as `fail` with their accuracy bucket; nothing about the fix itself is stored or logged. A live room past its `ends_at` is reported as `ended` by resolve and room state, before any admin or purge job changes it.
