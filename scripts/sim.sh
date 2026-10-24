@@ -67,6 +67,7 @@ udid_or_die() {
   local udid
   udid="$(udid_of "$1")"
   [ -n "$udid" ] || die "$1 doesn't exist yet. Run: scripts/sim.sh setup"
+  touch_slot "$udid"
   printf '%s' "$udid"
 }
 
@@ -108,6 +109,9 @@ SLOT_DIR="${GLOW_SIM_SLOT_DIR:-/tmp/glow-sim-slots}"
 MAX_SLOTS="${GLOW_SIM_MAX_SLOTS:-3}"
 SLOT_WAIT="${GLOW_SIM_SLOT_WAIT:-1800}"
 SLOT_GRACE=180
+# A slot nobody has used through sim.sh for this long is freed and its Simulator shut down, in
+# case its owner stopped without cleaning up (several agents can share one owner process).
+SLOT_IDLE="${GLOW_SIM_SLOT_IDLE:-7200}"
 RELEASE_ON_EXIT=""
 
 # At most GLOW_MAX_BUILDS (4) xcodebuild runs (build, test, allow-push) at once on this Mac,
@@ -138,6 +142,16 @@ slot_of() { # <udid>: prints the slot holding it
   return 1
 }
 
+slot_field_gone() { # a readable name for a Simulator whose slot is already gone
+  xcrun simctl list -j devices | jq -r --arg u "$1" '[.devices[][] | select(.udid == $u) | .name] | first // "its Simulator"'
+}
+
+# Marks a slot as just used, so an active Simulator never counts as idle.
+touch_slot() {
+  local held
+  if held="$(slot_of "$1")"; then sed -i '' "s/^since=.*/since=$(date +%s)/" "$held/owner" 2>/dev/null || true; fi
+}
+
 reap_slots() {
   local booted slot udid pid since now
   booted="$(booted_glow_udids 2>/dev/null || true)"
@@ -150,7 +164,11 @@ reap_slots() {
     if [ -n "$pid" ] && [ "$pid" != 0 ] && ! kill -0 "$pid" 2>/dev/null; then
       if [ -n "$udid" ]; then xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true; fi
       rm -rf "$slot"
-      say "Freed $(basename "$slot"): its owner (process $pid) is gone."
+      say "Freed $(basename "$slot"): its owner (process $pid) is gone, so $(slot_field_gone "$udid") was shut down."
+    elif [ $((now - ${since:-0})) -gt "$SLOT_IDLE" ]; then
+      if [ -n "$udid" ]; then xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true; fi
+      rm -rf "$slot"
+      say "Freed $(basename "$slot"): unused for over $((SLOT_IDLE / 60)) minutes, so its Simulator was shut down."
     elif [ $((now - ${since:-0})) -gt "$SLOT_GRACE" ] && ! printf '%s\n' "$booted" | grep -qx "$udid"; then
       rm -rf "$slot"
     fi
@@ -163,8 +181,8 @@ show_slots() {
     [ -d "$slot" ] || continue
     any=1
     since="$(slot_field "$slot" since)"
-    printf '    %s: %s (agent %s, since %s)\n' "$(basename "$slot")" "$(slot_field "$slot" name)" \
-      "$(slot_field "$slot" agent)" "$(date -r "${since:-0}" +%H:%M:%S 2>/dev/null || echo '?')" >&2
+    printf '    %s: %s (agent %s, process %s, since %s)\n' "$(basename "$slot")" "$(slot_field "$slot" name)" \
+      "$(slot_field "$slot" agent)" "$(slot_field "$slot" pid)" "$(date -r "${since:-0}" +%H:%M:%S 2>/dev/null || echo '?')" >&2
   done
   local unslotted
   unslotted="$(unslotted_glow_booted "")"
@@ -182,12 +200,42 @@ unslotted_glow_booted() {
   echo "$count"
 }
 
+# The process that owns a slot: GLOW_SLOT_OWNER_PID if set (ci-local sets it to itself), else
+# the nearest ancestor that isn't a shell, which for an agent is the agent's own long-lived
+# process and for a person is their terminal. When it dies (an outage, a crash), the slot is
+# freed and its Simulator shut down.
+owner_pid() {
+  if [ -n "${GLOW_SLOT_OWNER_PID:-}" ]; then
+    echo "$GLOW_SLOT_OWNER_PID"
+    return
+  fi
+  local pid="$PPID" comm i
+  for i in 1 2 3 4 5 6 7 8; do
+    comm="$(ps -o comm= -p "$pid" 2>/dev/null | sed 's#.*/##; s/^-//')"
+    case "$comm" in
+      bash | zsh | sh | dash | fish | env | sudo | timeout | "") ;;
+      *)
+        echo "$pid"
+        return
+        ;;
+    esac
+    pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    if [ -z "$pid" ] || [ "$pid" -le 1 ]; then break; fi
+  done
+  echo 0
+}
+
 # Takes a slot for <udid> <name>, waiting (a local sleep, no network) until one is free.
 acquire_slot() {
-  local udid="$1" name="$2" waited=0 i slot used
+  local udid="$1" name="$2" waited=0 i slot used held
   mkdir -p "$SLOT_DIR"
   chmod 1777 "$SLOT_DIR" 2>/dev/null || true
-  if slot_of "$udid" >/dev/null; then return 0; fi
+  if held="$(slot_of "$udid")"; then
+    # Already ours (say, setup then test): make the current process its owner, so an owner
+    # that died earlier doesn't get the Simulator shut down under us.
+    sed -i '' -e "s/^pid=.*/pid=$(owner_pid)/" -e "s/^since=.*/since=$(date +%s)/" "$held/owner" 2>/dev/null || true
+    return 0
+  fi
   while :; do
     reap_slots
     used="$(find "$SLOT_DIR" -maxdepth 1 -name 'slot-*' -type d | wc -l | tr -d ' ')"
@@ -197,7 +245,7 @@ acquire_slot() {
         slot="$SLOT_DIR/slot-$i"
         if mkdir "$slot" 2>/dev/null; then
           printf 'udid=%s\nname=%s\nagent=%s\npid=%s\nsince=%s\n' "$udid" "$name" "${GLOW_AGENT_ID:-none}" \
-            "${GLOW_SLOT_OWNER_PID:-0}" "$(date +%s)" >"$slot/owner"
+            "$(owner_pid)" "$(date +%s)" >"$slot/owner"
           return 0
         fi
       done
