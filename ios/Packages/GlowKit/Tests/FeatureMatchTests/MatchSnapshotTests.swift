@@ -49,7 +49,10 @@ struct MatchSnapshotTests {
             } else if screen == .locationDenied {
                 model.notice = .locationDenied
             }
-            return AnyView(MatchDetails(model: model, snapshot: model.snapshot!, showsHeadline: true))
+            return AnyView(
+                MatchDetails(model: model, snapshot: model.snapshot!, showsHeadline: true)
+                    .padding(.horizontal, GlowSpacing.screenMargin),
+            )
         case .list, .empty:
             let model = MatchesListModel(client: FixtureMatchClient(screen == .list ? .list : .empty, now: now))
             await model.load()

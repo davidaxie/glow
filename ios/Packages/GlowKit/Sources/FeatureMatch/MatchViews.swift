@@ -111,31 +111,26 @@ struct MatchScreen: View {
     @State private var introDone = false
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            if style == .takeover, !introDone {
-                MutualIntro { introDone = true }
-                    .transition(.opacity)
-            } else {
-                content
-                    .transition(.opacity)
-            }
-            if style == .takeover {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .glowFont(.headline)
-                        .foregroundStyle(.glowTextSecondary)
-                        .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
-                        .background(.glowSurface, in: .circle)
+        switch style {
+        case .takeover:
+            // B6's takeover: the accent bloom, the reveal spring, and the close button. Closing
+            // keeps the match in the Matches tab.
+            GlowTakeover(.bloom) {
+                ZStack {
+                    if introDone {
+                        content.transition(.opacity)
+                    } else {
+                        MutualIntro { introDone = true }.transition(.opacity)
+                    }
                 }
-                .padding(.trailing, GlowSpacing.md)
-                .padding(.top, GlowSpacing.xs)
-                .accessibilityLabel(Text("Close"))
-                .accessibilityHint(Text("The match stays in your Matches tab."))
+                .glowAnimation(.reveal, value: introDone)
+            } onClose: {
+                dismiss()
             }
+        case .screen:
+            content
+                .padding(.horizontal, GlowSpacing.screenMargin)
         }
-        .glowAnimation(.reveal, value: introDone)
     }
 
     @ViewBuilder private var content: some View {
@@ -195,14 +190,12 @@ struct MatchDetails: View {
                         .foregroundStyle(.glowTextSecondary)
                 }
                 .multilineTextAlignment(.center)
-                // In the takeover, clear of the close button.
-                .padding(.top, showsHeadline ? GlowSize.minimumTapTarget + GlowSpacing.md : GlowSpacing.xl)
+                .padding(.top, GlowSpacing.xl)
 
                 MatchPhotoCarousel(model: model, snapshot: snapshot)
 
                 ChoicePanel(model: model, snapshot: snapshot)
             }
-            .padding(.horizontal, GlowSpacing.screenMargin)
             .padding(.bottom, GlowSpacing.xl)
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -247,7 +240,7 @@ struct MutualIntro: View {
                 .padding(.horizontal, GlowSpacing.screenMargin)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sensoryFeedback(.success, trigger: together)
+        .glowHaptic(.mutual, trigger: together)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Someone you noticed noticed you back."))
         .task {
