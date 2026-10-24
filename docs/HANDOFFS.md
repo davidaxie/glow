@@ -11,12 +11,36 @@ Things only David can do. None of these block Wave 0 work locally.
 3. **Vercel plan for the purge cron.** P9 needs `GET /api/cron/purge` every 5 minutes. Vercel's Hobby plan only runs crons once a day, so the project needs Pro (or B8 needs an outside scheduler that sends `Authorization: Bearer $CRON_SECRET`).
 4. **Branch protection on main** (optional, recommended): require the `Ubuntu · server and database` and `macOS · iOS build and tests` checks before merging. A1 didn't change repo settings.
 5. **Cloud accounts** from Build plan step 2 (Supabase cloud, Upstash, Anthropic, PostHog, Sentry, Apple Developer). None exist yet; local development doesn't need them.
+6. **Confirm the venue** (from A2). The seeded `demo` room sits at a placeholder: the Palace of Fine Arts, San Francisco (37.8029, -122.4484). That's fine for the Simulator. The real event room gets made in B7's admin web with the real center, so this only matters if you want `sim.sh at venue` to match the real hall (D11).
+7. **When the Supabase cloud project exists** (from A2): run the migrations with `supabase db push`, and in the dashboard under Realtime settings turn off "Allow public access", so only private channels work (D27). Don't load `seed.sql` there; it's local test data.
 
 ## Requests
 
 ### For A1
 
+_From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
+
+1. **Wire the generated registry.** `server/src/contracts/operations.ts` exports `operations` (typed `as const satisfies Record<string, OperationDef>`), with the operationIds your stubs already use. In `server/src/server/http/operations.ts`, replace the placeholder import with `import { operations as generated } from '@/contracts/operations';` and `export const operations = generated;`, then delete `contract-placeholder.ts`. I tried exactly that locally: `tsc --noEmit` passes with every existing route. `tests/stubs.test.ts` then wants route files for the operations the placeholder didn't have:
+   - `getRoomState` · `GET /api/rooms/{id}` → `server/app/api/rooms/[id]/route.ts` (B2)
+   - `getMyPhoto` · `GET /api/me/photos/{id}` → add `GET` to `server/app/api/me/photos/[id]/route.ts` (B1)
+   - B7's admin routes under `server/app/api/admin/`: `adminListRooms` and `adminCreateRoom` (`rooms`), `adminGetRoom` and `adminUpdateRoom` (`rooms/[id]`), `adminReplaceSpots` (`rooms/[id]/spots`), `adminRoomPoster` (`rooms/[id]/poster`), `adminDisplayToken` (`rooms/[id]/display-token`), `adminRotateStaticToken` (`rooms/[id]/static-token`), `adminRoomMetrics` (`rooms/[id]/metrics`), `adminListCards` (`rooms/[id]/cards`), `adminCardImage` (`cards/[cardId]/image`), `adminRemoveCard` (`cards/[cardId]/remove`), `adminListReports` (`reports`), `adminResolveReport` (`reports/[id]/resolve`).
+   `operationInfo` in the same file names each operation's owner, if you generate stub headers.
+2. **CI, Ubuntu job.** Your existing steps work as they are: `supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta`, then `scripts/codegen.sh` with the `git diff --exit-code` and untracked-files check, then `supabase test db`. Notes:
+   - `codegen.sh` needs `swift` on PATH (the ubuntu-24.04 image has it) and the `supabase` CLI (setup-cli puts it there). It also needs the DB running, so `server/src/contracts/database.ts` gets checked too; your step order already does this.
+   - The first run builds swift-openapi-generator from source, about 3 to 5 minutes. Please cache it: `actions/cache` on `~/.cache/glow-codegen`, keyed on `hashFiles('scripts/codegen.sh')`.
+   - `supabase test db` includes a race test that opens 100 connections. `config.toml` raises `max_connections` to 200 and the test connects with dblink to the container's network address as `postgres`/`postgres`, which works under `supabase start` in CI as it does locally. The whole suite (390 tests) takes about 2 seconds.
+   - Optional, macOS job: `scripts/codegen.sh --verify` also compiles the Swift client on its own against swift-openapi-runtime and fails on any warning.
+3. **Error shape.** I used yours: `{ error: { code, message, issues? } }` plus an optional `reason` (for example `photo_rejected` + `face_visible`, `unavailable` + `moderation`). Your base codes are all in `ErrorCode`, plus specific ones routes need: 409 `onboarding_incomplete`, `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, and **422** `under_18`, `not_in_room`, `location_inaccurate`, `location_required`, `join_ticket_invalid`, `photo_rejected`, `message_rejected`. A 422 isn't in your list yet; `new HttpError(422, 'not_in_room', ...)` already works with your class. Maybe add small helpers.
+4. **Auth.** As you listed. `GET /api/cards/{cardId}/image` stays Bearer plus signed link: the signature covers `{cardId}.{viewerId}.{exp}` with the viewer taken from the token, so the link carries no user ID (`docs/CONTRACTS.md`).
+5. **Times.** The generated zod schemas use `z.iso.datetime()`, which rejects offsets like `+00:00`. The database functions already return `...000Z`, but rows read straight from tables through supabase-js come back as `+00:00` and need `new Date(x).toISOString()`. Worth a line in "Writing a server route" in AGENTS.md.
+6. **docs/SPEC.md** (yours) needs these after Checkpoint 1: endpoints `GET /api/rooms/:id` and `GET /api/me/photos/:id`, event `match.ended`, and the extra database functions (`glow_met`, `cancel_glow`, `unmatch`, `block_user`, `create_report`, `send_message`, `get_match`, `list_matches`, `match_photo_path`, `get_room_state`). See D16 to D19.
+7. **Root package.json.** I added `@hey-api/openapi-ts` 0.99.0, `typescript` 6.0.3 (its peer, same version as `server`) and `yaml` 2.9.1 as devDependencies, as pre-approved. `pnpm-lock.yaml` is updated.
+8. **Password sign-in** stays on: `config.toml` keeps the defaults `scripts/dev-token.sh` uses.
+
 ### For A2
+
+_A2's answers, 2026-10-24:_ 1 done (`server/src/contracts/operations.ts`, your shape). 2 done (your names; admin operations defined). 3 adopted (see For A1, item 3). 4 as listed. 5 done. 6 as listed. 7 done.
+
 
 _From A1, 2026-10-24._
 
@@ -47,6 +71,24 @@ _From A1, 2026-10-24._
 
 ### For A3
 
+_From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
+
+1. **APIClient target dependencies** in `ios/Packages/GlowKit/Package.swift`. The generated files in `Sources/APIClient/Generated/` (`Client.swift`, `Types.swift`, `GlowConstants.swift`, `GlowEvents.swift`) import `OpenAPIRuntime`, `HTTPTypes` and Foundation. Please add:
+   - `.package(url: "https://github.com/apple/swift-openapi-runtime", exact: "1.13.3")` → product `OpenAPIRuntime`
+   - `.package(url: "https://github.com/apple/swift-openapi-urlsession", exact: "1.4.0")` → product `OpenAPIURLSession` (the transport for your wrapper)
+   - `.package(url: "https://github.com/apple/swift-http-types", from: "1.0.0")` → product `HTTPTypes`, so the import is a declared dependency
+   `scripts/codegen.sh --verify` builds exactly these files against those versions with strict concurrency, with zero warnings. Please don't use the build plugin; the generated files are committed, and CI checks they're current.
+2. **SwiftLint and SwiftFormat:** please exclude `ios/Packages/GlowKit/Sources/APIClient/Generated` in `.swiftlint.yml` and `.swiftformat`. The files also start with `swiftlint:disable all` and `swiftformat:disable all`.
+3. **Dates in the wrapper.** Every time is RFC 3339 with milliseconds (`2026-10-24T20:15:00.000Z`), so create the client with `Client(serverURL:configuration: .init(dateTranscoder: .iso8601WithFractionalSeconds), transport: URLSessionTransport(), middlewares: [...])`. The default transcoder rejects fractional seconds.
+4. **404 mapping.** Every not-allowed answer is 404 `not_found` (P11). Errors decode as `Components.Schemas._Error` with `code` an enum (`Components.Schemas.ErrorCode`).
+5. **Realtime topics** are lowercase: `GlowEvents.userTopic(userID)` and `GlowEvents.roomTopic(roomID)`. `UUID.uuidString` is uppercase and the policy refuses that. Join with `private: true`. Event payloads decode as `Components.Schemas.GlowEvent`, and `GlowEvents.EventType` and `GlowEvents.PushCategory` mirror `contracts/events.json`.
+6. **Demo room for `scripts/sim.sh`** (local seed, test data):
+   - `scan demo` → `glow://r/demo?t=DEMOSTATICTOKEN2` (in Release: `https://{DOMAIN}/r/demo?t=DEMOSTATICTOKEN2`)
+   - `at venue` → 37.8029, -122.4484 (radius 200 m). For `at away`, 2 km north is 37.8209, -122.4484.
+   - room code `HACK26`, room ID `de000000-0000-4000-8000-000000000001`
+7. **Local Supabase** is `http://127.0.0.1:54421` (D10), with the publishable key in `server/.env.example`. Test people are listed under A2's status below; sign in with the email code (Mailpit at http://127.0.0.1:54424) or B1's Debug test sign-in.
+8. **Test sign-in isn't in the generated client** (the `dev` tag is left out, D22), so a Release binary has no `testLogin`. B1 calls `POST /api/dev/test-login` with a hand-written Debug-only request.
+
 _From A1, 2026-10-24._
 
 1. **CI's macOS job** (runner `macos-26`, Xcode 26.6 default, iOS 26.5 simulators including iPhone 17 Pro) skips until `ios/project.yml` exists. Then it runs `brew install xcodegen swiftlint swiftformat`, `swiftlint lint --strict` (if `.swiftlint.yml` exists), `swiftformat --lint .` (if `.swiftformat` exists), `xcodegen generate --spec ios/project.yml`, then `scripts/sim.sh setup`, `scripts/sim.sh build` and `scripts/sim.sh test` with `GLOW_CI=1`. Please make those three work headless on a fresh runner: create Glow A and Glow B on the newest installed iPhone Pro runtime, no signing (`CODE_SIGNING_ALLOWED=NO`), and a non-zero exit on any failure. Without `sim.sh`, CI falls back to `xcodebuild test -scheme Glow -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'`, so a scheme named `Glow` that runs the unit tests helps.
@@ -55,6 +97,47 @@ _From A1, 2026-10-24._
 4. **Ownership.** `AGENTS.md` gives you `ios/` for anything not listed, `ios/GlowTests/` and the package files under `ios/Packages/GlowKit/`. A server test fails if a file in git has no owner in `AGENTS.md`, so tell A1 if you add a top-level folder somewhere else.
 
 ## Status
+
+### A2 · Contracts and database
+
+_2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.
+
+**Built**
+
+- `supabase/migrations/0001_a2_init.sql`: enums, every table in the data model (plus `location_checks` and `room_activity`, D17 and D30), constraints and indexes. RLS is on everywhere with no policies, and grants and default privileges are closed to `anon` and `authenticated` (D28). Every database function from the spec plus the ones routes need (CONTRACTS.md), all security definer with `search_path = ''`, with advisory locks on the pair in `record_tap`, the viewer in `get_deck` and the room in `start_glow`. Also Realtime authorization (D27) and private buckets `profile-photos` and `room-cards`.
+- `supabase/seed.sql`: the demo room, 4 meeting spots, and the test people below. `supabase db reset` runs clean.
+- `contracts/openapi.yaml` (every endpoint, admin included, with schemas, errors and examples), `contracts/events.json` and `contracts/constants.json`.
+- `scripts/codegen.sh` (`pnpm codegen`): checks the contract (P1 field names, no 403, events against openapi), then generates `server/src/contracts` (types, zod schemas, the route registry, constants, events with `apnsRequestFor`, database types), the Swift client and constants in `APIClient/Generated`, `supabase/tests/database/000_constants.test.sql`, and the tables in CONTRACTS.md. A second run changes nothing. `--verify` compiles both clients on their own.
+- pgTAP, 390 tests in `supabase/tests/database/`: lockdown of every table, function and bucket; Realtime channels; every deck rule including show me and blocks both ways; the tap cap and TTL; 50 simultaneous pairs making exactly 50 matches (it fails, 41 of 50, with the pair lock removed); choosing and glow, including color plus code word uniqueness; check-ins, 18+ and purge; blocks, reports and chat.
+
+**Demo room (local seed, test data)**
+
+| | |
+| --- | --- |
+| Slug | `demo` |
+| Room ID | `de000000-0000-4000-8000-000000000001` |
+| Static QR token | `DEMOSTATICTOKEN2` (`allow_static_qr` on) |
+| Room code | `HACK26` |
+| Center | 37.8029, -122.4484, radius 200 m, America/Los_Angeles. A placeholder venue (D11) |
+| QR secret (hex) | `00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff`, so rotating tokens are reproducible locally |
+| Link | `glow://r/demo?t=DEMOSTATICTOKEN2`, or `https://{DOMAIN}/r/demo?t=DEMOSTATICTOKEN2` |
+| Meeting spots | Main entrance, Food line, Water station, Stage left |
+
+**Test people** (no passwords; email code or test sign-in; IDs start with `7e570000`): `alex@glow.test` (woman, shows men), `blake@glow.test` (man, shows women), `casey@glow.test` (nonbinary, shows everyone), `drew@glow.test` (woman, shows women and nonbinary), `admin@glow.test` (man, shows women, in `admins`), `new@glow.test` (onboarding not started). Seeded people have no photos, and no check-ins, because card photos must exist in storage; check in through the API.
+
+**Still mocked**: nothing in A2's paths. Server routes still answer 501 until each owner builds them, and the iOS app needs A3's `Package.swift` dependencies (For A3, item 1) before it can import the client.
+
+**Next wave needs**
+
+- **Everyone:** run `pnpm codegen` after touching `contracts/` or `supabase/migrations/`, and commit the result. Contract changes after Checkpoint 1 go through A1 in a `contract-change` PR.
+- **B1:** a trigger creates each `profiles` row on sign-up, and the database refuses under-18 birthdates (error `under_18`). `onboarding_step` is yours to advance. Use `@glow.test` addresses for test sign-in. Profile photo paths are `profile-photos/{userId}/{photoId}.jpg` (checked by a constraint).
+- **B2:** write a `location_checks` row (pass, fail or demo_skip, plus an accuracy bucket, never coordinates) for every join and Find check. Leaving: `update checkins set left_at = now()` and delete the photo. `GET /api/rooms/{id}` calls `get_room_state`. `rooms.static_qr_token` and `qr_secret` (hex) are on the room row.
+- **B3:** generate the card ID, upload to `room-cards/{roomId}/{cardId}.jpg`, then call `create_checkin` and delete any `replacedCardPaths`. The image route uses `card_visible_to`, and match photos use `match_photo_path`.
+- **B4:** `get_deck`, `record_tap` and `list_matches`. The cap and race tests already pass in the database.
+- **B5:** `eventCatalog`, `userTopic`, `roomTopic` and `apnsRequestFor` in `@/contracts` build every channel name and push payload from events.json. `userIds` in function results tell you who to notify.
+- **B7:** admin operations are in the contract. Metrics come from `room_activity`; ban with `profiles.banned_at`; remove a card with `checkins.visible = false`.
+- **B8:** `block_user`, `create_report`, `purge_expired` (it returns photo paths to delete, and events to send). Pausing is `profiles.paused`, which every deck rule reads.
+- **C2, C3, C4:** `set_choice`, `start_glow` (pass C3's word list), `glow_met`, `cancel_glow`, `get_match`, `send_message` and `unmatch`. Their result shapes are in CONTRACTS.md.
 
 ### A1 · Integrator and repo
 
