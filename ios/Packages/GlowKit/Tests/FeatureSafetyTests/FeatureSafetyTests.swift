@@ -40,7 +40,9 @@ final class SafetyServer: Sendable {
             self.log.withLock { $0.append(sent) }
             let answer = self.answers[operation] ?? .status(.notImplemented)
             var fields = HTTPFields()
-            if let type = answer.contentType { fields[.contentType] = type }
+            if let type = answer.contentType {
+                fields[.contentType] = type
+            }
             return (HTTPResponse(status: answer.status, headerFields: fields), answer.body.map { HTTPBody($0) })
         })
     }

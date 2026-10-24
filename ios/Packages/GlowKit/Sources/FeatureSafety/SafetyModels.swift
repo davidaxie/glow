@@ -151,7 +151,9 @@ public final class ReportModel {
     /// Optional details. Trimmed before sending, and capped at REPORT_DETAILS_MAX_CHARS.
     public var details: String = "" {
         didSet {
-            if details.count > Self.maxDetails { details = String(details.prefix(Self.maxDetails)) }
+            if details.count > Self.maxDetails {
+                details = String(details.prefix(Self.maxDetails))
+            }
         }
     }
 

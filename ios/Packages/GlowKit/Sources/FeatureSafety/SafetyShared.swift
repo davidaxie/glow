@@ -24,7 +24,9 @@ struct SafetyDone: View {
         } actions: {
             Button("Close") {
                 dismiss()
-                if context.matchID != nil { navigate(.matches) }
+                if context.matchID != nil {
+                    navigate(.matches)
+                }
             }
             .buttonStyle(.glowPrimary)
         }
