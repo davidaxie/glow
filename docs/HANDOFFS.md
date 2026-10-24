@@ -35,6 +35,9 @@ Things only David can do. None of these block Wave 0 work locally.
 15. **Supabase cloud, account deletion** (from B8). After `supabase db push`, check that `select public.purge_auth_audit(interval '7 days')` runs as the service role. It deletes from `auth.audit_log_entries`, which a hosted project may restrict. If it's refused, deletion still works but Auth's audit log keeps emails and IPs: either allow it, or turn off "write auth audit logs to the database" in the project's Auth settings (B8-D4, B8-D5).
 16. **Select the full Xcode** (from B6, optional): `xcode-select` points at the Command Line Tools, so Claude Code's built-in iOS Simulator panel refuses to start. `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` fixes it. Agents work around it with `scripts/sim.sh` (which sets `DEVELOPER_DIR` itself), so nothing is blocked.
 17. **Haptics and brightness on a real iPhone** (from B6): the Simulator can't play haptics or change brightness. On a device, check the Gallery (Settings > Debug > Gallery): the Haptics buttons, and "Open a live glow", which should go to full brightness, keep the screen awake, and return your own brightness when closed or when you open Control Center.
+16. **Admin accounts** (from B7). There's no screen to make someone an admin, on purpose. When the Supabase cloud project exists, each organizer signs up in the app once, then add them in the SQL editor: `insert into public.admins (user_id) select id from auth.users where email = 'organizer@example.com';`. Locally, `admin@glow.test` is already an admin.
+17. **Email for admin sign-in codes** (from B7, shared with B1). Admins sign in to the admin web with a 6-digit email code from Supabase Auth. Supabase's built-in email sender is limited to a few emails an hour, which won't survive an event: in the cloud project, set up custom SMTP (Auth, then SMTP settings) with any provider, and make sure the email template includes `{{ .Token }}`.
+18. **Print the posters on the day** (from B7). The poster PDF is US Letter, black on white. Print it at 100% (no "fit to page" shrink) so the QR code stays at least 4 inches wide. Posters only let people in while "Printed posters" is on for that room.
 
 ## Requests
 
@@ -73,6 +76,12 @@ _From B9, 2026-10-24._ PRs [#5](https://github.com/davidaxie/glow/pull/5) (relea
 3. **A privacy policy page** at `https://{DOMAIN}/privacy`. App Privacy and external TestFlight testing need a policy URL. A draft in Glow's voice is in `docs/RELEASE.md` ("Privacy policy draft"), with `{CONTACT_EMAIL}` to fill in. The path isn't in the ownership map, so it's yours to place or assign.
 4. **Privacy manifest, two candidates to declare** (D43 says more, not less): `NSPrivacyCollectedDataTypeEmailsOrTextMessages` for chat messages (Apple's definition is about message contents; the manifest has them only as Other User Content), and `NSPrivacyCollectedDataTypeDeviceID` for the push token stored with each account. If you add either, run `ios/fastlane/ship privacy_answers`, commit `ios/fastlane/app-privacy.json` and tell B9 to update the table in `docs/RELEASE.md`. CI's **Release iOS → Release checks** job fails while the two disagree.
 5. **CI.** `.github/workflows/release-ios.yml` adds one Ubuntu job (**Release checks**, about a minute) on PRs that touch release files: the lane helper tests and `fastlane check`. The macOS TestFlight job only runs on `beta-*` and `wave-*-done` tags or by hand, and skips with a notice until the Apple secrets exist. After you tag `wave-1-done`, the build number shows in that run's summary.
+
+_From B7, 2026-10-24._
+
+1. **The web domain as a server variable.** Poster and display links are built from one constant, `WEB_DOMAIN` in `server/src/server/admin/links.ts` (`glow-domain-not-chosen.invalid`, the same placeholder as `GLOW_WEB_DOMAIN` in the app, D33). A test fails if the two differ. When {DOMAIN} is chosen, please add an optional `WEB_DOMAIN` to `server/src/env.ts` (a bare hostname, default the placeholder, required on Vercel production), and B7 will read it with `getEnv()`.
+2. **`authorize` in the route helper:** PR [#29](https://github.com/davidaxie/glow/pull/29) (`cross-owner`) adds `route(id, handler, { authorize })`, run right after sign-in and before the path, query or body is read. Without it, a signed-in non-admin sending a malformed body to `/api/admin/*` got a 400 with field paths instead of the 404 (found with `scripts/smoke.sh` and a throwaway token). B7's PR carries the same commit so its routes can use it; it drops out when #29 merges.
+3. **Rate limits in the route helper** (B8's item 1 above) cover `/api/admin/*` with the `admin` policy. The admin web's server actions already call `rateLimit(adminId, 'admin')` themselves, and sign-in steps `signIn` per address and per email.
 
 _From B8, 2026-10-24._
 
@@ -214,6 +223,11 @@ _From B8, 2026-10-24, PR #22._ (1) The purge cron deletes any `profile-photos` o
 
 ### For B2
 
+_From B7, 2026-10-24._ Two things the admin web relies on:
+
+1. **Screen tokens.** Done: since #10, the display page uses your `displayToken` from `@/server/qr`. A live join with the display's current token through your `joinRoom` answered 200 (and a made-up token 404), and a test runs your `verifyRoomToken` on the display's token.
+2. **Demo mode skips.** The room page shows how many location checks were skipped today in a demo mode room, by counting `location_checks` rows with `result = 'demo_skip'` since the start of the room's day. Please write one per skip (A2's note), with `purpose` `join` or `find`.
+
 _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/route.ts` exists as a 501 stub for `getRoomState`; it's yours (listed in your `AGENTS.md` row), so replace the stub. 2: done. 3: `server/src/env.ts` has two optional variables, both validated and optional everywhere: `TESTFLIGHT_URL` (must be `https://testflight.apple.com/...`) and `APPLE_APP_ID` (`TEAMID.bundle.id`, like `ABCDE12345.com.davidxie.glow`). Please use `APPLE_APP_ID` for the link file rather than `APNS_TEAM_ID` plus `APNS_BUNDLE_ID`: the APNS variables only exist together with the push key, so a preview without push couldn't serve the link file. Read them with `getEnv()`.
 
 _Answered by B2, 2026-10-24._ All three done in PR [#10](https://github.com/davidaxie/glow/pull/10): B2 took over the stub, and reads `APPLE_APP_ID` and `TESTFLIGHT_URL` with `getEnv()` (B2-D3, B2-D4).
@@ -241,6 +255,7 @@ type VerifiedJoinTicket = {
 - It never throws. It returns `null` for anything that isn't a live ticket issued to this person for this room: expired (past `exp`, or older than JOIN_TICKET_TTL), another person's, another room's, edited, malformed, or longer than 2 KB. Answer `null` with 422 `join_ticket_invalid`.
 - The ticket is an encrypted JWT (JWE `dir` + `A256GCM`, key derived from `JOIN_TICKET_SECRET` with HKDF), so it's opaque: nothing in it is readable without the server's key (B2-D1). Treat it as an opaque string and never log it.
 - Every join writes a `location_checks` row before the ticket is issued: `purpose = 'join'`, `result = 'pass'` (or `'demo_skip'`), plus an accuracy bucket. A ticket exists only for a passed or skipped check, so A2's 0002 `create_checkin` finds its row. If 0002 takes the check ID, pass `locationCheckId`.
+_From B7, 2026-10-24._ The admin card and photo images are watermarked with the admin's own viewer code, by a stand-in, `watermarkJpeg(jpeg, viewerCode)` in `server/src/server/admin/watermark.ts` (sharp, a repeated faint code at -30°, JPEG at PHOTO_JPEG_QUALITY with no metadata). Please export your watermark from `@/server/images` (any name; tell B7 here) so admins and people in rooms get the same mark, and B7 will call yours instead.
 
 _From A3, 2026-10-24._ `ios/fixtures/photos/` has four synthetic, faceless outfit images (D44). Add fixture photos with real faces that the people in them agreed to (or freely licensed ones) for the blur tests. `ios/fixtures/` is A3's, so add them in a `cross-owner` PR or ask A1.
 
@@ -287,6 +302,8 @@ if (verdict.decision === 'flagged') throw messageRejected(); // 422 message_reje
 ### For B5
 
 _From B9, 2026-10-24._ Every TestFlight build is the **Release** configuration, signed for the App Store, so its entitlement is `aps-environment = production` (B9-D1); Debug builds from Xcode are `development`. So register `production` in Release builds and `sandbox` in Debug (a compile-time `#if DEBUG` is enough; there's no development-signed Release build in the pipeline). On the server, the one `.p8` key in `APNS_*` covers both environments; send to `api.push.apple.com` for `production` rows and `api.sandbox.push.apple.com` for `sandbox` ones. B9's Done-when box "Push works on a TestFlight build, through production" is checked with your sender, two iPhones and a mutual tap (docs/RELEASE.md, step 9).
+
+_From B7, 2026-10-24._ Done: since #15, the admin module sends `deck.changed` (`notifyRoom`) when a room is paused, resumed, ended or its times change, a card is removed or someone is banned, and `match.ended` (`notify`) to both people when a ban ends their match.
 
 _From A3, 2026-10-24._ Please replace `ios/fixtures/push/match_created.apns` (A3's stand-in: lock screen text plus a match ID) with fixtures built from `contracts/events.json`, one per event. `scripts/sim.sh push A <event>` picks up `ios/fixtures/push/<event>.apns`. The spec's Realtime module is `GlowRealtime`.
 
@@ -375,6 +392,45 @@ _2026-10-24, Wave 1._ PR [#10](https://github.com/davidaxie/glow/pull/10) on `w1
 - **B7:** the display page's token is `displayToken(room.qr_secret, Date.now())` from `@/server/qr`; posters use `static_qr_token` and need `allow_static_qr`.
 - **B9:** B2 tells you under For B9 once room joining is on `main` (Build plan's first external review).
 - **D1:** UI test hooks: `rooms.home.scan`, `rooms.home.code`, `rooms.code.field`, `rooms.code.join`, `rooms.join.progress`, `rooms.join.passed`, `rooms.join.failure.<reason>` (for example `rooms.join.failure.not_in_room`), `rooms.scanner`, `rooms.scanner.torch`. `LaunchUITests.testRoomLinkOpensTheJoinScreen` still finds "Room: demo": the join screen shows the slug until the room's name arrives, and keeps it on failure screens.
+### B7 · Admin and room ops
+
+_2026-10-24, Wave 1._ PR [#16](https://github.com/davidaxie/glow/pull/16) on `w1/b7-admin`.
+
+**Built**
+
+- **Admin sign-in** (`/admin/sign-in`): a 6-digit email code from Supabase Auth, the session in httpOnly cookies, checked against `admins` on every page and action. Anyone who isn't a signed-in admin gets the same 404 page as a missing address, everywhere under `/admin`, on `/display/{slug}` and on `/api/admin/*` (B7-D1). Locally, with `ALLOW_TEST_LOGIN`, a "Sign in as admin@glow.test" button skips the email (B7-D9).
+- **Rooms** (`/admin`, `/admin/rooms/new`, `/admin/rooms/{id}`): create from a phone with a name (the link name follows it), "Set center to my location", a radius slider on a MapLibre map with OpenStreetMap tiles and full attribution, three meeting spots filled in (3 to 5, editable), and start and end times (now to 12 hours from now). Room page: pause, resume, end, reopen, demo mode (with today's count of skipped location checks), printed posters on or off, a new poster code, meeting spots renamed in place (an active glow keeps its spot), and every detail editable.
+- **Poster** (`Poster (PDF)` on the room page, `GET /api/admin/rooms/{id}/poster`): US Letter, a 4.4-inch QR code of `https://{DOMAIN}/r/{slug}?t={static token}`, the room code, three steps, and two lines of reassurance. Black on white, no location, no metadata about who printed it.
+- **Display screen** (`/display/{slug}`, admins only, B7-D2): one full-screen QR code that changes on every QR_ROTATION boundary by the server's clock, a bar counting down to the next code, the room code underneath, keeps the screen awake, a Full screen button. Paused, ended and not-yet-started rooms show a sentence, never a code.
+- **Cards** (`/admin/rooms/{id}/cards`): open check-ins newest first, by tags and watermark code; "Show photo" loads it watermarked with the admin's own code (B7-D6); Remove card (hides it, deletes the photo, they can check in again) or Remove from room (also ends the check-in).
+- **Reports** (`/admin/reports`): open, acted on and dismissed tabs, oldest first, people named only by watermark code, details and the kept chat evidence. Dismiss, Remove card (the card reported, or the reported person's card in that room for chat and match reports), Ban (B7-D5).
+- **Screenshot flags** (top of `/admin/reports`): people with B8's CAPTURE_REVIEW_THRESHOLD (3) or more deck screenshots or recordings in 24 hours (B8-D7), by watermark code and count, with Ban. The ban is looked up by watermark code on the server, so no user ID reaches the browser.
+- **Held profile photos** (`/admin/photos`): photos moderation held back (often a possible minor), oldest first, by watermark code; "Show photo" with the admin's watermark; Approve, Reject (deletes the image and row), Ban (also bans the owner). Only held and pending photos are ever listed or opened (B7-D11).
+- **Live numbers** (`/admin/rooms/{id}/metrics`): checked in now, joins, cards viewed, matches, glows started, We met, reports, since the start of the room's day, refreshed every 10 seconds. No taps, ever (B7-D7).
+- **API**: all 17 `/api/admin/*` operations (including A2's three held-photo ones), through A1's route helper, with the logic in `server/src/server/admin/` shared with the admin web's server actions.
+- **Tests** (`server/tests/admin/`, 113): every admin route answers the same 404 to a signed-in non-admin, before reading anything and whatever they send, and works for an admin; room rules (409 `slug_taken`, spots, times, timezones, ending and clamping check-ins, deck.changed); screen tokens against an independent HMAC; the QR decodes back to the link; the poster; the room day across time zones and DST; card removal, reports, the ban order, screenshot flags, held photos; the watermark strips metadata; and the server's web domain equals the app's.
+
+**Proof** (all in `docs/shots/`): [printed poster](shots/b7-poster.png) and [its QR opening the app](shots/b7-poster-opens-app-A.png) on "Glow A (B7)" (PDF rasterized, QR decoded, link handed to the app as `sim.sh scan` does; run once before the Simulator cap, and re-checked in the coordinator's Checkpoint 2 run), [display screen](shots/b7-display-screen.png) and [its QR opening the app](shots/b7-display-opens-app-A.png), [new room on a phone](shots/b7-admin-new-room-phone.png), [rooms](shots/b7-admin-rooms.png), [room](shots/b7-admin-room.png), [room controls](shots/b7-admin-room-controls.png), [cards](shots/b7-admin-cards-phone.png), [reports](shots/b7-admin-reports-phone.png), [live numbers](shots/b7-admin-metrics.png), [held photos](shots/b7-admin-photos.png). Checked live on port 3107 against the shared stack: admin 200, signed-in non-admin 404 (also with `scripts/smoke.sh` and a throwaway token), no token 401 on every route; every `/admin/*` address, real or not, gives a non-admin the identical 404 page; the display's code changed exactly on the 30-second boundary; a live `joinRoom` with the display's current token answered 200 (a made-up token, 404), and B2's `verifyRoomToken` accepts the display's token now and in the next window and refuses it after.
+
+**Still mocked**: B3's watermark (#7), in `admin/watermark.ts`; B7 swaps to B3's when #7 merges. The display uses B2's real `displayToken` from `@/server/qr`.
+
+**Room setup at the venue (for D5)**
+
+1. On your phone, open `https://{DOMAIN}/admin/sign-in`, enter your email, then the 6-digit code from the email. (You must be in `admins`; see Needs David.)
+2. Rooms, then **New room**. Type the room's name. Stand in the middle of the venue and tap **Set center to my location**; drag the pin if it's off. Slide the radius until the circle covers the venue and no more. Check the three meeting spots (rename them to real places: "Main entrance", "Bar", "Stage left"). Times default to now until 12 hours from now. Turn on **Printed posters** if you'll print any, and **Demo mode** if stage phones will join from somewhere other than the venue. Tap **Create room**. About a minute.
+3. On the laptop by the stage: sign in there too, open the room, tap **Open display screen**, then **Full screen**. The code changes every 30 seconds by itself; leave the tab open and the laptop plugged in.
+4. Posters: on the room page tap **Poster (PDF)** and print at 100%. If a poster is lost or photographed and shared, tap **Make a new poster code** and reprint (old posters stop working).
+5. During the event: **Live numbers** for the room, **Reports** for the queue, **Cards in the room** to remove a card or a person. **Pause room** hides every card until you resume; **End room** ends every check-in and deletes every card photo at once.
+6. Afterwards: End the room, then **Sign out** on every device, including the display laptop.
+
+**Next wave needs**
+
+- **D1:** the room for an end-to-end run can be made with `POST /api/admin/rooms` and an admin token (locally, `admin@glow.test`). `GET /api/admin/rooms/{id}/display-token` returns the current screen token and link.
+- **D2:** please try the admin area as a non-admin: every page, action and `/api/admin` route should be the same 404. Server actions are public POST endpoints; each one checks the session itself (`adminAction()` in `server/src/server/admin/web.ts`).
+- **D5:** room setup steps above. The demo room for the stage needs Demo mode on.
+- **Whoever owns {DOMAIN}:** change `WEB_DOMAIN` (`server/src/server/admin/links.ts`) together with `GLOW_WEB_DOMAIN` in the app, or `WEB_DOMAIN` in env.ts once A1 adds it.
+
+**Decisions**: B7-D1 to B7-D11.
 
 ### B6 · Design system
 

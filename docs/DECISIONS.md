@@ -588,3 +588,71 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** The P5 tests time the tapped person's deck against an untapped person's in the same room, and a `sent` tap to someone tapped many times against one to someone never tapped, interleaving the two so machine load hits both. They fail on a median gap over max(8 ms, 25%).
 
 **Why.** A real leak (an extra query on one side) is a consistent gap; shared-machine noise isn't. The code paths are also identical by construction: `tappedByMe` reads only the viewer's own taps, and nothing is sent or counted for a `sent` tap.
+
+## B7 · Admin and room ops
+
+### B7-D1 · The admin web keeps its session in httpOnly cookies, and everyone else gets 404
+
+**Question.** The brief says non-admins get 404 everywhere under `/admin`. The API's admin endpoints take a Bearer token, but a browser page that holds a token in JavaScript can leak it, and a page that only checks on the client still answers 200.
+
+**Choice.** The admin signs in with a 6-digit email code (Supabase Auth, `shouldCreateUser: false`). The Supabase session is stored in httpOnly, SameSite=Lax cookies (Secure off localhost) that page JavaScript can't read. Every admin page, the display page and every server action checks the access token with Supabase Auth (D3) and the `admins` table (not banned) before anything else, and calls Next's `notFound()` otherwise, so the answer is the same HTTP 404 page as an address that doesn't exist. Pages check for themselves too, because layouts don't run again on client navigation. `/admin/sign-in` is the only page anyone can open, and it shows only an email and a code field. It answers the same whether an address has an account, and a right code for someone who isn't an admin reads as a wrong one; that session is revoked at once and no cookie is set. A sign-in lasts 24 hours; open pages refresh the access token every 10 minutes. The browser talks to the server through server actions (Next checks their Origin); `/api/admin/*` stays Bearer-only, for scripts and tests. A browser that has signed in as an admin before sees a "Sign in again" link on its 404 page (a cookie that holds nothing else).
+
+**Why.** Nothing about the admin area, not even that a room exists, shows to anyone but an admin, and no admin token is ever readable by page scripts.
+
+### B7-D2 · The display screen is for signed-in admins only, and shows no code for a room that isn't live
+
+**Question.** Should the display page (`/display/{slug}`) be open to anyone with the link, so a venue laptop needn't sign in?
+
+**Choice.** No. It answers 404 unless an admin is signed in on that screen, like everything else that hands out a working token. It shows no QR code at all while the room is paused, ended or not started yet.
+
+**Why.** A rotating code is only better than a poster if you have to be in front of the screen to read it. An open display link would let anyone fetch live codes from anywhere.
+
+### B7-D3 · Printed posters are off until an admin turns them on
+
+**Question.** Should new rooms accept the static poster token by default?
+
+**Choice.** No (`allow_static_qr` defaults to false, as in the database). The create form and room page explain the trade-off in one line, the poster can always be downloaded, and the room page says when posters are off. "Make a new poster code" replaces the token so old posters stop working.
+
+**Why.** A photo of a poster works from anywhere, a rotating screen code doesn't. Either way the location check still applies.
+
+### B7-D4 · Ending a room ends every check-in and deletes every card photo at once
+
+**Choice.** Setting a room to `ended`, or moving its end into the past, ends every open check-in (`left_at`), hides the cards and deletes their photos straight away, instead of waiting for the purge cron. Moving the end earlier (still in the future) cuts every longer check-in to the new end (D15). Removing a card deletes its photo straight away too. Pausing keeps check-ins: the deck rules already hide every card in a room that isn't live.
+
+**Why.** P9 is a ceiling, not a target.
+
+### B7-D5 · A ban hides first, then signs out, then cleans up
+
+**Choice.** Banning sets `profiles.banned_at` first (out of every deck at once, D31), then bans the Supabase Auth user so every token they hold stops working (D3), then ends their check-ins and deletes their card photos, ends their matches for both people (`unmatch`, so `match.ended` goes out; report evidence was already copied, D23), and marks every other open report about them as acted on. Each step is safe to run again. An admin can't ban themselves.
+
+**Why.** If any later step fails, the person is already invisible. Ending their matches means nobody is left in a chat with a banned person.
+
+### B7-D6 · Admins see photos only when they ask, watermarked with their own code
+
+**Choice.** The cards page lists tags and watermark codes; each photo loads only when the admin taps "Show photo", watermarked with the admin's own viewer code, logged (`admin.card_viewed`, IDs only), and delivered as a data URL from a server action, so there is no image URL to cache, share or replay. Reports, cards and screenshot flags name people only by watermark code, never by user ID; banning a flagged person sends the watermark code, and the server looks the person up.
+
+### B7-D7 · Live numbers have no tap count, and the rest are shown as they are
+
+**Choice.** RoomMetrics has no taps (A2's D52, P5). Joins, card views, matches, glows started, We met and reports are shown live, refreshed every 10 seconds.
+
+**Why.** Matches and glows are mutual by definition: both people already know. A tap count is the only number that could reveal a one-sided choice.
+
+### B7-D8 · The map talks to OpenStreetMap with the origin only, and the admin's location is used once
+
+**Choice.** The room map uses MapLibre GL 5 with OpenStreetMap's raster tiles and shows OpenStreetMap's attribution in full (not the collapsed "i"). Admin pages send `Referrer-Policy: strict-origin` (OpenStreetMap's tile policy asks for a referrer; this sends the site's origin, never a path with a room ID). "Set center to my location" asks the browser once, puts the pin there, and sends nothing until the admin saves the room, when it becomes the room's center: a public venue, which the spec allows storing. The server never logs it.
+
+### B7-D9 · Local test sign-in for the admin web has the same locks as D6
+
+**Choice.** `/admin/sign-in` offers "Sign in as admin@glow.test" only when the profile is local and `ALLOW_TEST_LOGIN` is on (which env.ts refuses on Vercel and with a cloud Supabase), and only for `@glow.test` addresses. It makes a one-time link on the server and uses it at once, so no email is sent. Every sign-in step, test or real, is rate limited per client address and per email address (B8's `signIn` policy), and every admin action per admin (`admin`).
+
+### B7-D10 · The web domain is one server constant that must match the app's
+
+**Choice.** `WEB_DOMAIN` in `server/src/server/admin/links.ts` builds every poster and display link, and a test fails if it differs from `GLOW_WEB_DOMAIN` in `ios/Glow/Config/Shared.xcconfig` (today both are `glow-domain-not-chosen.invalid`, D33). B7 asked A1 to move it into `server/src/env.ts` as a variable.
+
+### B7-D11 · Admins can only see profile photos that need a decision
+
+**Question.** `GET /api/admin/photos` takes any moderation status, so an admin could list and open every approved profile photo in the system.
+
+**Choice.** Only `held` (the default) and `pending` photos can be listed (anything else is 400) or opened (404 once decided). Approve sets `approved`. Reject deletes the image and its row, and Ban does the same and then bans the owner (B7-D5); the reply says `rejected`. Every view is watermarked with the admin's code and logged.
+
+**Why.** Held photos are often of someone who might be under 18. Admins need to see exactly what they're deciding on, and nothing else; a rejected image isn't kept anywhere.
