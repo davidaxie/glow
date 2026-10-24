@@ -26,6 +26,9 @@
     "db:test": "supabase test db"
   },
   "devDependencies": {
-    "prettier": "3.9.10"
+    "@hey-api/openapi-ts": "0.99.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "yaml": "2.9.1"
   }
 }

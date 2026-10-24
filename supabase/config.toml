@@ -46,6 +46,12 @@ major_version = 17
 # OrioleDB version to use as the Postgres storage engine. Leave empty to use the default engine.
 orioledb_version = ""
 
+[db.settings]
+# supabase/tests/database/090_concurrent_taps.test.sql opens 100 connections at once (50 pairs
+# tapping each other at the same moment), more than the default 100 allows next to the other
+# services.
+max_connections = 200
+
 [db.pooler]
 enabled = false
 # Port to use for the local connection pooler.

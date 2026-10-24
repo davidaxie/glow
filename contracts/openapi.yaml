@@ -128,8 +128,10 @@ paths:
       description: |
         Replaces any photo already at that position. The photo is moderated: rejected photos get
         422 `photo_rejected`; photos held for review come back with `moderationStatus: held`.
+        Removing the last photo after onboarding is 409 `last_photo`.
         Profile photos are only ever shown to people with an active match (P1).
       x-owner: B1
+      x-max-body-bytes: 4200000
       requestBody:
         required: true
         content:
@@ -142,13 +144,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MyPhoto" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "422": { $ref: "#/components/responses/Unprocessable" }
         "429": { $ref: "#/components/responses/RateLimited" }
         "503": { $ref: "#/components/responses/Unavailable" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/me/photos/{photoId}:
+  /api/me/photos/{id}:
     parameters:
       - $ref: "#/components/parameters/PhotoId"
     get:
@@ -250,7 +253,7 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/devices/{deviceId}:
+  /api/devices/{id}:
     parameters:
       - $ref: "#/components/parameters/DeviceId"
     delete:
@@ -298,7 +301,7 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/rooms/{roomId}:
+  /api/rooms/{id}:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     get:
@@ -317,7 +320,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/rooms/{roomId}/join:
+  /api/rooms/{id}/join:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     post:
@@ -350,7 +353,7 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/rooms/{roomId}/leave:
+  /api/rooms/{id}/leave:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     post:
@@ -365,19 +368,20 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/rooms/{roomId}/checkin:
+  /api/rooms/{id}/checkin:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     post:
-      operationId: checkIn
+      operationId: createCheckin
       tags: [rooms]
       summary: Join ticket plus blurred photo plus tags creates my card
       description: |
         Only a face-blurred photo ever leaves the phone (P3). The server moderates it and fails
         closed: a visible face, nudity or no outfit gets 422 `photo_rejected` with a `reason`, and
-        a moderation outage gets 503 `moderation_unavailable`. Any older check-in of mine in this
+        a moderation outage gets 503 `unavailable`. Any older check-in of mine in this
         room ends. Calls `create_checkin`.
       x-owner: B3
+      x-max-body-bytes: 4200000
       requestBody:
         required: true
         content:
@@ -390,6 +394,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MyCheckin" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
@@ -406,7 +411,7 @@ paths:
         in: query
         required: true
         description: When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
-        schema: { type: integer, format: int64 }
+        schema: { type: integer, minimum: 0 }
       - name: sig
         in: query
         required: true
@@ -431,7 +436,7 @@ paths:
         default: { $ref: "#/components/responses/UnexpectedError" }
 
   # ------------------------------------------------------------------ deck
-  /api/rooms/{roomId}/deck:
+  /api/rooms/{id}/deck:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     post:
@@ -460,11 +465,11 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/rooms/{roomId}/taps:
+  /api/rooms/{id}/taps:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     post:
-      operationId: tap
+      operationId: createTap
       tags: [deck]
       summary: Secret tap. Returns sent or mutual and taps left today
       description: |
@@ -515,7 +520,7 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/matches/{matchId}:
+  /api/matches/{id}:
     parameters:
       - $ref: "#/components/parameters/MatchId"
     get:
@@ -534,7 +539,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/matches/{matchId}/photos/{n}:
+  /api/matches/{id}/photos/{n}:
     parameters:
       - $ref: "#/components/parameters/MatchId"
       - name: n
@@ -554,7 +559,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/matches/{matchId}/choice:
+  /api/matches/{id}/choice:
     parameters:
       - $ref: "#/components/parameters/MatchId"
     post:
@@ -588,7 +593,7 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/matches/{matchId}/unmatch:
+  /api/matches/{id}/unmatch:
     parameters:
       - $ref: "#/components/parameters/MatchId"
     post:
@@ -604,7 +609,7 @@ paths:
         default: { $ref: "#/components/responses/UnexpectedError" }
 
   # ------------------------------------------------------------------ glow
-  /api/matches/{matchId}/glow:
+  /api/matches/{id}/glow:
     parameters:
       - $ref: "#/components/parameters/MatchId"
     get:
@@ -625,11 +630,11 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/matches/{matchId}/glow/met:
+  /api/matches/{id}/glow/met:
     parameters:
       - $ref: "#/components/parameters/MatchId"
     post:
-      operationId: glowMet
+      operationId: markGlowMet
       tags: [glow]
       summary: I tapped We met
       description: When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`.
@@ -644,7 +649,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/matches/{matchId}/glow/cancel:
+  /api/matches/{id}/glow/cancel:
     parameters:
       - $ref: "#/components/parameters/MatchId"
     post:
@@ -669,7 +674,7 @@ paths:
         default: { $ref: "#/components/responses/UnexpectedError" }
 
   # ------------------------------------------------------------------ chat
-  /api/matches/{matchId}/messages:
+  /api/matches/{id}/messages:
     parameters:
       - $ref: "#/components/parameters/MatchId"
     get:
@@ -731,7 +736,7 @@ paths:
   # ------------------------------------------------------------------ safety
   /api/blocks:
     post:
-      operationId: block
+      operationId: createBlock
       tags: [safety]
       summary: Block someone from a card, match or chat ID
       description: |
@@ -754,7 +759,7 @@ paths:
 
   /api/reports:
     post:
-      operationId: report
+      operationId: createReport
       tags: [safety]
       summary: Report someone (this also blocks them)
       description: Calls `create_report`.
@@ -794,7 +799,7 @@ paths:
   # ------------------------------------------------------------------ cron
   /api/cron/purge:
     get:
-      operationId: purgeExpired
+      operationId: runPurge
       tags: [cron]
       summary: Expiry cleanup, protected by the cron secret
       description: |
@@ -850,7 +855,7 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/rooms/{roomId}:
+  /api/admin/rooms/{id}:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     get:
@@ -890,7 +895,7 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/rooms/{roomId}/spots:
+  /api/admin/rooms/{id}/spots:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     put:
@@ -914,7 +919,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/rooms/{roomId}/poster:
+  /api/admin/rooms/{id}/poster:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     get:
@@ -932,7 +937,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/rooms/{roomId}/display-token:
+  /api/admin/rooms/{id}/display-token:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     get:
@@ -950,7 +955,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/rooms/{roomId}/static-token:
+  /api/admin/rooms/{id}/static-token:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     post:
@@ -968,7 +973,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/rooms/{roomId}/metrics:
+  /api/admin/rooms/{id}/metrics:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     get:
@@ -992,7 +997,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/rooms/{roomId}/cards:
+  /api/admin/rooms/{id}/cards:
     parameters:
       - $ref: "#/components/parameters/RoomId"
     get:
@@ -1069,9 +1074,9 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
-  /api/admin/reports/{reportId}/resolve:
+  /api/admin/reports/{id}/resolve:
     parameters:
-      - name: reportId
+      - name: id
         in: path
         required: true
         schema: { type: string, format: uuid }
@@ -1099,7 +1104,7 @@ paths:
   # ------------------------------------------------------------------ web
   /.well-known/apple-app-site-association:
     get:
-      operationId: appleAppSiteAssociation
+      operationId: getAppSiteAssociation
       tags: [web]
       summary: The file that lets QR links open the app
       description: Served as `application/json` with no redirect.
@@ -1124,7 +1129,7 @@ paths:
         description: The QR token. The page never shows it or the room's location.
         schema: { $ref: "#/components/schemas/QrToken" }
     get:
-      operationId: roomLandingPage
+      operationId: getRoomWebPage
       tags: [web]
       summary: Web page for people who don't have Glow yet, with the TestFlight link
       description: With Glow installed, this link opens the app instead (universal link).
@@ -1151,12 +1156,12 @@ components:
 
   parameters:
     RoomId:
-      name: roomId
+      name: id
       in: path
       required: true
       schema: { type: string, format: uuid }
     MatchId:
-      name: matchId
+      name: id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1167,12 +1172,12 @@ components:
       description: A card ID, which is the check-in ID. Never a user ID.
       schema: { type: string, format: uuid }
     PhotoId:
-      name: photoId
+      name: id
       in: path
       required: true
       schema: { type: string, format: uuid }
     DeviceId:
-      name: deviceId
+      name: id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1194,12 +1199,23 @@ components:
         image/jpeg:
           schema: { type: string, contentMediaType: image/jpeg }
     BadRequest:
-      description: The request doesn't match the contract (`invalid_request`).
+      description: The request doesn't match the contract (`bad_request`, with `issues`).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
           example:
-            error: { code: invalid_request, message: "body.tags.topColor: Required" }
+            error:
+              code: bad_request
+              message: The body is not valid.
+              issues:
+                - { path: body.tags.topColor, code: invalid_value, message: Invalid option }
+    PayloadTooLarge:
+      description: The request body is too large (`payload_too_large`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: payload_too_large, message: That request is too large. }
     Unauthorized:
       description: Missing, expired or invalid token (`unauthorized`).
       content:
@@ -1217,8 +1233,8 @@ components:
     Conflict:
       description: |
         The caller's own state doesn't allow this right now: `onboarding_incomplete`,
-        `room_not_live`, `tap_limit_reached`, `chat_not_open`, `photo_limit_reached`,
-        `last_photo` or `slug_taken`.
+        `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+        the generic `conflict`.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -1249,16 +1265,16 @@ components:
           example:
             error: { code: rate_limited, message: Slow down., retryAfterSeconds: 10 }
     Unavailable:
-      description: A dependency is down; try again (`moderation_unavailable`).
+      description: A dependency is down; try again (`unavailable`, with `reason` such as `moderation`).
       headers:
         Retry-After: { $ref: "#/components/headers/RetryAfter" }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
           example:
-            error: { code: moderation_unavailable, message: Try again in a moment., retryAfterSeconds: 5 }
+            error: { code: unavailable, message: Try again in a moment., reason: moderation }
     UnexpectedError:
-      description: "Anything else: `internal` (500) or `not_implemented` (501, endpoint stubs)."
+      description: "Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415)."
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -1286,30 +1302,42 @@ components:
           type: string
           description: |
             Extra detail for some codes. `photo_rejected`: face_visible, nudity, no_outfit,
-            no_person, possibly_minor or unreadable.
-        retryAfterSeconds:
-          type: integer
-          minimum: 1
+            no_person, possibly_minor or unreadable. `unavailable`: moderation.
+        issues:
+          type: array
+          maxItems: 20
+          description: For `bad_request`. Field paths and rule names only, never the values sent.
+          items: { $ref: "#/components/schemas/ErrorIssue" }
+    ErrorIssue:
+      type: object
+      additionalProperties: false
+      required: [path, code, message]
+      properties:
+        path: { type: string, example: body.tags.topColor }
+        code: { type: string, example: invalid_value }
+        message: { type: string }
     ErrorCode:
       type: string
       description: |
-        400 invalid_request · 401 unauthorized · 404 not_found ·
-        409 onboarding_incomplete, room_not_live, tap_limit_reached, chat_not_open,
-        photo_limit_reached, last_photo, slug_taken ·
+        400 bad_request · 401 unauthorized · 404 not_found (also for anything not allowed, P11) ·
+        409 conflict, onboarding_incomplete, room_not_live, tap_limit_reached, chat_not_open,
+        last_photo, slug_taken · 413 payload_too_large · 415 unsupported_media_type ·
         422 under_18, not_in_room, location_inaccurate, location_required, join_ticket_invalid,
         photo_rejected, message_rejected · 429 rate_limited · 500 internal ·
-        501 not_implemented · 503 moderation_unavailable
+        501 not_implemented · 503 unavailable. There is never a 403.
       enum:
-        - invalid_request
+        - bad_request
         - unauthorized
         - not_found
+        - conflict
         - onboarding_incomplete
         - room_not_live
         - tap_limit_reached
         - chat_not_open
-        - photo_limit_reached
         - last_photo
         - slug_taken
+        - payload_too_large
+        - unsupported_media_type
         - under_18
         - not_in_room
         - location_inaccurate
@@ -1320,7 +1348,7 @@ components:
         - rate_limited
         - internal
         - not_implemented
-        - moderation_unavailable
+        - unavailable
 
     # ---------------------------------------------------------------- shared enums
     Gender:

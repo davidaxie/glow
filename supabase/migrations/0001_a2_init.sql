@@ -177,6 +177,16 @@ begin
 end;
 $$;
 
+-- Times in function output are RFC 3339 UTC with milliseconds, exactly as the API sends them:
+-- 2026-10-24T20:15:00.000Z. (The generated zod schemas reject offsets like +00:00.)
+create function private.iso(p_at timestamptz)
+returns text
+language sql immutable
+set search_path = ''
+as $$
+  select to_char(p_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+$$;
+
 -------------------------------------------------------------------------------
 -- Enums (mirrored in contracts/openapi.yaml)
 -------------------------------------------------------------------------------
@@ -743,15 +753,15 @@ returns jsonb
 language sql immutable
 set search_path = ''
 as $$
-  select jsonb_build_object(
+  select jsonb_strip_nulls(jsonb_build_object(
     'id',        p_checkin.id,
     'roomId',    p_checkin.room_id,
     'cardPath',  p_checkin.card_path,
     'tags',      private.tags_json(p_checkin),
     'visible',   p_checkin.visible,
-    'joinedAt',  p_checkin.joined_at,
-    'expiresAt', p_checkin.expires_at,
-    'leftAt',    p_checkin.left_at);
+    'joinedAt',  private.iso(p_checkin.joined_at),
+    'expiresAt', private.iso(p_checkin.expires_at),
+    'leftAt',    private.iso(p_checkin.left_at)));
 $$;
 
 create function private.glow_json(p_glow public.glow_sessions, p_user_id uuid default null)
@@ -759,7 +769,7 @@ returns jsonb
 language sql stable
 set search_path = ''
 as $$
-  select jsonb_build_object(
+  select jsonb_strip_nulls(jsonb_build_object(
     'id',          p_glow.id,
     'matchId',     p_glow.match_id,
     'roomId',      p_glow.room_id,
@@ -768,16 +778,16 @@ as $$
     'codeWord',    p_glow.code_word,
     'meetingSpot', (select jsonb_build_object('id', s.id, 'name', s.name)
                     from public.meeting_spots s where s.id = p_glow.spot_id),
-    'startedAt',   p_glow.started_at,
-    'endsAt',      p_glow.ends_at,
-    'endedAt',     p_glow.ended_at,
+    'startedAt',   private.iso(p_glow.started_at),
+    'endsAt',      private.iso(p_glow.ends_at),
+    'endedAt',     private.iso(p_glow.ended_at),
     'youMet',      case when p_user_id = m.user_a then p_glow.a_met
                         when p_user_id = m.user_b then p_glow.b_met
                         else false end,
     'theyMet',     case when p_user_id = m.user_a then p_glow.b_met
                         when p_user_id = m.user_b then p_glow.a_met
                         else false end,
-    'userIds',     jsonb_build_array(m.user_a, m.user_b))
+    'userIds',     jsonb_build_array(m.user_a, m.user_b)))
   from public.matches m
   where m.id = p_glow.match_id;
 $$;
@@ -791,7 +801,7 @@ returns jsonb
 language sql stable
 set search_path = ''
 as $$
-  select jsonb_build_object(
+  select jsonb_strip_nulls(jsonb_build_object(
     'id',             p_match.id,
     'status',         p_match.status,
     'firstName',      o.first_name,
@@ -799,14 +809,14 @@ as $$
                         where pp.user_id = o.id and pp.moderation_status = 'approved'),
     'roomId',         p_match.room_id,
     'roomName',       r.name,
-    'createdAt',      p_match.created_at,
-    'choiceDeadline', p_match.choice_deadline,
+    'createdAt',      private.iso(p_match.created_at),
+    'choiceDeadline', private.iso(p_match.choice_deadline),
     'yourChoice',     case when p_user_id = p_match.user_a then p_match.a_choice else p_match.b_choice end,
     'otherHasChosen', (case when p_user_id = p_match.user_a then p_match.b_choice else p_match.a_choice end) is not null,
     'glow',           (select private.glow_json(g, p_user_id) from public.glow_sessions g
                         where g.match_id = p_match.id order by g.started_at desc limit 1),
-    'lastMessageAt',  (select max(msg.created_at) from public.messages msg where msg.match_id = p_match.id),
-    'userIds',        jsonb_build_array(p_match.user_a, p_match.user_b))
+    'lastMessageAt',  (select private.iso(max(msg.created_at)) from public.messages msg where msg.match_id = p_match.id),
+    'userIds',        jsonb_build_array(p_match.user_a, p_match.user_b)))
   from public.profiles o
   join public.rooms r on r.id = p_match.room_id
   where o.id = case when p_user_id = p_match.user_a then p_match.user_b else p_match.user_a end;
@@ -1141,13 +1151,13 @@ begin
 
   if private.active_checkin(p_viewer_id, p_room_id) is null then
     select p.paused into v_paused from public.profiles p where p.id = p_viewer_id;
-    return jsonb_build_object(
+    return jsonb_strip_nulls(jsonb_build_object(
       'cards', '[]'::jsonb,
       'viewsLeftToday', v_budget,
       'hasMore', false,
       'nextOffset', null,
       'emptyReason', case when v_paused and private.open_checkin(p_viewer_id, p_room_id) is not null
-                          then 'paused' else 'checkin_ended' end);
+                          then 'paused' else 'checkin_ended' end));
   end if;
 
   with eligible as (
@@ -1217,12 +1227,12 @@ begin
     else null
   end;
 
-  return jsonb_build_object(
+  return jsonb_strip_nulls(jsonb_build_object(
     'cards',          v_cards,
     'viewsLeftToday', v_budget - v_new,
     'hasMore',        v_viewable > v_offset + v_limit,
     'nextOffset',     case when v_viewable > v_offset + v_limit then v_offset + v_limit end,
-    'emptyReason',    v_empty);
+    'emptyReason',    v_empty));
 end;
 $$;
 
@@ -1331,10 +1341,10 @@ begin
     perform private.log_activity(p_room_id, 'match');
   end if;
 
-  return jsonb_build_object(
+  return jsonb_strip_nulls(jsonb_build_object(
     'result',        case when v_match_id is null then 'sent' else 'mutual' end,
     'tapsLeftToday', greatest(v_cap - v_used, 0),
-    'matchId',       v_match_id);
+    'matchId',       v_match_id));
 end;
 $$;
 
@@ -1650,7 +1660,7 @@ begin
   select * into v_ctx from private.resolve_context(p_reporter_id, p_context, p_context_id);
 
   if v_ctx.o_match_id is not null then
-    select coalesce(jsonb_agg(jsonb_build_object('body', x.body, 'createdAt', x.created_at) order by x.created_at),
+    select coalesce(jsonb_agg(jsonb_build_object('body', x.body, 'createdAt', private.iso(x.created_at)) order by x.created_at),
                     '[]'::jsonb)
       into v_evidence
       from (select m.body, m.created_at
@@ -1711,14 +1721,14 @@ begin
      where match_id = p_match_id and sender_id = p_sender_id and client_id = p_client_id;
   end if;
 
-  return jsonb_build_object(
+  return jsonb_strip_nulls(jsonb_build_object(
     'id',          v_msg.id,
     'matchId',     v_msg.match_id,
     'body',        v_msg.body,
     'moderation',  v_msg.moderation,
-    'createdAt',   v_msg.created_at,
+    'createdAt',   private.iso(v_msg.created_at),
     'clientId',    v_msg.client_id,
-    'recipientId', case when p_sender_id = v_m.user_a then v_m.user_b else v_m.user_a end);
+    'recipientId', case when p_sender_id = v_m.user_a then v_m.user_b else v_m.user_a end));
 end;
 $$;
 
@@ -1828,12 +1838,12 @@ begin
   select count(*) into v_views from public.card_views v
    where v.viewer_id = p_user_id and v.room_id = p_room_id and v.view_day = private.room_day(p_room_id);
 
-  return jsonb_build_object(
+  return jsonb_strip_nulls(jsonb_build_object(
     'room', jsonb_build_object('id', v_room.id, 'slug', v_room.slug, 'name', v_room.name, 'status', v_room.status,
-                               'startsAt', v_room.starts_at, 'endsAt', v_room.ends_at),
+                               'startsAt', private.iso(v_room.starts_at), 'endsAt', private.iso(v_room.ends_at)),
     'checkin', case when v_checkin.id is null then null else private.checkin_json(v_checkin) end,
     'tapsLeftToday', greatest(private.const('TAPS_PER_ROOM_PER_DAY')::integer - v_taps, 0),
-    'viewsLeftToday', greatest(private.const('CARD_VIEWS_PER_ROOM_PER_DAY')::integer - v_views, 0));
+    'viewsLeftToday', greatest(private.const('CARD_VIEWS_PER_ROOM_PER_DAY')::integer - v_views, 0)));
 end;
 $$;
 
