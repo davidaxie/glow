@@ -1,0 +1,97 @@
+# Owner: A1. A Vercel preview for every PR, and production for main, with the Vercel
+# CLI. Skips cleanly until the project is linked: add the VERCEL_TOKEN, VERCEL_ORG_ID
+# and VERCEL_PROJECT_ID repository secrets (see "Needs David" in docs/HANDOFFS.md).
+# server/vercel.json turns off Vercel's own Git deploys so nothing deploys twice.
+name: Vercel
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  VERCEL_CLI: vercel@64.7.0
+
+jobs:
+  deploy:
+    name: ${{ github.event_name == 'pull_request' && 'Preview deploy' || 'Production deploy' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      TARGET: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+    steps:
+      - name: Is Vercel linked?
+        id: linked
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel isn't linked yet (no VERCEL_TOKEN, VERCEL_ORG_ID or VERCEL_PROJECT_ID secret), so nothing is deployed."
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.linked.outputs.yes == 'true'
+
+      - uses: pnpm/action-setup@v6
+        if: steps.linked.outputs.yes == 'true'
+
+      - uses: actions/setup-node@v7
+        if: steps.linked.outputs.yes == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        if: steps.linked.outputs.yes == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull the Vercel project settings and environment
+        if: steps.linked.outputs.yes == 'true'
+        run: pnpm dlx "$VERCEL_CLI" pull --yes --environment="$TARGET" --token="$VERCEL_TOKEN"
+
+      # next.config.ts validates the environment here, so a missing or wrong variable
+      # fails the deploy with a message naming it.
+      - name: Build
+        if: steps.linked.outputs.yes == 'true'
+        run: |
+          if [ "$TARGET" = production ]; then
+            pnpm dlx "$VERCEL_CLI" build --prod --token="$VERCEL_TOKEN"
+          else
+            pnpm dlx "$VERCEL_CLI" build --token="$VERCEL_TOKEN"
+          fi
+
+      - name: Deploy
+        id: deploy
+        if: steps.linked.outputs.yes == 'true'
+        run: |
+          if [ "$TARGET" = production ]; then
+            url="$(pnpm dlx "$VERCEL_CLI" deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
+          else
+            url="$(pnpm dlx "$VERCEL_CLI" deploy --prebuilt --token="$VERCEL_TOKEN")"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Vercel $TARGET: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post the preview URL on the PR
+        if: steps.linked.outputs.yes == 'true' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.deploy.outputs.url }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          body="Vercel preview: $URL (commit ${GITHUB_SHA::7})"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --body "$body" 2>/dev/null ||
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "$body"

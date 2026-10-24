@@ -1,0 +1,179 @@
+# Owner: A1. Two jobs on every PR and on main. Both must be green to merge.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu:
+    name: Ubuntu · server and database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Look for A2's database and codegen
+        id: parts
+        run: |
+          if [ -f supabase/config.toml ]; then echo "supabase=true" >> "$GITHUB_OUTPUT"; else
+            echo "supabase=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::supabase/config.toml isn't on this branch yet, so pgTAP and the signed-in smoke test are skipped."
+          fi
+          if [ -f scripts/codegen.sh ]; then echo "codegen=true" >> "$GITHUB_OUTPUT"; else
+            echo "codegen=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::scripts/codegen.sh isn't on this branch yet, so the codegen staleness check is skipped."
+          fi
+
+      - uses: supabase/setup-cli@v3
+        if: steps.parts.outputs.supabase == 'true'
+        with:
+          version: 2.122.0
+
+      - name: Start local Supabase
+        if: steps.parts.outputs.supabase == 'true'
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta
+
+      - name: Codegen is up to date
+        if: steps.parts.outputs.codegen == 'true'
+        run: |
+          scripts/codegen.sh
+          if ! git diff --exit-code --stat; then
+            echo "::error::Generated files are stale. Run 'pnpm codegen' and commit the result."
+            exit 1
+          fi
+          untracked="$(git ls-files --others --exclude-standard)"
+          if [ -n "$untracked" ]; then
+            echo "::error::Codegen created files that aren't committed: $untracked"
+            exit 1
+          fi
+
+      - name: Server environment (local profile)
+        run: scripts/env-setup.sh --force
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Prettier
+        run: pnpm format:check
+
+      - name: Vitest
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: A missing variable stops the server with a clear message
+        run: |
+          set +e
+          out="$(SUPABASE_SERVICE_ROLE_KEY= timeout 60 pnpm --filter server exec next start -p 3999 2>&1)"
+          code=$?
+          set -e
+          echo "$out"
+          [ "$code" -ne 0 ] || { echo "::error::The server started without SUPABASE_SERVICE_ROLE_KEY"; exit 1; }
+          echo "$out" | grep -q "SUPABASE_SERVICE_ROLE_KEY  is missing" || { echo "::error::No clear message"; exit 1; }
+
+      - name: Smoke test every endpoint
+        run: |
+          pnpm --filter server exec next start -p 3000 > /tmp/server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3000/ && break; sleep 1; done
+          scripts/smoke.sh
+          if [ "${{ steps.parts.outputs.supabase }}" = "true" ]; then
+            GLOW_TOKEN="$(scripts/dev-token.sh)" scripts/smoke.sh
+          fi
+
+      - name: pgTAP
+        if: steps.parts.outputs.supabase == 'true'
+        run: supabase test db
+
+      - name: Server log
+        if: failure()
+        run: cat /tmp/server.log || true
+
+  macos:
+    name: macOS · iOS build and tests
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Look for A3's iOS project
+        id: ios
+        run: |
+          if [ -f ios/project.yml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ios/project.yml isn't on this branch yet, so the iOS build and tests are skipped."
+          fi
+
+      - name: Tools
+        if: steps.ios.outputs.present == 'true'
+        run: |
+          brew install xcodegen swiftlint swiftformat || brew upgrade swiftformat
+          xcodebuild -version
+          xcodegen --version
+          swiftlint version
+          swiftformat --version
+
+      - name: SwiftLint
+        if: steps.ios.outputs.present == 'true' && hashFiles('.swiftlint.yml') != ''
+        run: swiftlint lint --strict --reporter github-actions-logging
+
+      - name: SwiftFormat
+        if: steps.ios.outputs.present == 'true' && hashFiles('.swiftformat') != ''
+        run: swiftformat --lint .
+
+      - name: Generate the Xcode project
+        if: steps.ios.outputs.present == 'true'
+        run: xcodegen generate --spec ios/project.yml
+
+      - name: Build and test on a Simulator
+        if: steps.ios.outputs.present == 'true'
+        env:
+          GLOW_CI: '1'
+        run: |
+          if [ -x scripts/sim.sh ]; then
+            scripts/sim.sh setup
+            scripts/sim.sh build
+            scripts/sim.sh test
+          else
+            echo "::warning::scripts/sim.sh isn't here yet, so CI calls xcodebuild directly."
+            project="$(ls -d ios/*.xcodeproj | head -n1)"
+            xcodebuild test \
+              -project "$project" \
+              -scheme Glow \
+              -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+              -resultBundlePath build/Glow.xcresult \
+              CODE_SIGNING_ALLOWED=NO
+          fi
+
+      - name: Keep the test results
+        if: failure() && steps.ios.outputs.present == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-test-results
+          path: |
+            build/*.xcresult
+            ios/build/**/*.xcresult
+          if-no-files-found: ignore

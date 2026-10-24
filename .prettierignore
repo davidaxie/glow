@@ -10,10 +10,10 @@ next-env.d.ts
 server/src/contracts/
 ios/
 
-# The spec is exported verbatim from the doc and must stay that way.
-docs/SPEC.md
-docs/BUILD_PLAN.md
-docs/briefs/
+# Markdown isn't reformatted: the spec, build plan and briefs are exported verbatim
+# from the doc, AGENTS.md copies parts of them word for word, and every agent edits
+# HANDOFFS.md and DECISIONS.md.
+**/*.md
 
 # Owned by A2. Not formatted by Prettier.
 supabase/
