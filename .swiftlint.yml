@@ -53,6 +53,21 @@ custom_rules:
     excluded: '/Tests/|UITests/'
     message: 'Use os.Logger with privacy annotations (see AppCore Log).'
     severity: error
-  # B6 adds design-token rules here (feature modules may not define their own colors or fonts).
+  # Design tokens (B6): feature modules use DesignSystem's colors and type, never their own.
+  # DesignSystemTests/LintRuleTests checks what these catch and what they let through.
+  glow_feature_colors:
+    name: 'Feature modules use DesignSystem colors'
+    regex: '(\b(Color|UIColor|CGColor)\s*(\.init)?\(|#colorLiteral|\bUIColor\.|\bColor\.(red|orange|yellow|green|mint|teal|cyan|blue|indigo|purple|pink|brown|white|gray|black|primary|secondary|accentColor)\b|\.(foregroundStyle|foregroundColor|background|tint|fill|stroke|strokeBorder|border|accentColor|listRowBackground|presentationBackground|shadow)\(\s*(color:\s*)?\.(red|orange|yellow|green|mint|teal|cyan|blue|indigo|purple|pink|brown|white|gray|black|primary|secondary|tertiary|quaternary)\b)'
+    included: '/Sources/Feature[^/]+/.+\.swift$'
+    excluded_match_kinds: [comment, doccomment, string, string_interpolation_anchor]
+    message: 'Use a DesignSystem color (.glowTextPrimary, .glowAccent, GlowHue, GlowSwatch…). Ask B6 for a new token.'
+    severity: error
+  glow_feature_fonts:
+    name: 'Feature modules use DesignSystem type'
+    regex: '(\b(Font|UIFont)\s*\.\s*(system|custom)\s*\(|\bUIFont\b|\bFont\.(largeTitle|title|title2|title3|headline|subheadline|body|callout|footnote|caption|caption2)\b|\.font\(\s*\.(?!glow\()|\.(fontDesign|fontWidth)\()'
+    included: '/Sources/Feature[^/]+/.+\.swift$'
+    excluded_match_kinds: [comment, doccomment, string, string_interpolation_anchor]
+    message: 'Use a DesignSystem text style: .glowFont(.body) or .font(.glow(.headline)). Ask B6 for a new one.'
+    severity: error
 
 reporter: xcode
