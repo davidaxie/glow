@@ -31,13 +31,13 @@ public struct LiveGlowClient: GlowClient {
 
     public func glow(for match: MatchID) async throws(APIError) -> GlowSession {
         try await api.perform { client in
-            try GlowSession(client.getGlow(path: .init(id: match.rawValue)).ok.body.json)
+            try await GlowSession(client.getGlow(path: .init(id: match.rawValue)).ok.body.json)
         }
     }
 
     public func markMet(_ match: MatchID) async throws(APIError) -> GlowSession {
         try await api.perform { client in
-            try GlowSession(client.markGlowMet(path: .init(id: match.rawValue)).ok.body.json)
+            try await GlowSession(client.markGlowMet(path: .init(id: match.rawValue)).ok.body.json)
         }
     }
 
@@ -47,7 +47,7 @@ public struct LiveGlowClient: GlowClient {
         case .switchToChat: .switchToChat
         }
         return try await api.perform { client in
-            try GlowSession(
+            try await GlowSession(
                 client.cancelGlow(path: .init(id: match.rawValue), body: .json(.init(reason: reason))).ok.body.json,
             )
         }

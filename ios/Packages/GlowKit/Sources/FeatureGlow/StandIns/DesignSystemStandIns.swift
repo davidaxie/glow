@@ -55,8 +55,8 @@ struct GlowBloom: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isPulsing)) { timeline in
             let frame = isPulsing
-                ? GlowPulseFrame.at(timeline.date.timeIntervalSinceReferenceDate, reduceMotion: reduceMotion)
-                : .resting
+                ? GlowPulse.frame(at: timeline.date.timeIntervalSinceReferenceDate, reduceMotion: reduceMotion)
+                : GlowPulse.Frame.resting
             GeometryReader { proxy in
                 let radius = max(proxy.size.width, proxy.size.height) * 0.75 * frame.scale
                 ZStack {
@@ -76,18 +76,22 @@ struct GlowBloom: View {
     }
 }
 
-/// B6's `GlowPulse.Frame`: one moment of the pulse, a smooth cosine wave.
-struct GlowPulseFrame: Equatable {
-    let opacity: Double
-    let scale: Double
+extension GlowPulse {
+    /// B6's `GlowPulse.Frame`: one moment of the pulse.
+    struct Frame: Equatable {
+        let opacity: Double
+        let scale: Double
 
-    static let resting = GlowPulseFrame(opacity: 0.6, scale: 1)
+        static let resting = Frame(opacity: 0.6, scale: 1)
+    }
 
-    static func at(_ time: TimeInterval, reduceMotion: Bool) -> GlowPulseFrame {
-        let period = reduceMotion ? GlowPulse.reducedPeriod : GlowPulse.period
-        let phase = time.truncatingRemainder(dividingBy: period) / period
+    /// B6's `GlowPulse.frame(at:reduceMotion:)`: a smooth cosine wave. Reduce Motion only fades,
+    /// more slowly, and never changes size.
+    static func frame(at time: TimeInterval, reduceMotion: Bool) -> Frame {
+        let length = reduceMotion ? reducedPeriod : period
+        let phase = time.truncatingRemainder(dividingBy: length) / length
         let wave = 0.5 - 0.5 * cos(2 * Double.pi * phase)
-        return GlowPulseFrame(opacity: 0.2 + 0.8 * wave, scale: reduceMotion ? 1 : 0.85 + 0.15 * wave)
+        return Frame(opacity: 0.2 + 0.8 * wave, scale: reduceMotion ? 1 : 0.85 + 0.15 * wave)
     }
 }
 
@@ -136,7 +140,7 @@ struct GlowOnSurfaceButtonBody<Label: View>: View {
 
     @Environment(\.glowHue) private var hue
     @Environment(\.isEnabled) private var isEnabled
-    @ScaledMetric(relativeTo: .body) private var height: CGFloat = 52
+    @ScaledMetric(relativeTo: .body) private var height = GlowSize.buttonHeight
 
     var body: some View {
         let hue = hue ?? .pearl

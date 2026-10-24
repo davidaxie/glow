@@ -29,13 +29,7 @@ public protocol GlowLiveActivities: AnyObject {
 public final class ActivityKitGlowLiveActivities: GlowLiveActivities {
     public static let lingerAfterEnd: TimeInterval = 60
 
-    private let logger = Logger(subsystem: "com.davidxie.glow", category: "glow.activity")
-
     public init() {}
-
-    private var activities: [Activity<GlowActivityAttributes>] {
-        Activity<GlowActivityAttributes>.activities
-    }
 
     public func show(_ session: GlowSession, at now: Date) async {
         let content = ActivityContent(
@@ -43,32 +37,64 @@ public final class ActivityKitGlowLiveActivities: GlowLiveActivities {
             staleDate: session.endsAt,
             relevanceScore: 100,
         )
-        if let current = activities.first(where: { $0.attributes.glowID == session.id }) {
-            await current.update(content)
+        if await Self.update(glowID: session.id, to: content) {
             return
         }
-        await endFinished(at: now, keeping: nil)
+        await Self.endAll(at: now, keeping: nil)
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            logger.info("Live Activities are off; the glow screen still counts down")
+            Self.logger.info("Live Activities are off; the glow screen still counts down")
             return
         }
         do {
             _ = try Activity.request(attributes: session.activityAttributes, content: content, pushType: nil)
         } catch {
             // Too many activities, or the person turned them off mid-glow. The screen still works.
-            logger.error("Couldn't start the glow's Live Activity")
+            Self.logger.error("Couldn't start the glow's Live Activity")
         }
     }
 
     public func end(_ session: GlowSession, at now: Date) async {
         let content = ActivityContent(state: session.activityState(at: now), staleDate: nil)
-        for activity in activities where activity.attributes.glowID == session.id {
-            await activity.end(content, dismissalPolicy: .after(now.addingTimeInterval(Self.lingerAfterEnd)))
-        }
+        await Self.end(glowID: session.id, with: content, dismissAt: now.addingTimeInterval(Self.lingerAfterEnd))
     }
 
     public func endFinished(at now: Date, keeping glowID: String?) async {
-        for activity in activities where activity.attributes.glowID != glowID || activity.content.state.endsAt <= now {
+        await Self.endAll(at: now, keeping: glowID)
+    }
+
+    // ActivityKit's `Activity` isn't Sendable, so it never crosses to the main actor: each helper
+    // looks the activities up and talks to them in its own nonisolated context.
+
+    private nonisolated static let logger = Logger(subsystem: "com.davidxie.glow", category: "glow.activity")
+
+    /// Updates this glow's activity. False if there isn't one.
+    private nonisolated static func update(
+        glowID: String,
+        to content: ActivityContent<GlowActivityAttributes.ContentState>,
+    ) async -> Bool {
+        var found = false
+        for activity in Activity<GlowActivityAttributes>.activities where activity.attributes.glowID == glowID {
+            found = true
+            await activity.update(content)
+        }
+        return found
+    }
+
+    private nonisolated static func end(
+        glowID: String,
+        with content: ActivityContent<GlowActivityAttributes.ContentState>,
+        dismissAt date: Date,
+    ) async {
+        for activity in Activity<GlowActivityAttributes>.activities where activity.attributes.glowID == glowID {
+            await activity.end(content, dismissalPolicy: .after(date))
+        }
+    }
+
+    /// Ends, at once, every glow activity that isn't `keeping` or whose time has run out.
+    private nonisolated static func endAll(at now: Date, keeping glowID: String?) async {
+        for activity in Activity<GlowActivityAttributes>.activities
+            where activity.attributes.glowID != glowID || activity.content.state.endsAt <= now
+        {
             var state = activity.content.state
             if !state.phase.isOver {
                 state.phase = .expired
