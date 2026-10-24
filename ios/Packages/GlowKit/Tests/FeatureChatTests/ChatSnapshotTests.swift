@@ -78,6 +78,9 @@ struct ChatSnapshotTests {
         .environment(\.dynamicTypeSize, size)
         .environment(\.colorScheme, .dark)
         .environment(\.locale, Locale(identifier: "en_US"))
+        // An offscreen render leaves iOS 26's blur under the bars blank (white) once a thread
+        // is long enough to scroll under them. The app itself draws it fine.
+        .environment(\.chatHidesScrollEdgeEffect, true)
 
         assertSnapshot(
             of: view,

@@ -66,6 +66,8 @@ struct ChatScreen: View {
             .background(.glowBackground)
             .navigationTitle(model.header?.firstName ?? String(localized: "Chat"))
             .navigationBarTitleDisplayMode(.inline)
+            // The composer is the bottom of this screen; the tabs come back on the way out.
+            .toolbar(.hidden, for: .tabBar)
             .toolbar { optionsMenu }
             .confirmationDialog(unmatchTitle, isPresented: $confirmingUnmatch, titleVisibility: .visible) {
                 Button("Unmatch", role: .destructive) {
@@ -190,6 +192,7 @@ struct ChatStateView<Content: View>: View {
 struct ChatThread: View {
     @Bindable var model: ChatModel
     var composerFocused: FocusState<Bool>.Binding
+    @Environment(\.chatHidesScrollEdgeEffect) private var hidesScrollEdgeEffect
 
     var body: some View {
         let rows = model.rows
@@ -241,6 +244,7 @@ struct ChatThread: View {
                 .padding(.vertical, GlowSpacing.sm)
             }
             .defaultScrollAnchor(.bottom)
+            .modifier(HidingScrollEdgeEffect(hidden: hidesScrollEdgeEffect))
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: rows.last?.id) { _, last in
                 guard let last else { return }
@@ -266,6 +270,24 @@ struct ChatThread: View {
             if let first {
                 proxy.scrollTo(first, anchor: .top)
             }
+        }
+    }
+}
+
+extension EnvironmentValues {
+    /// Snapshot tests only: offscreen renders draw iOS 26's blur under the bars as blank.
+    @Entry var chatHidesScrollEdgeEffect = false
+}
+
+/// Turns off the iOS 26 scroll edge blur when asked (snapshot tests), and does nothing before 26.
+struct HidingScrollEdgeEffect: ViewModifier {
+    let hidden: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *), hidden {
+            content.scrollEdgeEffectHidden(true, for: .all)
+        } else {
+            content
         }
     }
 }

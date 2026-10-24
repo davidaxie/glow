@@ -16,7 +16,7 @@ struct ChatBubble: View {
 
     @State private var choosingFix = false
 
-    static let sendingOpacity = 0.85
+    nonisolated static let sendingOpacity = 0.85
 
     private var message: ChatMessage {
         row.message
