@@ -98,7 +98,8 @@ export function loadEnv(api?: string): Env {
     serviceKey: pick('SUPABASE_SERVICE_ROLE_KEY'),
     cronSecret: pick('CRON_SECRET'),
   };
-  if (!isLocalUrl(env.api)) throw new Error(`refusing to play against ${env.api}: local servers only`);
+  if (!isLocalUrl(env.api))
+    throw new Error(`refusing to play against ${env.api}: local servers only`);
   if (env.supabaseUrl && !isLocalUrl(env.supabaseUrl)) {
     throw new Error(`refusing to use Supabase at ${env.supabaseUrl}: local Supabase only`);
   }
@@ -114,7 +115,9 @@ export class ApiError extends Error {
   readonly operation: string;
 
   constructor(operation: string, status: number, code?: string, reason?: string) {
-    super(`${operation} answered ${status}${code ? ` ${code}` : ''}${reason ? ` (${reason})` : ''}`);
+    super(
+      `${operation} answered ${status}${code ? ` ${code}` : ''}${reason ? ` (${reason})` : ''}`,
+    );
     this.status = status;
     this.code = code;
     this.reason = reason;
@@ -250,7 +253,12 @@ export class Person {
     });
   }
 
-  checkIn(roomId: string, ticket: string, jpeg: Buffer, tags: MyCheckin['tags']): Promise<MyCheckin> {
+  checkIn(
+    roomId: string,
+    ticket: string,
+    jpeg: Buffer,
+    tags: MyCheckin['tags'],
+  ): Promise<MyCheckin> {
     return this.call('createCheckin', 'POST', `/api/rooms/${roomId}/checkin`, {
       ticket,
       photo: jpeg.toString('base64'),
@@ -345,7 +353,8 @@ export function freshEmail(prefix: string): string {
 
 /** Signs in with B1's test sign-in, or, until it ships, the same way it does (local Supabase). */
 export async function signIn(env: Env, email: string): Promise<Session> {
-  if (!email.endsWith('@glow.test')) throw new Error('test sign-in takes @glow.test addresses only');
+  if (!email.endsWith('@glow.test'))
+    throw new Error('test sign-in takes @glow.test addresses only');
   const res = await fetch(`${env.api}/api/dev/test-login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -356,15 +365,26 @@ export async function signIn(env: Env, email: string): Promise<Session> {
     return { accessToken: session.accessToken, userId: session.userId, email };
   }
   if (res.status !== 501) {
-    throw new ApiError('testLogin', res.status, undefined, 'is ALLOW_TEST_LOGIN on? pnpm env:setup --force --test-login');
+    throw new ApiError(
+      'testLogin',
+      res.status,
+      undefined,
+      'is ALLOW_TEST_LOGIN on? pnpm env:setup --force --test-login',
+    );
   }
-  note('POST /api/dev/test-login is still a stub (B1): signing in through the local Supabase instead');
+  note(
+    'POST /api/dev/test-login is still a stub (B1): signing in through the local Supabase instead',
+  );
   return signInWithSupabase(env, email);
 }
 
 async function signInWithSupabase(env: Env, email: string): Promise<Session> {
   const { supabaseUrl, anonKey, serviceKey } = requireSupabase(env);
-  const admin = { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, 'content-type': 'application/json' };
+  const admin = {
+    apikey: serviceKey,
+    authorization: `Bearer ${serviceKey}`,
+    'content-type': 'application/json',
+  };
   // Make the person if they're new (an existing address answers 422, which is fine).
   await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
     method: 'POST',
@@ -376,9 +396,13 @@ async function signInWithSupabase(env: Env, email: string): Promise<Session> {
     headers: admin,
     body: JSON.stringify({ type: 'magiclink', email }),
   });
-  const linked = (await link.json()) as { hashed_token?: string; properties?: { hashed_token?: string } };
+  const linked = (await link.json()) as {
+    hashed_token?: string;
+    properties?: { hashed_token?: string };
+  };
   const tokenHash = linked.hashed_token ?? linked.properties?.hashed_token;
-  if (!link.ok || !tokenHash) throw new Error(`could not make a sign-in link for ${email} (${link.status})`);
+  if (!link.ok || !tokenHash)
+    throw new Error(`could not make a sign-in link for ${email} (${link.status})`);
   const verify = await fetch(`${supabaseUrl}/auth/v1/verify`, {
     method: 'POST',
     headers: { apikey: anonKey, 'content-type': 'application/json' },
@@ -394,7 +418,9 @@ async function signInWithSupabase(env: Env, email: string): Promise<Session> {
 function requireSupabase(env: Env): Required<Pick<Env, 'supabaseUrl' | 'anonKey' | 'serviceKey'>> {
   const { supabaseUrl, anonKey, serviceKey } = env;
   if (!supabaseUrl || !anonKey || !serviceKey) {
-    throw new Error('need SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY (pnpm env:setup)');
+    throw new Error(
+      'need SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY (pnpm env:setup)',
+    );
   }
   return { supabaseUrl, anonKey, serviceKey };
 }
@@ -436,7 +462,11 @@ export type ProfileInput = {
  * Signs in a test person and finishes their onboarding through B1's routes: profile, one
  * profile photo, complete. Until those ship, it writes the same profile with the service role.
  */
-export async function onboardedPerson(env: Env, email: string, input: ProfileInput): Promise<Person> {
+export async function onboardedPerson(
+  env: Env,
+  email: string,
+  input: ProfileInput,
+): Promise<Person> {
   const person = new Person(env, await signIn(env, email));
   const profile = {
     firstName: input.firstName,
@@ -451,7 +481,9 @@ export async function onboardedPerson(env: Env, email: string, input: ProfileInp
     await person.call('completeOnboarding', 'POST', '/api/me/onboarding/complete');
   } catch (error) {
     if (!(error instanceof ApiError && error.isStub)) throw error;
-    note(`${error.operation} is still a stub (B1): writing the profile with the service role instead`);
+    note(
+      `${error.operation} is still a stub (B1): writing the profile with the service role instead`,
+    );
     await serviceRest(env, 'PATCH', `profiles?id=eq.${person.userId}`, {
       first_name: profile.firstName,
       birthdate: profile.birthdate,
@@ -482,7 +514,8 @@ export async function waitFor<T>(
   for (;;) {
     const value = await probe();
     if (value !== undefined) return value;
-    if (Date.now() > deadline) throw new Error(`timed out after ${Math.round(timeoutMs / 1000)} s waiting for ${what}`);
+    if (Date.now() > deadline)
+      throw new Error(`timed out after ${Math.round(timeoutMs / 1000)} s waiting for ${what}`);
     await sleep(everyMs);
   }
 }

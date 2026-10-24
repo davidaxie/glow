@@ -153,7 +153,12 @@ export class PlayerB {
       case 'checkin': {
         if (!this.state.roomId) await this.run('join');
         // A fresh join each time: the ticket lasts JOIN_TICKET_TTL and check-in needs a recent pass.
-        const ticket = await this.person.join(this.room.id, this.room.slug, this.room.token, this.where());
+        const ticket = await this.person.join(
+          this.room.id,
+          this.room.slug,
+          this.room.token,
+          this.where(),
+        );
         this.checkin = await this.person.checkIn(this.room.id, ticket.ticket, this.photo, {
           topColor: 'blue',
           hairLength: 'short',
@@ -185,7 +190,8 @@ export class PlayerB {
           this.state.matchId ??
           (await waitFor(
             'the mutual match',
-            async () => (await this.person.matches()).matches.find((m) => m.status === 'choosing')?.id,
+            async () =>
+              (await this.person.matches()).matches.find((m) => m.status === 'choosing')?.id,
             this.timeoutMs,
           ));
         const match = await this.person.match(matchId);
@@ -204,7 +210,9 @@ export class PlayerB {
           'the glow to start',
           async () => {
             const match = await this.person.match(this.matchId());
-            return match.status === 'glowing' ? (match.glow ?? (await this.person.glow(this.matchId()))) : undefined;
+            return match.status === 'glowing'
+              ? (match.glow ?? (await this.person.glow(this.matchId())))
+              : undefined;
           },
           this.timeoutMs,
         );
@@ -348,11 +356,16 @@ function serve(player: PlayerB, port: number): Promise<number> {
           failed = true;
           const message = error instanceof Error ? error.message : String(error);
           note(`B's ${step} failed: ${message}`);
-          reply(res, error instanceof ApiError && error.isStub ? 501 : 409, { error: message, state: player.state });
+          reply(res, error instanceof ApiError && error.isStub ? 501 : 409, {
+            error: message,
+            state: player.state,
+          });
         }
       });
     });
-    server.listen(port, '127.0.0.1', () => note(`player B is listening on http://127.0.0.1:${port}`));
+    server.listen(port, '127.0.0.1', () =>
+      note(`player B is listening on http://127.0.0.1:${port}`),
+    );
   });
 }
 
@@ -420,7 +433,12 @@ async function main(): Promise<number> {
     latitude: Number(values.lat),
     longitude: Number(values.lng),
   };
-  const player = new PlayerB(person, room, readFileSync(values.photo), Number(values.timeout) * 1000);
+  const player = new PlayerB(
+    person,
+    room,
+    readFileSync(values.photo),
+    Number(values.timeout) * 1000,
+  );
   player.cardToTap = values.card;
   if (values.say) player.sayText = values.say;
   player.expectText = values.expect;
@@ -431,7 +449,9 @@ async function main(): Promise<number> {
       print(await player.run('join'));
       print(await player.run('checkin'));
     } catch (error) {
-      note(`B couldn't get into the room: ${error instanceof Error ? error.message : String(error)}`);
+      note(
+        `B couldn't get into the room: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return exitCodeFor(error);
     }
     return serve(player, Number(values.control));

@@ -10,10 +10,15 @@
 // spot, so `scripts/sim.sh at venue` stands inside it. A room per run means a journey's deck holds
 // only the people in that run, however many runs came before (D1-D1).
 
-import { parseArgs } from 'node:util';
+import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
 import {
   DEMO_ROOM,
+  ROOT,
   Person,
   freshEmail,
   loadEnv,
@@ -31,9 +36,12 @@ const USAGE = `Usage: node scripts/e2e/harness.ts <command> [options]
   person PREFIX [--name N --gender G --show-me LIST]
                                   a fresh onboarded test person; prints { email, userId, accessToken }
   expire ACCESS_TOKEN ROOM_ID     end that person's check-in as if its time ran out, then run purge
+  serve --port P [--udid U] [--token T --room R]
+                                  the helper UI tests call: POST /push/<fixture>, POST /expire
   --api URL                       the API (default $GLOW_API, else http://localhost:3000)`;
 
 const ADMIN_EMAIL = 'admin@glow.test';
+const BUNDLE_ID = 'com.davidxie.glow';
 
 async function admin(env: Env): Promise<Person> {
   return new Person(env, await signIn(env, ADMIN_EMAIL));
@@ -90,6 +98,57 @@ async function expire(env: Env, accessToken: string, roomId: string) {
   return { expired: rows.length, purge: await purge.json() };
 }
 
+/**
+ * The Mac-side helper a UI test calls for what it can't do from inside the Simulator, on
+ * 127.0.0.1 only: `POST /push/<fixture>` runs `xcrun simctl push` with ios/fixtures/push/<fixture>.apns,
+ * `POST /expire` ends person A's check-in (the token and room given at start), `GET /health`,
+ * `POST /quit`.
+ */
+function serve(
+  env: Env,
+  port: number,
+  udid: string | undefined,
+  token: string | undefined,
+  roomId: string | undefined,
+) {
+  return new Promise<number>((resolve) => {
+    const reply = (res: ServerResponse, status: number, body: unknown) => {
+      res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(body));
+    };
+    const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      const fail = (error: unknown) =>
+        reply(res, 409, { error: error instanceof Error ? error.message : String(error) });
+      if (req.method === 'GET' && url.pathname === '/health') return reply(res, 200, { ok: true });
+      if (req.method === 'POST' && url.pathname === '/quit') {
+        reply(res, 200, { ok: true });
+        server.close();
+        return resolve(0);
+      }
+      const push = /^\/push\/([a-z_]+)$/.exec(url.pathname);
+      if (req.method === 'POST' && push?.[1]) {
+        if (!udid) return fail(new Error('started without --udid'));
+        const file = join(ROOT, 'ios/fixtures/push', `${push[1]}.apns`);
+        if (!existsSync(file)) return reply(res, 404, { error: `no fixture ${push[1]}` });
+        execFile('xcrun', ['simctl', 'push', udid, BUNDLE_ID, file], (error) =>
+          error ? fail(error) : reply(res, 200, { pushed: push[1] }),
+        );
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/expire') {
+        if (!token || !roomId) return fail(new Error('started without --token and --room'));
+        expire(env, token, roomId).then((out) => reply(res, 200, out), fail);
+        return;
+      }
+      reply(res, 404, { error: 'unknown request' });
+    });
+    server.listen(port, '127.0.0.1', () =>
+      note(`harness is listening on http://127.0.0.1:${port}`),
+    );
+  });
+}
+
 async function main(): Promise<number> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -100,6 +159,10 @@ async function main(): Promise<number> {
       name: { type: 'string', default: 'Avery' },
       gender: { type: 'string', default: 'woman' },
       'show-me': { type: 'string', default: 'man' },
+      port: { type: 'string' },
+      udid: { type: 'string' },
+      token: { type: 'string' },
+      room: { type: 'string' },
       help: { type: 'boolean', default: false },
     },
   });
@@ -123,17 +186,28 @@ async function main(): Promise<number> {
     case 'person': {
       const genders = ['woman', 'man', 'nonbinary'] as const;
       const gender = genders.find((g) => g === values.gender);
-      const showMe = values['show-me'].split(',').flatMap((g) => genders.filter((x) => x === g.trim()));
+      const showMe = values['show-me']
+        .split(',')
+        .flatMap((g) => genders.filter((x) => x === g.trim()));
       if (!rest[0] || !gender || showMe.length === 0) break;
       const email = freshEmail(rest[0]);
       const person = await onboardedPerson(env, email, { firstName: values.name, gender, showMe });
-      out({ email, userId: person.userId, accessToken: person.session.accessToken, firstName: values.name });
+      out({
+        email,
+        userId: person.userId,
+        accessToken: person.session.accessToken,
+        firstName: values.name,
+      });
       return 0;
     }
     case 'expire': {
       if (!rest[0] || !rest[1]) break;
       out(await expire(env, rest[0], rest[1]));
       return 0;
+    }
+    case 'serve': {
+      if (!values.port) break;
+      return serve(env, Number(values.port), values.udid, values.token, values.room);
     }
   }
   process.stderr.write(`${USAGE}\n`);
