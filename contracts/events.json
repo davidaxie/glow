@@ -1,0 +1,111 @@
+{
+  "$comment": "Realtime and push events for Glow (docs/SPEC.md, Events and push). The server sends every event over Realtime to a private channel, and as an Apple push when the event has one. Payloads carry only the event type plus a match or room ID: never a user ID, name, photo or message text (P1, P6). Apps refetch details from the API. Each payload's schema is components.schemas[payloadSchema] in contracts/openapi.yaml, so both generated clients have the type. scripts/codegen.sh checks that the two files agree and generates server/src/contracts/events.ts and ios/Packages/GlowKit/Sources/APIClient/Generated/GlowEvents.swift.",
+  "version": 1,
+  "channels": {
+    "user": {
+      "topic": "user:{userId}",
+      "private": true,
+      "audience": "Only that person. {userId} is their auth user ID as a lowercase UUID."
+    },
+    "room": {
+      "topic": "room:{roomId}",
+      "private": true,
+      "audience": "People with an open check-in in that room. {roomId} is a lowercase UUID."
+    }
+  },
+  "realtime": {
+    "$comment": "Server side: broadcast to the private channel with event = the event type and payload = the event object. App side: subscribe with private: true. Apps can never send, and presence is never allowed.",
+    "broadcastEventIsType": true,
+    "private": true
+  },
+  "push": {
+    "$comment": "APNs payload: { aps: { alert: { body }, sound, category, thread-id, interruption-level }, type, matchId | roomId }. The apns-collapse-id header uses collapseId. The alert body is fixed text and never contains a name.",
+    "customKeys": ["type", "matchId", "roomId"]
+  },
+  "events": {
+    "match.created": {
+      "description": "The second tap lands and a mutual match exists.",
+      "channel": "user",
+      "to": "both people",
+      "payloadSchema": "MatchCreatedEvent",
+      "push": {
+        "body": "Someone you noticed noticed you back.",
+        "category": "MATCH",
+        "interruptionLevel": "active",
+        "sound": "default",
+        "collapseId": "match.created:{matchId}",
+        "threadId": "match:{matchId}"
+      }
+    },
+    "match.choice": {
+      "description": "The other person chose Find or Chat, or their choice needs a fresh location check. Refetch the match.",
+      "channel": "user",
+      "to": "the other person",
+      "payloadSchema": "MatchChoiceEvent",
+      "push": null
+    },
+    "match.ended": {
+      "description": "The match ended for both people (unmatch, block or account deletion). Close the match and its chat.",
+      "channel": "user",
+      "to": "both people",
+      "payloadSchema": "MatchEndedEvent",
+      "push": null
+    },
+    "glow.started": {
+      "description": "Both chose Find and the glow started.",
+      "channel": "user",
+      "to": "both people",
+      "payloadSchema": "GlowStartedEvent",
+      "push": {
+        "body": "Time to find each other.",
+        "category": "GLOW",
+        "interruptionLevel": "time-sensitive",
+        "sound": "default",
+        "collapseId": "glow.started:{matchId}",
+        "threadId": "match:{matchId}"
+      }
+    },
+    "glow.ended": {
+      "description": "The glow ended: both tapped We met, someone canceled, or time ran out.",
+      "channel": "user",
+      "to": "both people",
+      "payloadSchema": "GlowEndedEvent",
+      "push": null
+    },
+    "message.created": {
+      "description": "A new chat message arrived.",
+      "channel": "user",
+      "to": "the recipient",
+      "payloadSchema": "MessageCreatedEvent",
+      "push": {
+        "body": "New message",
+        "category": "MESSAGE",
+        "interruptionLevel": "active",
+        "sound": "default",
+        "collapseId": "message.created:{matchId}",
+        "threadId": "match:{matchId}"
+      }
+    },
+    "checkin.expiring": {
+      "description": "This person's check-in ends in CHECKIN_EXPIRY_WARNING or less.",
+      "channel": "user",
+      "to": "that person",
+      "payloadSchema": "CheckinExpiringEvent",
+      "push": {
+        "body": "Your check-in ends soon.",
+        "category": "CHECKIN",
+        "interruptionLevel": "active",
+        "sound": "default",
+        "collapseId": "checkin.expiring:{roomId}",
+        "threadId": "room:{roomId}"
+      }
+    },
+    "deck.changed": {
+      "description": "Someone in the room paused, left or blocked. Refetch the deck.",
+      "channel": "room",
+      "to": "everyone checked into that room",
+      "payloadSchema": "DeckChangedEvent",
+      "push": null
+    }
+  }
+}

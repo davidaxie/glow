@@ -57,6 +57,7 @@ insert into private.constants (name, value, unit) values
   ('GLOW_ENDED_RETENTION',        600,     'seconds'),
   ('QR_ROTATION',                 30,      'seconds'),
   ('QR_ACCEPTED_WINDOWS',         2,       'count'),
+  ('QR_TOKEN_LENGTH',             8,       'characters'),
   ('JOIN_TICKET_TTL',             600,     'seconds'),
   ('CARD_URL_TTL',                60,      'seconds'),
   ('MESSAGE_MAX_CHARS',           1000,    'characters'),
@@ -781,20 +782,69 @@ as $$
   where m.id = p_glow.match_id;
 $$;
 
-create function private.choice_json(p_match public.matches, p_user_id uuid, p_next text, p_reason text)
+-- A match from one person's side. firstName and photoCount are the OTHER person's, and only
+-- ever leave the database once a match exists (P1). photoCount counts approved photos.
+-- glow is the latest glow session (active, or ended within GLOW_ENDED_RETENTION), or null.
+-- userIds is for the server's notify() and must never be sent to an app.
+create function private.match_json(p_match public.matches, p_user_id uuid)
 returns jsonb
-language sql immutable
+language sql stable
 set search_path = ''
 as $$
   select jsonb_build_object(
-    'next',           p_next,
-    'reason',         p_reason,
-    'matchId',        p_match.id,
+    'id',             p_match.id,
     'status',         p_match.status,
+    'firstName',      o.first_name,
+    'photoCount',     (select count(*) from public.profile_photos pp
+                        where pp.user_id = o.id and pp.moderation_status = 'approved'),
+    'roomId',         p_match.room_id,
+    'roomName',       r.name,
+    'createdAt',      p_match.created_at,
+    'choiceDeadline', p_match.choice_deadline,
     'yourChoice',     case when p_user_id = p_match.user_a then p_match.a_choice else p_match.b_choice end,
     'otherHasChosen', (case when p_user_id = p_match.user_a then p_match.b_choice else p_match.a_choice end) is not null,
-    'choiceDeadline', p_match.choice_deadline,
-    'userIds',        jsonb_build_array(p_match.user_a, p_match.user_b));
+    'glow',           (select private.glow_json(g, p_user_id) from public.glow_sessions g
+                        where g.match_id = p_match.id order by g.started_at desc limit 1),
+    'lastMessageAt',  (select max(msg.created_at) from public.messages msg where msg.match_id = p_match.id),
+    'userIds',        jsonb_build_array(p_match.user_a, p_match.user_b))
+  from public.profiles o
+  join public.rooms r on r.id = p_match.room_id
+  where o.id = case when p_user_id = p_match.user_a then p_match.user_b else p_match.user_a end;
+$$;
+
+create function private.choice_json(p_match public.matches, p_user_id uuid, p_next text, p_reason text)
+returns jsonb
+language sql stable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'next',   p_next,
+    'reason', p_reason,
+    'match',  private.match_json(p_match, p_user_id));
+$$;
+
+-- Apply time-based changes to one match: a choice window that ran out opens the chat, and a
+-- glow whose time ran out expires. Call with the match row locked.
+create function private.settle_match(p_match_id uuid)
+returns public.matches
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_m public.matches;
+begin
+  update public.glow_sessions g
+     set status = 'expired', ended_at = g.ends_at
+   where g.match_id = p_match_id and g.status = 'active' and g.ends_at <= now();
+  if found then
+    update public.matches set status = 'chatting' where id = p_match_id and status = 'glowing';
+  end if;
+  update public.matches
+     set status = 'chatting'
+   where id = p_match_id and status = 'choosing' and choice_deadline <= now();
+  select * into v_m from public.matches where id = p_match_id;
+  return v_m;
+end;
 $$;
 
 -- Retire active glows whose time ran out, and move their matches to chatting.
@@ -1748,6 +1798,119 @@ begin
     'choiceTimeouts',   v_timeouts,
     'deleted',          jsonb_build_object('checkins', v_checkins, 'taps', v_taps, 'glowSessions', v_glows,
                                            'cardViews', v_views, 'locationChecks', v_checks));
+end;
+$$;
+
+-- get_room_state: the room, my open check-in there (or null), and my taps and card views left
+-- today. Returns { room: { id, slug, name, status, startsAt, endsAt }, checkin: Checkin | null,
+--   tapsLeftToday, viewsLeftToday }. Raises not_found if the room doesn't exist.
+create function public.get_room_state(p_user_id uuid, p_room_id uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_room    public.rooms;
+  v_checkin public.checkins;
+  v_taps    integer;
+  v_views   integer;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  if not found or p_user_id is null then
+    perform private.raise_error('not_found');
+  end if;
+
+  select * into v_checkin from public.checkins c
+   where c.user_id = p_user_id and c.room_id = p_room_id and c.left_at is null and c.expires_at > now();
+
+  select count(*) into v_taps from public.taps t
+   where t.from_user = p_user_id and t.room_id = p_room_id and t.created_at >= private.room_day_start(p_room_id);
+  select count(*) into v_views from public.card_views v
+   where v.viewer_id = p_user_id and v.room_id = p_room_id and v.view_day = private.room_day(p_room_id);
+
+  return jsonb_build_object(
+    'room', jsonb_build_object('id', v_room.id, 'slug', v_room.slug, 'name', v_room.name, 'status', v_room.status,
+                               'startsAt', v_room.starts_at, 'endsAt', v_room.ends_at),
+    'checkin', case when v_checkin.id is null then null else private.checkin_json(v_checkin) end,
+    'tapsLeftToday', greatest(private.const('TAPS_PER_ROOM_PER_DAY')::integer - v_taps, 0),
+    'viewsLeftToday', greatest(private.const('CARD_VIEWS_PER_ROOM_PER_DAY')::integer - v_views, 0));
+end;
+$$;
+
+-- get_match: one match from this person's side, after applying any timeout (choice window or
+-- glow time). Returns MatchDetail plus userIds (server only). Raises not_found for ended
+-- matches and matches the person isn't in (P11).
+create function public.get_match(p_user_id uuid, p_match_id uuid)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_m public.matches;
+begin
+  select * into v_m from public.matches where id = p_match_id for update;
+  if not found or p_user_id is null or p_user_id not in (v_m.user_a, v_m.user_b) or v_m.status = 'ended' then
+    perform private.raise_error('not_found');
+  end if;
+  v_m := private.settle_match(p_match_id);
+  return private.match_json(v_m, p_user_id);
+end;
+$$;
+
+-- list_matches: my matches that haven't ended, newest first, after applying timeouts.
+-- Returns { matches: [MatchDetail plus userIds] }.
+create function public.list_matches(p_user_id uuid)
+returns jsonb
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_id     uuid;
+  v_result jsonb;
+begin
+  for v_id in
+    select m.id from public.matches m
+     where (m.user_a = p_user_id or m.user_b = p_user_id) and m.status in ('choosing', 'glowing')
+     order by m.id
+       for update
+  loop
+    perform private.settle_match(v_id);
+  end loop;
+
+  select coalesce(jsonb_agg(private.match_json(m, p_user_id) order by m.created_at desc), '[]'::jsonb)
+    into v_result
+    from public.matches m
+   where (m.user_a = p_user_id or m.user_b = p_user_id) and m.status <> 'ended';
+  return jsonb_build_object('matches', v_result);
+end;
+$$;
+
+-- match_photo_path: the profile-photos object name of the other person's nth approved photo
+-- (0-based, by position), for a match that hasn't ended. Raises not_found otherwise (P1, P11).
+create function public.match_photo_path(p_viewer_id uuid, p_match_id uuid, p_n integer)
+returns text
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  v_m    public.matches;
+  v_path text;
+begin
+  select * into v_m from public.matches where id = p_match_id;
+  if not found or p_viewer_id is null or p_viewer_id not in (v_m.user_a, v_m.user_b)
+     or v_m.status = 'ended' or p_n is null or p_n < 0 then
+    perform private.raise_error('not_found');
+  end if;
+  select pp.path into v_path
+    from public.profile_photos pp
+   where pp.user_id = case when p_viewer_id = v_m.user_a then v_m.user_b else v_m.user_a end
+     and pp.moderation_status = 'approved'
+   order by pp.position
+   offset p_n limit 1;
+  if v_path is null then
+    perform private.raise_error('not_found');
+  end if;
+  return v_path;
 end;
 $$;
 

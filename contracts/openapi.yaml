@@ -1,0 +1,2259 @@
+openapi: 3.1.0
+info:
+  title: Glow API
+  version: 1.0.0
+  summary: The single source of truth for the Glow API.
+  description: |
+    Glow lets two people in the same room find out, privately, that they noticed each other.
+
+    Rules every endpoint follows (docs/SPEC.md and AGENTS.md):
+
+    - **Sign in.** Every request sends the Supabase access token as `Authorization: Bearer <token>`,
+      except where an operation says otherwise. A missing or bad token is 401.
+    - **404, never 403 (P11).** Anything the caller isn't allowed to see answers 404 `not_found`,
+      exactly as if it didn't exist.
+    - **No one else's identity before a match (P1).** Before a mutual match, no response, event or
+      push contains another person's user ID, name or face photo. Cards are identified by their
+      card ID (the check-in ID). After a match, the other person is identified only by the match ID.
+    - **One-sided taps stay secret (P5).** No response, count or event says whether someone tapped you.
+    - **Times** are RFC 3339 in UTC with milliseconds, for example `2026-10-24T20:15:00.000Z`.
+    - **IDs** are lowercase UUIDs.
+    - **Numbers** like caps and time limits come from `contracts/constants.json`.
+    - **Errors** are always `{ "error": { "code", "message" } }`. Apps choose their own words per `code`.
+    - **Images** are never public links. Each image request is checked (P4) and served with
+      `Cache-Control: no-store`.
+
+    Generated from this file by `scripts/codegen.sh`: the Swift client
+    (`ios/Packages/GlowKit/Sources/APIClient/Generated`) and TypeScript types plus zod schemas
+    (`server/src/contracts`). The Swift client leaves out the `dev`, `cron`, `admin` and `web` tags.
+servers:
+  - url: http://localhost:3000
+    description: Local server (Debug builds)
+  - url: https://{domain}
+    description: Production
+    variables:
+      domain:
+        default: glow.example.com
+        description: The app's web domain ({DOMAIN} in the spec).
+security:
+  - bearerAuth: []
+tags:
+  - name: me
+    description: The signed-in person's own profile, photos and account.
+  - name: dev
+    description: Debug-only helpers for Simulator automation. Not in the Swift client.
+  - name: devices
+    description: Push token registration.
+  - name: rooms
+    description: Resolving, joining, checking in to and leaving rooms.
+  - name: cards
+    description: Card images.
+  - name: deck
+    description: The deck and secret taps.
+  - name: matches
+    description: Mutual matches, the reveal and the Find or Chat choice.
+  - name: glow
+    description: Glow mode.
+  - name: chat
+    description: Chat between matched people.
+  - name: safety
+    description: Blocks, reports and capture logging.
+  - name: cron
+    description: Scheduled jobs. Not in the Swift client.
+  - name: admin
+    description: Room operations for admins. Everyone else gets 404. Not in the Swift client.
+  - name: web
+    description: Web pages and files for universal links. Not in the Swift client.
+
+paths:
+  # ------------------------------------------------------------------ me
+  /api/me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: My profile, photos and onboarding step
+      x-owner: B1
+      responses:
+        "200":
+          description: The signed-in person.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    delete:
+      operationId: deleteAccount
+      tags: [me]
+      summary: Delete my account and all my data
+      description: |
+        Deletes every row, storage object and device token for this person, then the auth user.
+        Any match they were in ends for the other person too (match.ended).
+      x-owner: B8
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/me/profile:
+    put:
+      operationId: updateProfile
+      tags: [me]
+      summary: Save first name, birthday, gender and who I want to see
+      description: People under 18 get 422 `under_18`, and nothing is stored (P10).
+      x-owner: B1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfileUpdate" }
+      responses:
+        "200":
+          description: The updated person.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/me/photos:
+    post:
+      operationId: addProfilePhoto
+      tags: [me]
+      summary: Add a profile photo (moderated)
+      description: |
+        Replaces any photo already at that position. The photo is moderated: rejected photos get
+        422 `photo_rejected`; photos held for review come back with `moderationStatus: held`.
+        Profile photos are only ever shown to people with an active match (P1).
+      x-owner: B1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewProfilePhoto" }
+      responses:
+        "201":
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MyPhoto" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/me/photos/{photoId}:
+    parameters:
+      - $ref: "#/components/parameters/PhotoId"
+    get:
+      operationId: getMyPhoto
+      tags: [me]
+      summary: One of my own profile photos
+      x-owner: B1
+      responses:
+        "200": { $ref: "#/components/responses/JpegImage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    delete:
+      operationId: deleteProfilePhoto
+      tags: [me]
+      summary: Remove one of my profile photos
+      x-owner: B1
+      responses:
+        "204": { description: Removed. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/me/pause:
+    post:
+      operationId: setPaused
+      tags: [me]
+      summary: Pause or resume being visible
+      description: Paused people leave every deck at once (P8), and deck.changed goes to their rooms.
+      x-owner: B8
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PauseRequest" }
+      responses:
+        "200":
+          description: The new state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PauseState" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ dev
+  /api/dev/test-login:
+    post:
+      operationId: testLogin
+      tags: [dev]
+      summary: Debug-only sign-in for Simulator tests
+      description: |
+        Signs in (creating if needed) a test person and returns a Supabase session. Only
+        `@glow.test` emails are accepted, so this can never sign in a real account. Answers 404
+        unless the server has `ALLOW_TEST_LOGIN` set, which is never set on Vercel. The app calls
+        this only from Debug builds, with a hand-written request (it's not in the generated client).
+      x-owner: B1
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TestLoginRequest" }
+      responses:
+        "200":
+          description: A session for the test person.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TestSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ devices
+  /api/devices:
+    post:
+      operationId: registerDevice
+      tags: [devices]
+      summary: Register a push token
+      description: |
+        Registering a token that already exists moves it to the signed-in person.
+        Xcode builds send `sandbox`; TestFlight builds send `production`.
+      x-owner: B5
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceRegistration" }
+      responses:
+        "201":
+          description: Registered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Device" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/devices/{deviceId}:
+    parameters:
+      - $ref: "#/components/parameters/DeviceId"
+    delete:
+      operationId: deleteDevice
+      tags: [devices]
+      summary: Remove a push token
+      x-owner: B5
+      responses:
+        "204": { description: Removed. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ rooms
+  /api/rooms/resolve:
+    post:
+      operationId: resolveRoom
+      tags: [rooms]
+      summary: Turn a room code, or a slug plus QR token, into a room
+      description: |
+        Returns the room's name and times. A wrong code or token is 404. This only gets someone to
+        the location check: it never gets them into a room by itself. People who haven't finished
+        onboarding get 409 `onboarding_incomplete`.
+      x-owner: B2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomAccess" }
+            examples:
+              code:
+                value: { kind: code, code: HACK26 }
+              link:
+                value: { kind: link, slug: demo, token: DEMOSTATICTOKEN2 }
+      responses:
+        "200":
+          description: The room.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomSummary" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/rooms/{roomId}:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      operationId: getRoomState
+      tags: [rooms]
+      summary: The room, my check-in there, and what I have left today
+      description: How the app restores the room home after a relaunch. Calls `get_room_state`.
+      x-owner: B2
+      responses:
+        "200":
+          description: The room and my state in it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomState" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/rooms/{roomId}/join:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      operationId: joinRoom
+      tags: [rooms]
+      summary: QR token or code plus one location fix returns a join ticket
+      description: |
+        Passes if the distance from the room's center, minus the smaller of the fix's accuracy and
+        GEO_ACCURACY_CREDIT, is within the room's radius. Fixes less accurate than GEO_MAX_ACCURACY
+        get 422 `location_inaccurate`; fixes outside get 422 `not_in_room`. Coordinates are never
+        stored or logged (P2): only pass or fail and a rough accuracy bucket. In a demo mode room,
+        admins skip the check, and each skip is logged.
+      x-owner: B2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinRequest" }
+      responses:
+        "200":
+          description: Passed. Use the ticket to check in within JOIN_TICKET_TTL.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JoinTicket" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/rooms/{roomId}/leave:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      operationId: leaveRoom
+      tags: [rooms]
+      summary: End my check-in now and delete my card
+      description: Also sends deck.changed to the room. Leaving a room I'm not in is a quiet 204.
+      x-owner: B2
+      responses:
+        "204": { description: Left. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/rooms/{roomId}/checkin:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      operationId: checkIn
+      tags: [rooms]
+      summary: Join ticket plus blurred photo plus tags creates my card
+      description: |
+        Only a face-blurred photo ever leaves the phone (P3). The server moderates it and fails
+        closed: a visible face, nudity or no outfit gets 422 `photo_rejected` with a `reason`, and
+        a moderation outage gets 503 `moderation_unavailable`. Any older check-in of mine in this
+        room ends. Calls `create_checkin`.
+      x-owner: B3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckinRequest" }
+      responses:
+        "201":
+          description: Checked in.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MyCheckin" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ cards
+  /api/cards/{cardId}/image:
+    parameters:
+      - $ref: "#/components/parameters/CardId"
+      - name: exp
+        in: query
+        required: true
+        description: When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+        schema: { type: integer, format: int64 }
+      - name: sig
+        in: query
+        required: true
+        description: |
+          base64url HMAC-SHA256 (CARD_URL_SECRET) over `{cardId}.{viewerId}.{exp}`. The viewer comes
+          from the bearer token, so the link carries no user ID and works only for that viewer.
+        schema: { type: string, pattern: "^[A-Za-z0-9_-]{43}$" }
+    get:
+      operationId: getCardImage
+      tags: [cards]
+      summary: A watermarked card photo, through a signed 60-second link
+      description: |
+        Use the `image.url` from a deck or check-in response as is. The server checks the
+        signature, the expiry and `card_visible_to`, then serves the photo with a faint repeated
+        watermark of the viewer's code and `Cache-Control: no-store`. Expired, reused-by-someone-else
+        and not-visible links all get 404 (P4, P11).
+      x-owner: B3
+      responses:
+        "200": { $ref: "#/components/responses/JpegImage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ deck
+  /api/rooms/{roomId}/deck:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      operationId: getDeck
+      tags: [deck]
+      summary: Filters return up to DECK_PAGE_SIZE cards with signed image links
+      description: |
+        Calls `get_deck`, which applies every deck rule, the filters and the daily view cap, in an
+        order that stays the same all day. Cards never carry a user ID (P1). 404 if I've never
+        checked in to this room.
+      x-owner: B4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeckRequest" }
+      responses:
+        "200":
+          description: A page of the deck.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deck" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/rooms/{roomId}/taps:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      operationId: tap
+      tags: [deck]
+      summary: Secret tap. Returns sent or mutual and taps left today
+      description: |
+        Calls `record_tap`. The other person is never told about a one-sided tap (P5). A card
+        that isn't in my deck right now is 404; no taps left today is 409 `tap_limit_reached`.
+        Tapping the same card again doesn't use a tap. On mutual, both people get match.created.
+      x-owner: B4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TapRequest" }
+      responses:
+        "200":
+          description: Tap saved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TapResult" }
+              examples:
+                sent:
+                  value: { result: sent, tapsLeftToday: 2 }
+                mutual:
+                  value: { result: mutual, tapsLeftToday: 1, matchId: 64bfd966-bf7f-426a-b7aa-f0dc371bae1a }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ matches
+  /api/matches:
+    get:
+      operationId: listMatches
+      tags: [matches]
+      summary: My active and past matches
+      description: |
+        Newest first. Ended matches (unmatched or blocked) never appear. "Now" in the app is
+        `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`.
+      x-owner: B4
+      responses:
+        "200":
+          description: My matches.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatchList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/matches/{matchId}:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    get:
+      operationId: getMatch
+      tags: [matches]
+      summary: One match, with the other person's first name and photo count
+      description: Applies any timeout first (choice window, glow time). Calls `get_match`.
+      x-owner: C2
+      responses:
+        "200":
+          description: The match.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatchDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/matches/{matchId}/photos/{n}:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+      - name: n
+        in: path
+        required: true
+        description: 0-based index into the other person's approved photos, below `photoCount`.
+        schema: { type: integer, minimum: 0, maximum: 2 }
+    get:
+      operationId: getMatchPhoto
+      tags: [matches]
+      summary: The other person's profile photo, for active matches only
+      description: Calls `match_photo_path`. 404 for ended matches and out-of-range `n` (P1, P11).
+      x-owner: B3
+      responses:
+        "200": { $ref: "#/components/responses/JpegImage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/matches/{matchId}/choice:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    post:
+      operationId: setChoice
+      tags: [matches]
+      summary: Find (with a fresh location fix) or Chat
+      description: |
+        Find needs `location`; the server checks it like a join (422 `not_in_room` or
+        `location_inaccurate` on failure) before calling `set_choice`. When both chose Find, both
+        are still checked in and both passed a check in the last GEO_FRESHNESS_FOR_GLOW, the glow
+        starts and `next` is `glow`. Anything else opens the chat. `next: waiting` with
+        `reason: other_location_stale` means the other person's app is being asked (match.choice)
+        to send Find again with a fresh fix. While waiting with Find, the app re-sends Find with a
+        fresh fix whenever it gets match.choice.
+      x-owner: C2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChoiceRequest" }
+      responses:
+        "200":
+          description: What happens next.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChoiceResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/matches/{matchId}/unmatch:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    post:
+      operationId: unmatch
+      tags: [chat]
+      summary: End the match for both people
+      description: Deletes the thread for both. Both get match.ended. Calls `unmatch`.
+      x-owner: C4
+      responses:
+        "204": { description: Ended. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ glow
+  /api/matches/{matchId}/glow:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    get:
+      operationId: getGlow
+      tags: [glow]
+      summary: The match's glow session
+      description: |
+        The active session, or the one that just ended (kept for GLOW_ENDED_RETENTION). 404 when
+        there is none.
+      x-owner: C3
+      responses:
+        "200":
+          description: The glow.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Glow" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/matches/{matchId}/glow/met:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    post:
+      operationId: glowMet
+      tags: [glow]
+      summary: I tapped We met
+      description: When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`.
+      x-owner: C3
+      responses:
+        "200":
+          description: The glow, from my side.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Glow" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/matches/{matchId}/glow/cancel:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    post:
+      operationId: cancelGlow
+      tags: [glow]
+      summary: Cancel the glow, or switch to chat
+      description: Ends the glow for both (glow.ended) and opens the chat. Calls `cancel_glow`.
+      x-owner: C3
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GlowCancelRequest" }
+      responses:
+        "200":
+          description: The ended glow.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Glow" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ chat
+  /api/matches/{matchId}/messages:
+    parameters:
+      - $ref: "#/components/parameters/MatchId"
+    get:
+      operationId: listMessages
+      tags: [chat]
+      summary: Read chat messages
+      description: Oldest to newest within the page. Page back with `before`.
+      x-owner: C4
+      parameters:
+        - name: before
+          in: query
+          required: false
+          description: Only messages created before this time (the `nextBefore` of the previous page).
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          required: false
+          description: At most MESSAGES_PAGE_SIZE (the default).
+          schema: { type: integer, minimum: 1, maximum: 50 }
+      responses:
+        "200":
+          description: A page of messages.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagePage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    post:
+      operationId: sendMessage
+      tags: [chat]
+      summary: Send a chat message
+      description: |
+        At most MESSAGE_MAX_CHARS. Moderated with a MODERATION_TIMEOUT budget: flagged messages get
+        422 `message_rejected`; on timeout the message goes through and is reviewed afterwards.
+        The chat opens once choosing is over (409 `chat_not_open` before). Someone blocked or
+        unmatched gets 404. The recipient gets message.created. Calls `send_message`.
+      x-owner: C4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewMessage" }
+      responses:
+        "201":
+          description: Sent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ safety
+  /api/blocks:
+    post:
+      operationId: block
+      tags: [safety]
+      summary: Block someone from a card, match or chat ID
+      description: |
+        The server works out the person; the app never sends a user ID. A block applies both ways,
+        everywhere, within 5 seconds (P7), and ends any match and glow between the two. Calls
+        `block_user`.
+      x-owner: B8
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BlockRequest" }
+      responses:
+        "204": { description: Blocked. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/reports:
+    post:
+      operationId: report
+      tags: [safety]
+      summary: Report someone (this also blocks them)
+      description: Calls `create_report`.
+      x-owner: B8
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportRequest" }
+      responses:
+        "204": { description: Reported and blocked. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/abuse/capture:
+    post:
+      operationId: logCapture
+      tags: [safety]
+      summary: Log a screenshot or screen recording of the deck
+      description: Repeated captures flag the account for review.
+      x-owner: B8
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CaptureRequest" }
+      responses:
+        "204": { description: Logged. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ cron
+  /api/cron/purge:
+    get:
+      operationId: purgeExpired
+      tags: [cron]
+      summary: Expiry cleanup, protected by the cron secret
+      description: |
+        Runs every PURGE_INTERVAL. Calls `purge_expired`, deletes the returned card photos, and
+        sends checkin.expiring, glow.ended and match.choice as needed.
+      x-owner: B8
+      security:
+        - cronSecret: []
+      responses:
+        "200":
+          description: What was cleaned up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PurgeResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ admin
+  /api/admin/rooms:
+    get:
+      operationId: adminListRooms
+      tags: [admin]
+      summary: All rooms
+      x-owner: B7
+      responses:
+        "200":
+          description: Rooms, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRoomList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    post:
+      operationId: adminCreateRoom
+      tags: [admin]
+      summary: Create a room
+      x-owner: B7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminRoomCreate" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRoom" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/rooms/{roomId}:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      operationId: adminGetRoom
+      tags: [admin]
+      summary: One room, with its meeting spots
+      x-owner: B7
+      responses:
+        "200":
+          description: The room.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRoom" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    patch:
+      operationId: adminUpdateRoom
+      tags: [admin]
+      summary: Change a room (name, center, radius, times, status, demo mode, static QR)
+      description: Pausing or ending a room sends deck.changed to it.
+      x-owner: B7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminRoomUpdate" }
+      responses:
+        "200":
+          description: The room.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRoom" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/rooms/{roomId}/spots:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    put:
+      operationId: adminReplaceSpots
+      tags: [admin]
+      summary: Replace the room's meeting spots (MEETING_SPOTS_MIN to MEETING_SPOTS_MAX)
+      x-owner: B7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MeetingSpotsReplace" }
+      responses:
+        "200":
+          description: The room.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRoom" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/rooms/{roomId}/poster:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      operationId: adminRoomPoster
+      tags: [admin]
+      summary: Printable poster with the static QR code, room code and three steps
+      x-owner: B7
+      responses:
+        "200":
+          description: The poster.
+          content:
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/rooms/{roomId}/display-token:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      operationId: adminDisplayToken
+      tags: [admin]
+      summary: The current rotating QR token, for the display page
+      x-owner: B7
+      responses:
+        "200":
+          description: The token for the current QR_ROTATION window.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DisplayToken" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/rooms/{roomId}/static-token:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      operationId: adminRotateStaticToken
+      tags: [admin]
+      summary: Replace the poster token (old posters stop working)
+      x-owner: B7
+      responses:
+        "200":
+          description: The room with its new token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRoom" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/rooms/{roomId}/metrics:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      operationId: adminRoomMetrics
+      tags: [admin]
+      summary: Live counts for the room (from room_activity, no user IDs)
+      x-owner: B7
+      parameters:
+        - name: since
+          in: query
+          required: false
+          description: Count from this time. Defaults to the start of the room's current day.
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Counts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomMetrics" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/rooms/{roomId}/cards:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      operationId: adminListCards
+      tags: [admin]
+      summary: Cards in the room right now, for moderation
+      x-owner: B7
+      responses:
+        "200":
+          description: Cards, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminCardList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/cards/{cardId}/image:
+    parameters:
+      - $ref: "#/components/parameters/CardId"
+    get:
+      operationId: adminCardImage
+      tags: [admin]
+      summary: A card photo for review, watermarked with the admin's code
+      x-owner: B7
+      responses:
+        "200": { $ref: "#/components/responses/JpegImage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/cards/{cardId}/remove:
+    parameters:
+      - $ref: "#/components/parameters/CardId"
+    post:
+      operationId: adminRemoveCard
+      tags: [admin]
+      summary: Remove a card, or remove the person from the room
+      description: |
+        `card` hides the card and deletes its photo (they can check in again). `person` also ends
+        their check-in. Either way the room gets deck.changed.
+      x-owner: B7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminRemoveCard" }
+      responses:
+        "204": { description: Removed. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/reports:
+    get:
+      operationId: adminListReports
+      tags: [admin]
+      summary: The reports queue
+      x-owner: B7
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Defaults to open.
+          schema: { $ref: "#/components/schemas/ReportStatus" }
+      responses:
+        "200":
+          description: Reports, oldest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminReportList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/reports/{reportId}/resolve:
+    parameters:
+      - name: reportId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: adminResolveReport
+      tags: [admin]
+      summary: Dismiss a report, remove the card, or ban the person
+      x-owner: B7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportResolution" }
+      responses:
+        "200":
+          description: The resolved report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminReport" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  # ------------------------------------------------------------------ web
+  /.well-known/apple-app-site-association:
+    get:
+      operationId: appleAppSiteAssociation
+      tags: [web]
+      summary: The file that lets QR links open the app
+      description: Served as `application/json` with no redirect.
+      x-owner: B2
+      security: []
+      responses:
+        "200":
+          description: The association file.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppleAppSiteAssociation" }
+
+  /r/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/RoomSlug" }
+      - name: t
+        in: query
+        required: false
+        description: The QR token. The page never shows it or the room's location.
+        schema: { $ref: "#/components/schemas/QrToken" }
+    get:
+      operationId: roomLandingPage
+      tags: [web]
+      summary: Web page for people who don't have Glow yet, with the TestFlight link
+      description: With Glow installed, this link opens the app instead (universal link).
+      x-owner: B2
+      security: []
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html:
+              schema: { type: string }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: The Supabase access token of the signed-in person.
+    cronSecret:
+      type: http
+      scheme: bearer
+      description: The CRON_SECRET, sent by Vercel Cron.
+
+  parameters:
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MatchId:
+      name: matchId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CardId:
+      name: cardId
+      in: path
+      required: true
+      description: A card ID, which is the check-in ID. Never a user ID.
+      schema: { type: string, format: uuid }
+    PhotoId:
+      name: photoId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  headers:
+    RetryAfter:
+      description: Seconds to wait before trying again.
+      schema: { type: integer, minimum: 1 }
+    CacheControlNoStore:
+      description: Always `no-store`. Images are never cached.
+      schema: { type: string, enum: [no-store] }
+
+  responses:
+    JpegImage:
+      description: A JPEG with no metadata, never cached.
+      headers:
+        Cache-Control: { $ref: "#/components/headers/CacheControlNoStore" }
+      content:
+        image/jpeg:
+          schema: { type: string, contentMediaType: image/jpeg }
+    BadRequest:
+      description: The request doesn't match the contract (`invalid_request`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: invalid_request, message: "body.tags.topColor: Required" }
+    Unauthorized:
+      description: Missing, expired or invalid token (`unauthorized`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: unauthorized, message: Sign in again. }
+    NotFound:
+      description: It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: not_found, message: Not found. }
+    Conflict:
+      description: |
+        The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+        `room_not_live`, `tap_limit_reached`, `chat_not_open`, `photo_limit_reached`,
+        `last_photo` or `slug_taken`.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: tap_limit_reached, message: No taps left today in this room. }
+    Unprocessable:
+      description: |
+        Understood but refused: `under_18`, `not_in_room`, `location_inaccurate`,
+        `location_required`, `join_ticket_invalid`, `photo_rejected` (with `reason`) or
+        `message_rejected`.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          examples:
+            notInRoom:
+              value:
+                error: { code: not_in_room, message: Outside the room's area. }
+            photoRejected:
+              value:
+                error: { code: photo_rejected, message: A face is visible., reason: face_visible }
+    RateLimited:
+      description: Too many requests (`rate_limited`).
+      headers:
+        Retry-After: { $ref: "#/components/headers/RetryAfter" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: rate_limited, message: Slow down., retryAfterSeconds: 10 }
+    Unavailable:
+      description: A dependency is down; try again (`moderation_unavailable`).
+      headers:
+        Retry-After: { $ref: "#/components/headers/RetryAfter" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: moderation_unavailable, message: Try again in a moment., retryAfterSeconds: 5 }
+    UnexpectedError:
+      description: "Anything else: `internal` (500) or `not_implemented` (501, endpoint stubs)."
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error: { code: not_implemented, message: Not implemented yet. }
+
+  schemas:
+    # ---------------------------------------------------------------- errors
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: { $ref: "#/components/schemas/ErrorBody" }
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code: { $ref: "#/components/schemas/ErrorCode" }
+        message:
+          type: string
+          description: Plain words for logs and debugging. Apps show their own copy per code.
+        reason:
+          type: string
+          description: |
+            Extra detail for some codes. `photo_rejected`: face_visible, nudity, no_outfit,
+            no_person, possibly_minor or unreadable.
+        retryAfterSeconds:
+          type: integer
+          minimum: 1
+    ErrorCode:
+      type: string
+      description: |
+        400 invalid_request · 401 unauthorized · 404 not_found ·
+        409 onboarding_incomplete, room_not_live, tap_limit_reached, chat_not_open,
+        photo_limit_reached, last_photo, slug_taken ·
+        422 under_18, not_in_room, location_inaccurate, location_required, join_ticket_invalid,
+        photo_rejected, message_rejected · 429 rate_limited · 500 internal ·
+        501 not_implemented · 503 moderation_unavailable
+      enum:
+        - invalid_request
+        - unauthorized
+        - not_found
+        - onboarding_incomplete
+        - room_not_live
+        - tap_limit_reached
+        - chat_not_open
+        - photo_limit_reached
+        - last_photo
+        - slug_taken
+        - under_18
+        - not_in_room
+        - location_inaccurate
+        - location_required
+        - join_ticket_invalid
+        - photo_rejected
+        - message_rejected
+        - rate_limited
+        - internal
+        - not_implemented
+        - moderation_unavailable
+
+    # ---------------------------------------------------------------- shared enums
+    Gender:
+      type: string
+      enum: [woman, man, nonbinary]
+    OnboardingStep:
+      type: string
+      description: Where onboarding resumes. Rooms open only at `complete`.
+      enum: [profile, photos, notifications, complete]
+    ModerationStatus:
+      type: string
+      enum: [pending, approved, held, rejected]
+    TopColor:
+      type: string
+      enum: [black, white, gray, red, pink, orange, yellow, green, blue, purple]
+    HairLength:
+      type: string
+      enum: [short, medium, long]
+    HairColor:
+      type: string
+      enum: [black, brown, blonde, red, gray, dyed]
+    CardExtra:
+      type: string
+      enum: [glasses, hat, beard, headphones, backpack]
+    RoomStatus:
+      type: string
+      enum: [live, paused, ended]
+    MatchStatus:
+      type: string
+      description: |
+        choosing: the CHOICE_WINDOW is open. glowing: a glow is on. chatting: the chat is open.
+        met: both tapped We met (the chat stays open). Ended matches are never returned.
+      enum: [choosing, glowing, chatting, met]
+    MatchChoice:
+      type: string
+      enum: [find, chat]
+    GlowColor:
+      type: string
+      description: |
+        Ember #FF6B2C, Rose #FF3D8B, Violet #8C5BFF, Sky #2F8CFF, Aqua #12D6C5, Lime #9BE52E,
+        Sun #FFD23F, Pearl #F2F2F7. The design system owns the hex values.
+      enum: [ember, rose, violet, sky, aqua, lime, sun, pearl]
+    GlowStatus:
+      type: string
+      enum: [active, met, canceled, expired]
+    ApnsEnvironment:
+      type: string
+      enum: [sandbox, production]
+    ReportContext:
+      type: string
+      description: What the ID points at. A chat ID is its match ID.
+      enum: [card, match, chat]
+    ReportReason:
+      type: string
+      enum: [harassment, inappropriate_photo, underage, spam, unsafe, other]
+    ReportStatus:
+      type: string
+      enum: [open, dismissed, actioned]
+    CaptureKind:
+      type: string
+      enum: [screenshot, recording]
+    RoomSlug:
+      type: string
+      pattern: "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+      example: demo
+    RoomCode:
+      type: string
+      description: 6 characters from ABCDEFGHJKLMNPQRSTUVWXYZ23456789. The server uppercases input.
+      pattern: "^[A-HJ-NP-Za-hj-np-z2-9]{6}$"
+      example: HACK26
+    QrToken:
+      type: string
+      description: A rotating screen token (8 base32 characters) or a poster token (16).
+      pattern: "^[A-Z2-7]{8}([A-Z2-7]{8})?$"
+      example: DEMOSTATICTOKEN2
+    SignedImage:
+      type: object
+      additionalProperties: false
+      description: A short-lived image link. Fetch it with the bearer token, before `expiresAt`.
+      required: [url, expiresAt]
+      properties:
+        url:
+          type: string
+          format: uri-reference
+          description: Relative to the API base URL.
+          example: /api/cards/aaaaaaaa-0000-4000-8000-000000000001/image?exp=1793040000&sig=Xb3fQ0x2lN4m3P1QeRrS5T6uV7wX8yZ9a0b1c2d3e4f
+        expiresAt: { type: string, format: date-time }
+
+    # ---------------------------------------------------------------- me
+    Me:
+      type: object
+      additionalProperties: false
+      required: [id, profile, photos, onboardingStep, isAdmin]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: My own user ID (the only user ID the API ever returns).
+        profile: { $ref: "#/components/schemas/MyProfile" }
+        photos:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/MyPhoto" }
+        onboardingStep: { $ref: "#/components/schemas/OnboardingStep" }
+        isAdmin: { type: boolean }
+      example:
+        id: 7e570000-0000-4000-8000-000000000001
+        profile: { firstName: Alex, birthdate: "1999-04-12", gender: woman, showMe: [man], paused: false, viewerCode: YTVFCREQ }
+        photos:
+          - { id: 0f0f0f0f-0000-4000-8000-000000000001, position: 0, moderationStatus: approved, url: /api/me/photos/0f0f0f0f-0000-4000-8000-000000000001 }
+        onboardingStep: complete
+        isAdmin: false
+    MyProfile:
+      type: object
+      additionalProperties: false
+      required: [showMe, paused, viewerCode]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 40 }
+        birthdate: { type: string, format: date }
+        gender: { $ref: "#/components/schemas/Gender" }
+        showMe:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/Gender" }
+        paused: { type: boolean }
+        viewerCode:
+          type: string
+          description: My code, printed in the watermark of every image I'm served.
+          pattern: "^[A-HJ-NP-Z2-9]{8}$"
+    MyPhoto:
+      type: object
+      additionalProperties: false
+      required: [id, position, moderationStatus, url]
+      properties:
+        id: { type: string, format: uuid }
+        position: { type: integer, minimum: 0, maximum: 2 }
+        moderationStatus: { $ref: "#/components/schemas/ModerationStatus" }
+        url:
+          type: string
+          format: uri-reference
+          description: "`/api/me/photos/{id}`, fetched with the bearer token."
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      required: [firstName, birthdate, gender, showMe]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 40 }
+        birthdate: { type: string, format: date, description: "18 or older (MIN_AGE)." }
+        gender: { $ref: "#/components/schemas/Gender" }
+        showMe:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/Gender" }
+      example: { firstName: Alex, birthdate: "1999-04-12", gender: woman, showMe: [man] }
+    NewProfilePhoto:
+      type: object
+      additionalProperties: false
+      required: [position, photo]
+      properties:
+        position: { type: integer, minimum: 0, maximum: 2 }
+        photo:
+          type: string
+          contentEncoding: base64
+          contentMediaType: image/jpeg
+          maxLength: 4000000
+          description: Base64 JPEG, cropped to 4:5, metadata removed, at most PHOTO_MAX_BYTES before encoding.
+    PauseRequest:
+      type: object
+      additionalProperties: false
+      required: [paused]
+      properties:
+        paused: { type: boolean }
+    PauseState:
+      type: object
+      additionalProperties: false
+      required: [paused]
+      properties:
+        paused: { type: boolean }
+
+    # ---------------------------------------------------------------- dev
+    TestLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          description: Only test addresses at glow.test.
+          pattern: "^[a-z0-9._+-]+@glow\\.test$"
+          example: alex@glow.test
+    TestSession:
+      type: object
+      additionalProperties: false
+      required: [accessToken, refreshToken, expiresIn, userId]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, description: Seconds. }
+        userId: { type: string, format: uuid, description: The test person's own ID. }
+
+    # ---------------------------------------------------------------- devices
+    DeviceRegistration:
+      type: object
+      additionalProperties: false
+      required: [apnsToken, environment]
+      properties:
+        apnsToken:
+          type: string
+          description: The APNs device token as lowercase hex.
+          pattern: "^[0-9a-f]{64,200}$"
+        environment: { $ref: "#/components/schemas/ApnsEnvironment" }
+        appVersion: { type: string, maxLength: 32, example: "1.0 (42)" }
+    Device:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: { type: string, format: uuid }
+
+    # ---------------------------------------------------------------- rooms
+    RoomAccess:
+      description: How the person got to the room. A code, or a slug plus QR token from a link.
+      oneOf:
+        - $ref: "#/components/schemas/RoomAccessByCode"
+        - $ref: "#/components/schemas/RoomAccessByLink"
+      discriminator:
+        propertyName: kind
+        mapping:
+          code: "#/components/schemas/RoomAccessByCode"
+          link: "#/components/schemas/RoomAccessByLink"
+    RoomAccessByCode:
+      type: object
+      additionalProperties: false
+      required: [kind, code]
+      properties:
+        kind: { type: string, enum: [code] }
+        code: { $ref: "#/components/schemas/RoomCode" }
+    RoomAccessByLink:
+      type: object
+      additionalProperties: false
+      required: [kind, slug, token]
+      properties:
+        kind: { type: string, enum: [link] }
+        slug: { $ref: "#/components/schemas/RoomSlug" }
+        token: { $ref: "#/components/schemas/QrToken" }
+    RoomSummary:
+      type: object
+      additionalProperties: false
+      description: What the app may know about a room. Never its location or secrets.
+      required: [id, slug, name, status, startsAt, endsAt]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { $ref: "#/components/schemas/RoomSlug" }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/RoomStatus" }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+      example:
+        id: de000000-0000-4000-8000-000000000001
+        slug: demo
+        name: Glow demo room (test data)
+        status: live
+        startsAt: "2026-10-23T06:00:00.000Z"
+        endsAt: "2026-11-22T06:00:00.000Z"
+    LocationFix:
+      type: object
+      additionalProperties: false
+      description: One fresh fix. Used for the check and then forgotten. Never stored or logged (P2).
+      required: [latitude, longitude, accuracy]
+      properties:
+        latitude: { type: number, format: double, minimum: -90, maximum: 90 }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180 }
+        accuracy:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          description: Horizontal accuracy in meters, as CoreLocation reports it.
+    JoinRequest:
+      type: object
+      additionalProperties: false
+      required: [access, location]
+      properties:
+        access: { $ref: "#/components/schemas/RoomAccess" }
+        location: { $ref: "#/components/schemas/LocationFix" }
+    JoinTicket:
+      type: object
+      additionalProperties: false
+      required: [ticket, expiresAt]
+      properties:
+        ticket:
+          type: string
+          description: An opaque signed ticket for this person and room. Send it to check in.
+        expiresAt: { type: string, format: date-time }
+    CardTags:
+      type: object
+      additionalProperties: false
+      required: [topColor, extras]
+      properties:
+        topColor: { $ref: "#/components/schemas/TopColor" }
+        hairLength: { $ref: "#/components/schemas/HairLength" }
+        hairColor: { $ref: "#/components/schemas/HairColor" }
+        extras:
+          type: array
+          uniqueItems: true
+          maxItems: 5
+          items: { $ref: "#/components/schemas/CardExtra" }
+      example: { topColor: green, hairLength: short, hairColor: brown, extras: [glasses, headphones] }
+    CheckinRequest:
+      type: object
+      additionalProperties: false
+      required: [ticket, photo, tags]
+      properties:
+        ticket: { type: string, description: From joinRoom. }
+        photo:
+          type: string
+          contentEncoding: base64
+          contentMediaType: image/jpeg
+          maxLength: 4000000
+          description: |
+            Base64 JPEG of today's outfit with every face blurred on the phone, at most
+            PHOTO_MAX_DIMENSION on the long side, quality PHOTO_JPEG_QUALITY, no metadata.
+        tags: { $ref: "#/components/schemas/CardTags" }
+    MyCheckin:
+      type: object
+      additionalProperties: false
+      required: [cardId, roomId, tags, visible, joinedAt, expiresAt, image]
+      properties:
+        cardId: { type: string, format: uuid }
+        roomId: { type: string, format: uuid }
+        tags: { $ref: "#/components/schemas/CardTags" }
+        visible: { type: boolean, description: False after an admin removes the card. }
+        joinedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        image: { $ref: "#/components/schemas/SignedImage" }
+    RoomState:
+      type: object
+      additionalProperties: false
+      required: [room, tapsLeftToday, viewsLeftToday]
+      properties:
+        room: { $ref: "#/components/schemas/RoomSummary" }
+        checkin: { $ref: "#/components/schemas/MyCheckin" }
+        tapsLeftToday: { type: integer, minimum: 0 }
+        viewsLeftToday: { type: integer, minimum: 0 }
+
+    # ---------------------------------------------------------------- deck
+    DeckFilters:
+      type: object
+      additionalProperties: false
+      description: |
+        What I noticed. Every field is optional, and an empty list means any. A card matches when
+        each listed attribute is one of the listed values and it has every listed extra.
+      properties:
+        gender:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/Gender" }
+        topColor:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/TopColor" }
+        hairLength:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/HairLength" }
+        hairColor:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/HairColor" }
+        extras:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/CardExtra" }
+    DeckRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        filters: { $ref: "#/components/schemas/DeckFilters" }
+        offset:
+          type: integer
+          minimum: 0
+          description: The `nextOffset` of the previous page. 0 by default.
+      example: { filters: { gender: [woman], topColor: [green, blue], extras: [glasses] }, offset: 0 }
+    DeckEmptyReason:
+      type: string
+      description: |
+        Why a page has no cards. quiet: nobody else here fits me yet. no_match: nobody fits these
+        filters. view_limit_reached: today's CARD_VIEWS_PER_ROOM_PER_DAY are used. paused: I'm
+        paused. checkin_ended: my check-in expired, ended or was removed.
+      enum: [quiet, no_match, view_limit_reached, paused, checkin_ended]
+    Card:
+      type: object
+      additionalProperties: false
+      description: A today's-look card. No face, name, distance or user ID (P1).
+      required: [id, image, tags, tappedByMe]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The card ID (its check-in ID). Send it to tap.
+        image: { $ref: "#/components/schemas/SignedImage" }
+        tags: { $ref: "#/components/schemas/CardTags" }
+        tappedByMe:
+          type: boolean
+          description: I already tapped this person in this room in the last TAP_TTL. Says nothing about them.
+    Deck:
+      type: object
+      additionalProperties: false
+      required: [cards, viewsLeftToday, hasMore]
+      properties:
+        cards:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/Card" }
+        viewsLeftToday: { type: integer, minimum: 0 }
+        hasMore: { type: boolean }
+        nextOffset: { type: integer, minimum: 0, description: Present when hasMore is true. }
+        emptyReason: { $ref: "#/components/schemas/DeckEmptyReason" }
+      example:
+        cards:
+          - id: bbbbbbbb-0000-4000-8000-000000000001
+            image: { url: /api/cards/bbbbbbbb-0000-4000-8000-000000000001/image?exp=1793040000&sig=Xb3fQ0x2lN4m3P1QeRrS5T6uV7wX8yZ9a0b1c2d3e4f, expiresAt: "2026-10-24T20:16:00.000Z" }
+            tags: { topColor: green, hairLength: short, hairColor: brown, extras: [glasses] }
+            tappedByMe: false
+        viewsLeftToday: 49
+        hasMore: false
+    TapRequest:
+      type: object
+      additionalProperties: false
+      required: [cardId]
+      properties:
+        cardId: { type: string, format: uuid }
+    TapResult:
+      type: object
+      additionalProperties: false
+      required: [result, tapsLeftToday]
+      properties:
+        result:
+          type: string
+          description: sent means saved and secret. It says nothing about the other person (P5).
+          enum: [sent, mutual]
+        tapsLeftToday: { type: integer, minimum: 0 }
+        matchId: { type: string, format: uuid, description: Present when result is mutual. }
+
+    # ---------------------------------------------------------------- matches
+    MatchSummary:
+      type: object
+      additionalProperties: false
+      required: [id, status, firstName, roomName, createdAt, choiceDeadline]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/MatchStatus" }
+        firstName: { type: string, description: The other person's first name. Only ever after a match. }
+        roomName: { type: string }
+        createdAt: { type: string, format: date-time }
+        choiceDeadline: { type: string, format: date-time }
+        lastMessageAt: { type: string, format: date-time }
+    MatchList:
+      type: object
+      additionalProperties: false
+      required: [matches]
+      properties:
+        matches:
+          type: array
+          items: { $ref: "#/components/schemas/MatchSummary" }
+    MatchDetail:
+      type: object
+      additionalProperties: false
+      required: [id, status, firstName, photoCount, roomId, roomName, createdAt, choiceDeadline, otherHasChosen]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/MatchStatus" }
+        firstName: { type: string, description: The other person's first name. }
+        photoCount:
+          type: integer
+          minimum: 0
+          maximum: 3
+          description: How many of their photos `/api/matches/{id}/photos/{n}` serves.
+        roomId: { type: string, format: uuid }
+        roomName: { type: string }
+        createdAt: { type: string, format: date-time }
+        choiceDeadline: { type: string, format: date-time }
+        yourChoice: { $ref: "#/components/schemas/MatchChoice" }
+        otherHasChosen: { type: boolean }
+        glow: { $ref: "#/components/schemas/Glow" }
+      example:
+        id: 64bfd966-bf7f-426a-b7aa-f0dc371bae1a
+        status: choosing
+        firstName: Blake
+        photoCount: 2
+        roomId: de000000-0000-4000-8000-000000000001
+        roomName: Glow demo room (test data)
+        createdAt: "2026-10-24T20:10:00.000Z"
+        choiceDeadline: "2026-10-24T20:20:00.000Z"
+        otherHasChosen: false
+    ChoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [choice]
+      properties:
+        choice: { $ref: "#/components/schemas/MatchChoice" }
+        location:
+          $ref: "#/components/schemas/LocationFix"
+          description: Required with find.
+    ChoiceNext:
+      type: string
+      description: waiting for the other person, glow started, or chat opened.
+      enum: [waiting, glow, chat]
+    ChoiceReason:
+      type: string
+      enum: [other_undecided, other_location_stale, both_find, chose_chat, timeout, not_checked_in, already_decided]
+    ChoiceResult:
+      type: object
+      additionalProperties: false
+      required: [next, reason, match]
+      properties:
+        next: { $ref: "#/components/schemas/ChoiceNext" }
+        reason: { $ref: "#/components/schemas/ChoiceReason" }
+        match: { $ref: "#/components/schemas/MatchDetail" }
+
+    # ---------------------------------------------------------------- glow
+    MeetingSpot:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Water station }
+    Glow:
+      type: object
+      additionalProperties: false
+      required: [id, status, color, codeWord, startedAt, endsAt, youMet, theyMet]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/GlowStatus" }
+        color: { $ref: "#/components/schemas/GlowColor" }
+        codeWord:
+          type: string
+          pattern: "^[a-z]{2,16}$"
+          description: Lowercase. Show it in capitals, in SF Pro Rounded.
+        meetingSpot: { $ref: "#/components/schemas/MeetingSpot" }
+        startedAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time }
+        youMet: { type: boolean }
+        theyMet: { type: boolean }
+      example:
+        id: 453803c0-4199-465b-a12d-1981639daadd
+        status: active
+        color: aqua
+        codeWord: maple
+        meetingSpot: { id: de000000-0000-4000-8000-0000000005f3, name: Water station }
+        startedAt: "2026-10-24T20:12:00.000Z"
+        endsAt: "2026-10-24T20:27:00.000Z"
+        youMet: false
+        theyMet: false
+    GlowCancelRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          enum: [cancel, switch_to_chat]
+
+    # ---------------------------------------------------------------- chat
+    Message:
+      type: object
+      additionalProperties: false
+      required: [id, fromMe, body, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fromMe: { type: boolean, description: Messages carry no sender ID. }
+        body: { type: string, minLength: 1, maxLength: 1000 }
+        createdAt: { type: string, format: date-time }
+        clientId: { type: string, format: uuid, description: Echoed back on my own messages. }
+    MessagePage:
+      type: object
+      additionalProperties: false
+      required: [messages, hasMore]
+      properties:
+        messages:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/Message" }
+        hasMore: { type: boolean }
+        nextBefore:
+          type: string
+          format: date-time
+          description: Present when hasMore. Send as `before` for older messages.
+    NewMessage:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 1000 }
+        clientId:
+          type: string
+          format: uuid
+          description: Optional idempotency key. A retry with the same one returns the first message.
+
+    # ---------------------------------------------------------------- safety
+    BlockRequest:
+      type: object
+      additionalProperties: false
+      required: [context, contextId]
+      properties:
+        context: { $ref: "#/components/schemas/ReportContext" }
+        contextId:
+          type: string
+          format: uuid
+          description: A card ID I was shown, or a match ID I'm in. Never a user ID.
+    ReportRequest:
+      type: object
+      additionalProperties: false
+      required: [context, contextId, reason]
+      properties:
+        context: { $ref: "#/components/schemas/ReportContext" }
+        contextId: { type: string, format: uuid }
+        reason: { $ref: "#/components/schemas/ReportReason" }
+        details: { type: string, maxLength: 1000 }
+    CaptureRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, roomId]
+      properties:
+        kind: { $ref: "#/components/schemas/CaptureKind" }
+        roomId: { type: string, format: uuid }
+
+    # ---------------------------------------------------------------- cron
+    PurgeResult:
+      type: object
+      additionalProperties: false
+      required: [checkinsDeleted, cardPhotosDeleted, tapsDeleted, glowsEnded, choicesTimedOut, expiringNotified]
+      properties:
+        checkinsDeleted: { type: integer, minimum: 0 }
+        cardPhotosDeleted: { type: integer, minimum: 0 }
+        tapsDeleted: { type: integer, minimum: 0 }
+        glowsEnded: { type: integer, minimum: 0 }
+        choicesTimedOut: { type: integer, minimum: 0 }
+        expiringNotified: { type: integer, minimum: 0 }
+
+    # ---------------------------------------------------------------- admin
+    AdminMeetingSpot:
+      type: object
+      additionalProperties: false
+      required: [id, name, sort]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 60 }
+        sort: { type: integer }
+    AdminRoom:
+      type: object
+      additionalProperties: false
+      required: [id, slug, name, code, latitude, longitude, radiusM, timezone, allowStaticQr, staticQrToken,
+                 demoMode, status, startsAt, endsAt, spots, link]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { $ref: "#/components/schemas/RoomSlug" }
+        name: { type: string }
+        code: { $ref: "#/components/schemas/RoomCode" }
+        latitude: { type: number, format: double, description: The venue's center (public). }
+        longitude: { type: number, format: double }
+        radiusM: { type: integer, minimum: 10, maximum: 5000 }
+        timezone: { type: string, example: America/Los_Angeles }
+        allowStaticQr: { type: boolean }
+        staticQrToken: { $ref: "#/components/schemas/QrToken" }
+        demoMode: { type: boolean }
+        status: { $ref: "#/components/schemas/RoomStatus" }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        spots:
+          type: array
+          items: { $ref: "#/components/schemas/AdminMeetingSpot" }
+        link:
+          type: string
+          format: uri
+          description: The poster link, https://{DOMAIN}/r/{slug}?t={staticQrToken}.
+    AdminRoomList:
+      type: object
+      additionalProperties: false
+      required: [rooms]
+      properties:
+        rooms:
+          type: array
+          items: { $ref: "#/components/schemas/AdminRoom" }
+    AdminRoomCreate:
+      type: object
+      additionalProperties: false
+      required: [slug, name, latitude, longitude, startsAt, endsAt, spots]
+      properties:
+        slug: { $ref: "#/components/schemas/RoomSlug" }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        latitude: { type: number, format: double, minimum: -90, maximum: 90 }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180 }
+        radiusM: { type: integer, minimum: 10, maximum: 5000, description: ROOM_RADIUS_DEFAULT if left out. }
+        timezone: { type: string, description: IANA name. America/Los_Angeles if left out. }
+        allowStaticQr: { type: boolean }
+        demoMode: { type: boolean }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        spots:
+          type: array
+          minItems: 3
+          maxItems: 5
+          items:
+            type: string
+            minLength: 1
+            maxLength: 60
+    AdminRoomUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        latitude: { type: number, format: double, minimum: -90, maximum: 90 }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180 }
+        radiusM: { type: integer, minimum: 10, maximum: 5000 }
+        timezone: { type: string }
+        allowStaticQr: { type: boolean }
+        demoMode: { type: boolean }
+        status: { $ref: "#/components/schemas/RoomStatus" }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+    MeetingSpotsReplace:
+      type: object
+      additionalProperties: false
+      required: [spots]
+      properties:
+        spots:
+          type: array
+          minItems: 3
+          maxItems: 5
+          items:
+            type: string
+            minLength: 1
+            maxLength: 60
+    DisplayToken:
+      type: object
+      additionalProperties: false
+      required: [token, url, windowEndsAt]
+      properties:
+        token: { $ref: "#/components/schemas/QrToken" }
+        url: { type: string, format: uri, description: "https://{DOMAIN}/r/{slug}?t={token}" }
+        windowEndsAt: { type: string, format: date-time }
+    RoomMetrics:
+      type: object
+      additionalProperties: false
+      required: [since, activeCheckins, checkins, cardViews, taps, matches, glowsStarted, glowsMet, reports]
+      properties:
+        since: { type: string, format: date-time }
+        activeCheckins: { type: integer, minimum: 0 }
+        checkins: { type: integer, minimum: 0 }
+        cardViews: { type: integer, minimum: 0 }
+        taps: { type: integer, minimum: 0 }
+        matches: { type: integer, minimum: 0 }
+        glowsStarted: { type: integer, minimum: 0 }
+        glowsMet: { type: integer, minimum: 0 }
+        reports: { type: integer, minimum: 0 }
+    AdminCard:
+      type: object
+      additionalProperties: false
+      required: [id, tags, visible, joinedAt, expiresAt, viewerCode]
+      properties:
+        id: { type: string, format: uuid }
+        tags: { $ref: "#/components/schemas/CardTags" }
+        visible: { type: boolean }
+        joinedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        viewerCode: { type: string, description: "The card owner's watermark code, to match screenshots." }
+    AdminCardList:
+      type: object
+      additionalProperties: false
+      required: [cards]
+      properties:
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/AdminCard" }
+    AdminRemoveCard:
+      type: object
+      additionalProperties: false
+      required: [scope]
+      properties:
+        scope:
+          type: string
+          enum: [card, person]
+    AdminReportEvidence:
+      type: object
+      additionalProperties: false
+      required: [body, createdAt]
+      properties:
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+    AdminReport:
+      type: object
+      additionalProperties: false
+      required: [id, context, contextId, reason, status, createdAt, reporterViewerCode, reportedViewerCode, evidence]
+      properties:
+        id: { type: string, format: uuid }
+        context: { $ref: "#/components/schemas/ReportContext" }
+        contextId: { type: string, format: uuid }
+        reason: { $ref: "#/components/schemas/ReportReason" }
+        details: { type: string }
+        status: { $ref: "#/components/schemas/ReportStatus" }
+        createdAt: { type: string, format: date-time }
+        roomId: { type: string, format: uuid }
+        reporterViewerCode: { type: string }
+        reportedViewerCode: { type: string }
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/AdminReportEvidence" }
+    AdminReportList:
+      type: object
+      additionalProperties: false
+      required: [reports]
+      properties:
+        reports:
+          type: array
+          items: { $ref: "#/components/schemas/AdminReport" }
+    ReportResolution:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [dismiss, remove_card, ban]
+
+    # ---------------------------------------------------------------- web
+    AppleAppSiteAssociation:
+      type: object
+      required: [applinks]
+      properties:
+        applinks:
+          type: object
+          required: [details]
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                required: [appIDs, components]
+                properties:
+                  appIDs:
+                    type: array
+                    items: { type: string, example: TEAMID.com.example.glow }
+                  components:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        "/": { type: string, example: "/r/*" }
+
+    # ---------------------------------------------------------------- events (contracts/events.json)
+    GlowEventType:
+      type: string
+      enum: [match.created, match.choice, match.ended, glow.started, glow.ended, message.created, checkin.expiring, deck.changed]
+    GlowEvent:
+      description: |
+        Every Realtime broadcast payload and the custom keys of every push. Only the type plus a
+        match or room ID: never a user ID, name, photo or message text (P1, P6).
+      oneOf:
+        - $ref: "#/components/schemas/MatchCreatedEvent"
+        - $ref: "#/components/schemas/MatchChoiceEvent"
+        - $ref: "#/components/schemas/MatchEndedEvent"
+        - $ref: "#/components/schemas/GlowStartedEvent"
+        - $ref: "#/components/schemas/GlowEndedEvent"
+        - $ref: "#/components/schemas/MessageCreatedEvent"
+        - $ref: "#/components/schemas/CheckinExpiringEvent"
+        - $ref: "#/components/schemas/DeckChangedEvent"
+      discriminator:
+        propertyName: type
+        mapping:
+          match.created: "#/components/schemas/MatchCreatedEvent"
+          match.choice: "#/components/schemas/MatchChoiceEvent"
+          match.ended: "#/components/schemas/MatchEndedEvent"
+          glow.started: "#/components/schemas/GlowStartedEvent"
+          glow.ended: "#/components/schemas/GlowEndedEvent"
+          message.created: "#/components/schemas/MessageCreatedEvent"
+          checkin.expiring: "#/components/schemas/CheckinExpiringEvent"
+          deck.changed: "#/components/schemas/DeckChangedEvent"
+    MatchCreatedEvent:
+      type: object
+      additionalProperties: false
+      required: [type, matchId]
+      properties:
+        type: { type: string, enum: [match.created] }
+        matchId: { type: string, format: uuid }
+    MatchChoiceEvent:
+      type: object
+      additionalProperties: false
+      required: [type, matchId]
+      properties:
+        type: { type: string, enum: [match.choice] }
+        matchId: { type: string, format: uuid }
+    MatchEndedEvent:
+      type: object
+      additionalProperties: false
+      required: [type, matchId]
+      properties:
+        type: { type: string, enum: [match.ended] }
+        matchId: { type: string, format: uuid }
+    GlowStartedEvent:
+      type: object
+      additionalProperties: false
+      required: [type, matchId]
+      properties:
+        type: { type: string, enum: [glow.started] }
+        matchId: { type: string, format: uuid }
+    GlowEndedEvent:
+      type: object
+      additionalProperties: false
+      required: [type, matchId]
+      properties:
+        type: { type: string, enum: [glow.ended] }
+        matchId: { type: string, format: uuid }
+    MessageCreatedEvent:
+      type: object
+      additionalProperties: false
+      required: [type, matchId]
+      properties:
+        type: { type: string, enum: [message.created] }
+        matchId: { type: string, format: uuid }
+    CheckinExpiringEvent:
+      type: object
+      additionalProperties: false
+      required: [type, roomId]
+      properties:
+        type: { type: string, enum: [checkin.expiring] }
+        roomId: { type: string, format: uuid }
+    DeckChangedEvent:
+      type: object
+      additionalProperties: false
+      required: [type, roomId]
+      properties:
+        type: { type: string, enum: [deck.changed] }
+        roomId: { type: string, format: uuid }
