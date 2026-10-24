@@ -99,12 +99,12 @@ struct ProfileFormTests {
         #expect(!form.isComplete)
     }
 
-    @Test func under18NeverLeavesThePhoneAndClosesTheGate() async {
+    @Test func under18NeverLeavesThePhoneAndClosesTheGate() async throws {
         let recorder = APIRecorder()
         let client = ProfileClient(api: recorder.api, session: PreviewSessionService(state: .onboarding(.profile)))
         let lock = AgeGateLock(key: "test.ageGate.\(UUID().uuidString)")
         defer { lock.reopen() }
-        let seventeen = Calendar.current.date(byAdding: .year, value: -17, to: .now)!
+        let seventeen = try #require(Calendar.current.date(byAdding: .year, value: -17, to: .now))
         let form = filled(utc.dateComponents([.year, .month, .day, .hour], from: seventeen))
 
         let saved = await form.save(using: client, closeGate: lock)
@@ -249,8 +249,7 @@ struct ProfilePhotoPreparerTests {
         #expect((props[kCGImagePropertyTIFFDictionary] as? [CFString: Any])?[kCGImagePropertyTIFFMake] == nil)
         #expect((props[kCGImagePropertyExifDictionary] as? [CFString: Any])?[kCGImagePropertyExifDateTimeOriginal] == nil)
         #expect(jpeg.count <= GlowConstants.photoMaxBytes)
-        let text = String(decoding: jpeg, as: UTF8.self)
-        #expect(!text.contains("ExampleCam"))
+        #expect(jpeg.range(of: Data("ExampleCam".utf8)) == nil)
     }
 
     @Test func aBigPhotoComesOutAt1920Tall() throws {

@@ -54,7 +54,7 @@ struct OnboardingSnapshotTests {
     }
 
     @ViewBuilder
-    private func content(for screen: Screen) -> some View {
+    private func content(for screen: Screen) -> some View { // swiftlint:disable:this cyclomatic_complexity
         switch screen {
         case .welcome: WelcomeContent()
         case .signIn: SignInContent()

@@ -136,15 +136,15 @@ enum TestData {
         return .json(#"{"error":{"code":"\#(code)","message":"x"\#(reasonJSON)}}"#, status: status)
     }
 
-    static let photo = MockTransport.Response.json(
-        #"{"id":"0f0f0f0f-0000-4000-8000-0000000000b1","position":0,"moderationStatus":"approved","url":"/api/me/photos/0f0f0f0f-0000-4000-8000-0000000000b1"}"#,
-        status: .created,
-    )
+    static let photo = photoResponse(id: "0f0f0f0f-0000-4000-8000-0000000000b1", position: 0, status: "approved")
+    static let heldPhoto = photoResponse(id: "0f0f0f0f-0000-4000-8000-0000000000b2", position: 1, status: "held")
 
-    static let heldPhoto = MockTransport.Response.json(
-        #"{"id":"0f0f0f0f-0000-4000-8000-0000000000b2","position":1,"moderationStatus":"held","url":"/api/me/photos/0f0f0f0f-0000-4000-8000-0000000000b2"}"#,
-        status: .created,
-    )
+    static func photoResponse(id: String, position: Int, status: String) -> MockTransport.Response {
+        .json(
+            #"{"id":"\#(id)","position":\#(position),"moderationStatus":"\#(status)","url":"/api/me/photos/\#(id)"}"#,
+            status: .created,
+        )
+    }
 
     /// A step memory no other test touches.
     static func memory() -> StepMemory {

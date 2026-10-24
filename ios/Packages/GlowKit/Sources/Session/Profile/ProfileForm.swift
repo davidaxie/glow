@@ -138,7 +138,8 @@ public final class ProfileForm {
         phase = .editing
     }
 
-    static func date(fromISO value: String, calendar: Calendar) -> Date? {
+    /// A `YYYY-MM-DD` date at noon in `calendar`, or nil.
+    public static func date(fromISO value: String, calendar: Calendar = .current) -> Date? {
         let parts = value.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
         // Noon, so the day can't shift in any timezone the phone moves to.

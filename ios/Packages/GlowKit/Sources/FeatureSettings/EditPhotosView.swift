@@ -56,8 +56,8 @@ struct EditPhotosContent: View {
                 .foregroundStyle(.glowTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             let layout = typeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(spacing: GlowSpacing.sm))
-                : AnyLayout(HStackLayout(spacing: GlowSpacing.sm))
+                ? PhotoTilesLayout(columns: 2, spacing: GlowSpacing.sm)
+                : PhotoTilesLayout(columns: 3, spacing: GlowSpacing.sm)
             layout {
                 ForEach(slots.slots) { slot in
                     SettingsPhotoTile(slot: slot, add: add, remove: remove)
@@ -144,8 +144,6 @@ struct SettingsPhotoTile: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card))
             .overlay(RoundedRectangle(cornerRadius: GlowRadius.card).strokeBorder(.glowLine))
-            .aspectRatio(4.0 / 5.0, contentMode: .fit)
-            .frame(maxWidth: .infinity)
             .contentShape(RoundedRectangle(cornerRadius: GlowRadius.card))
             .accessibilityElement()
             .accessibilityLabel(label)

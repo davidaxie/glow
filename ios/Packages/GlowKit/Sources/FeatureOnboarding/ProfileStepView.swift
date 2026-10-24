@@ -50,6 +50,14 @@ struct ProfileStepView: View {
             if form.trimmedName.isEmpty, let saved = await dependencies.session.currentProfile()?.profile {
                 form = ProfileForm(existing: saved)
             }
+            #if DEBUG
+                // UI tests: `-GlowTestBirthday YYYY-MM-DD` picks the date without the wheel.
+                if let raw = UserDefaults.standard.string(forKey: "GlowTestBirthday"),
+                   let date = ProfileForm.date(fromISO: raw)
+                {
+                    form.pickBirthday(date)
+                }
+            #endif
         }
     }
 
@@ -86,21 +94,8 @@ struct ProfileFields: View {
                 title: "Birthday",
                 note: "Only used to check you're 18 or older. Nobody else sees it.",
             ) {
-                DatePicker(
-                    selection: Binding(get: { form.birthday }, set: { form.pickBirthday($0) }),
-                    in: ...form.latestBirthday,
-                    displayedComponents: .date,
-                ) {
-                    Text(form.birthdayChosen ? "Birthday" : "Choose your birthday")
-                        .glowFont(.body)
-                        .foregroundStyle(form.birthdayChosen ? Color.glowTextPrimary : Color.glowTextSecondary)
-                }
-                .datePickerStyle(.compact)
-                .tint(.glowAccent)
-                .padding(.horizontal, GlowSpacing.md)
-                .frame(minHeight: GlowSize.buttonHeight)
-                .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.control))
-                .accessibilityIdentifier("profile.birthday")
+                BirthdayRow(form: form)
+                    .accessibilityIdentifier("profile.birthday")
             }
 
             FieldGroup(title: "I am") {
@@ -120,6 +115,77 @@ struct ProfileFields: View {
                     identifier: "profile.showMe",
                 )
             }
+        }
+    }
+}
+
+/// The birthday: a row that shows the picked date (or "Choose"), and opens a wheel picker under
+/// it. The row is plain text, so it grows with Dynamic Type at every size.
+struct BirthdayRow: View {
+    @Bindable var form: ProfileForm
+    @State private var isPicking = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: GlowSpacing.xs) {
+            Button {
+                isPicking.toggle()
+            } label: {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: GlowSpacing.sm) {
+                        label
+                        Spacer(minLength: 0)
+                        value
+                    }
+                    VStack(alignment: .leading, spacing: GlowSpacing.xxs) {
+                        label
+                        value
+                    }
+                }
+                .padding(.horizontal, GlowSpacing.md)
+                .padding(.vertical, GlowSpacing.sm)
+                .frame(maxWidth: .infinity, minHeight: GlowSize.buttonHeight, alignment: .leading)
+                .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.control))
+                .contentShape(RoundedRectangle(cornerRadius: GlowRadius.control))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Birthday"))
+            .accessibilityValue(
+                form.birthdayChosen ? Text(form.birthday, format: .dateTime.day().month(.wide).year()) : Text("Not chosen"),
+            )
+            .accessibilityHint(Text("Shows a date picker"))
+
+            if isPicking {
+                DatePicker(
+                    selection: Binding(get: { form.birthday }, set: { form.pickBirthday($0) }),
+                    in: ...form.latestBirthday,
+                    displayedComponents: .date,
+                ) {
+                    Text("Birthday")
+                }
+                .labelsHidden()
+                .datePickerStyle(.wheel)
+                .tint(.glowAccent)
+                .frame(maxWidth: .infinity)
+                .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.control))
+            }
+        }
+    }
+
+    private var label: some View {
+        Text("Birthday")
+            .glowFont(.body)
+            .foregroundStyle(.glowTextPrimary)
+    }
+
+    @ViewBuilder private var value: some View {
+        if form.birthdayChosen {
+            Text(form.birthday, format: .dateTime.day().month(.abbreviated).year())
+                .glowFont(.body)
+                .foregroundStyle(.glowAccent)
+        } else {
+            Text("Choose")
+                .glowFont(.body)
+                .foregroundStyle(.glowTextSecondary)
         }
     }
 }

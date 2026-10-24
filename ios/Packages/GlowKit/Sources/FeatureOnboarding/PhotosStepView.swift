@@ -97,8 +97,8 @@ struct PhotoGrid: View {
 
     var body: some View {
         let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: GlowSpacing.sm))
-            : AnyLayout(HStackLayout(spacing: GlowSpacing.sm))
+            ? PhotoTilesLayout(columns: 2, spacing: GlowSpacing.sm)
+            : PhotoTilesLayout(columns: 3, spacing: GlowSpacing.sm)
         layout {
             ForEach(slots.slots) { slot in
                 PhotoTile(slot: slot, add: add, remove: remove)
@@ -184,8 +184,6 @@ struct PhotoTile: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card))
             .overlay(RoundedRectangle(cornerRadius: GlowRadius.card).strokeBorder(.glowLine))
-            .aspectRatio(4.0 / 5.0, contentMode: .fit)
-            .frame(maxWidth: .infinity)
             .contentShape(RoundedRectangle(cornerRadius: GlowRadius.card))
             .accessibilityElement()
             .accessibilityLabel(label)

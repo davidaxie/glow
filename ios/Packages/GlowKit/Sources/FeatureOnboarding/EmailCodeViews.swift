@@ -61,6 +61,7 @@ struct EmailEntryContent: View {
                 Text("We'll send you a 6-digit code. No password needed.")
                     .glowFont(.callout)
                     .foregroundStyle(.glowTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             OnboardingTextField("you@example.com", text: $email)
                 .textContentType(.emailAddress)

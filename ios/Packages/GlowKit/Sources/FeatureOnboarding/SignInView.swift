@@ -86,6 +86,7 @@ struct SignInContent: View {
                 Text("New here or coming back, it's the same few taps.")
                     .glowFont(.callout)
                     .foregroundStyle(.glowTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Text("Glow never shows your Apple ID or email to anyone. An email is only used to send you sign-in codes.")
                 .glowFont(.footnote)
