@@ -161,7 +161,7 @@ For `ios/fastlane/ship beta` on your Mac, export the same names in your shell (u
 
 ### 9. Ship the first build and make the internal group
 
-1. Make sure `DEVELOPMENT_TEAM` and `GLOW_WEB_DOMAIN` are set in `Shared.xcconfig` on `main`, and B9's signing PR (#17) is merged.
+1. Make sure `DEVELOPMENT_TEAM` and `GLOW_WEB_DOMAIN` are set in `Shared.xcconfig` on `main`.
 2. Run `ios/fastlane/ship release`, and wait for the workflow to go green (about 15 to 25 minutes).
 3. App Store Connect → Glow → **TestFlight** → **Internal Testing** → **+** → name `Glow team`. Keep **Enable automatic distribution** checked, so every new build reaches the group without anyone clicking.
 4. Add testers: yourself, and Robin. Robin first needs an App Store Connect user: **Users and Access** → **+** → Robin's Apple ID email, role **Developer**, leave "Access to Certificates, Identifiers & Profiles" off, apps: Glow only. Once Robin accepts, add Robin to `Glow team`.

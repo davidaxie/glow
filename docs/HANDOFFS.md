@@ -37,7 +37,7 @@ Things only David can do. None of these block Wave 0 work locally.
 
 _From B9, 2026-10-24._ PRs [#5](https://github.com/davidaxie/glow/pull/5) (release pipeline) and [#17](https://github.com/davidaxie/glow/pull/17) (`cross-owner`).
 
-1. **Signing in `ios/project.yml`**, PR #17: 16 lines that make Release device builds of `Glow` and `GlowLiveActivity` sign manually with Apple Distribution and the profiles `Glow App Store` and `Glow Live Activity App Store` (B9-D1). Debug, Simulator and CI builds don't change. `ios/fastlane/ship check` lists this as the one non-Apple blocker for `beta`, and a test in `ios/fastlane/test` stops skipping once it's merged. #5 doesn't depend on #17 to merge; they can go in either order.
+1. ~~**Signing in `ios/project.yml`**~~ Merged in #17, thanks: Release device builds of `Glow` and `GlowLiveActivity` sign manually with Apple Distribution and the profiles `Glow App Store` and `Glow Live Activity App Store` (B9-D1). A test in `ios/fastlane/test` checks `project.yml` keeps naming the profiles the Fastfile uses, so keep the two in step if either changes.
 2. **`Shared.xcconfig` values, later.** When David has them, `DEVELOPMENT_TEAM` (the Team ID) and `GLOW_WEB_DOMAIN` go in `ios/Glow/Config/Shared.xcconfig`, which is yours now. The release lane refuses to ship while either is empty or the placeholder.
 3. **A privacy policy page** at `https://{DOMAIN}/privacy`. App Privacy and external TestFlight testing need a policy URL. A draft in Glow's voice is in `docs/RELEASE.md` ("Privacy policy draft"), with `{CONTACT_EMAIL}` to fill in. The path isn't in the ownership map, so it's yours to place or assign.
 4. **Privacy manifest, two candidates to declare** (D43 says more, not less): `NSPrivacyCollectedDataTypeEmailsOrTextMessages` for chat messages (Apple's definition is about message contents; the manifest has them only as Other User Content), and `NSPrivacyCollectedDataTypeDeviceID` for the push token stored with each account. If you add either, run `ios/fastlane/ship privacy_answers`, commit `ios/fastlane/app-privacy.json` and tell B9 to update the table in `docs/RELEASE.md`. CI's **Release iOS → Release checks** job fails while the two disagree.
@@ -217,7 +217,7 @@ _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVE
 
 ### B9 · Release and TestFlight
 
-_2026-10-24, Wave 1._ PR [#5](https://github.com/davidaxie/glow/pull/5) on `w1/b9-release`, plus the `cross-owner` signing change in PR [#17](https://github.com/davidaxie/glow/pull/17) for A1. The manual is [`docs/RELEASE.md`](RELEASE.md).
+_2026-10-24, Wave 1._ PR [#5](https://github.com/davidaxie/glow/pull/5) on `w1/b9-release`, plus the `cross-owner` signing change in `ios/project.yml` (PR [#17](https://github.com/davidaxie/glow/pull/17), merged). The manual is [`docs/RELEASE.md`](RELEASE.md).
 
 | | |
 | --- | --- |
@@ -234,12 +234,12 @@ _2026-10-24, Wave 1._ PR [#5](https://github.com/davidaxie/glow/pull/5) on `w1/b
 - App Privacy answers from `ios/Glow/PrivacyInfo.xcprivacy`, as data (`ios/fastlane/app-privacy.json`, checked against the manifest in CI) and as a click-through table in RELEASE.md. Beta texts in `ios/fastlane/testflight/`. A privacy policy draft in RELEASE.md.
 - `docs/RELEASE.md`: shipping with one command, what the lane refuses, David's Apple setup click by click (bundle IDs, capabilities, APNs key and where it goes, certificate, profiles, app record, API key, secrets, internal group, external review, public link, Associated Domains on a device), where the web domain goes, signing, adding Sentry back, and fixes for common failures.
 
-**Proof (local, Xcode 26.0.1, no Simulators used).** `ios/fastlane/ship test`: 33 runs, 0 failures (1 skip until #17 merges). `ios/fastlane/ship check`: passes and lists what `beta` still needs. `ios/fastlane/ship verify_release`: an unsigned Release device build passes every check that doesn't need signing (placeholder domain and empty Supabase values show as warnings). A Release build with a test `-xcconfig` override put build 42 in both the app and the Live Activity and the hosted Supabase URL in the Info.plist. `ios/fastlane/ship beta` and `status` without credentials stop with the list of blocked items. With #17: `-showBuildSettings` gives Manual + Apple Distribution + both profiles for Release device builds only, a Release Simulator build succeeds, and a signed Release device build asks for the team and the "Glow App Store" profile.
+**Proof (local, Xcode 26.0.1, no Simulators used).** `ios/fastlane/ship test`: 33 runs, 114 assertions, 0 failures, 0 skips. `ios/fastlane/ship check`: passes and lists what `beta` still needs. `ios/fastlane/ship verify_release`: an unsigned Release device build passes every check that doesn't need signing (placeholder domain and empty Supabase values show as warnings). A Release build with a test `-xcconfig` override put build 42 in both the app and the Live Activity and the hosted Supabase URL in the Info.plist. `ios/fastlane/ship beta` and `status` without credentials stop with the list of blocked items. With #17: `-showBuildSettings` gives Manual + Apple Distribution + both profiles for Release device builds only, a Release Simulator build succeeds, and a signed Release device build asks for the team and the "Glow App Store" profile.
 
 **Done when**
 
 - [ ] `fastlane beta` uploads a build that installs from TestFlight on a real iPhone. Blocked: needs Apple Developer account (Needs David, item 11, steps 1 to 9). The lane, workflow and checks are built and tested up to the first Apple call.
-- [ ] Push works on a TestFlight build, through production. Blocked: needs Apple Developer account (the APNs key, step 3) and B5's sender. Release builds carry `aps-environment = production` once #17 is in.
+- [ ] Push works on a TestFlight build, through production. Blocked: needs Apple Developer account (the APNs key, step 3) and B5's sender. Release builds carry `aps-environment = production` (#17).
 - [ ] The public TestFlight link is approved, or the review status is in `docs/HANDOFFS.md`. Blocked: needs Apple Developer account. Status is in the table above; the `external` lane submits the review.
 - [x] `docs/RELEASE.md` explains how to ship a new build with one command: `ios/fastlane/ship release`.
 
