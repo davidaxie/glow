@@ -77,6 +77,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Glow/Glow.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # The Debug-only Info.plist phase edits the processed Info.plist in place, which the script
+        # sandbox forbids (it can't be declared as an output: Xcode already produces it).
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - target: GlowLiveActivity
       - package: GlowKit
@@ -141,6 +144,13 @@ targets:
           "$buddy" -c "Add :NSAppTransportSecurity dict" \
             -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" \
             "$plist"
+          # PlistBuddy can fail without a non-zero exit, so check the result.
+          scheme="$("$buddy" -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$plist" 2>/dev/null || true)"
+          local_networking="$("$buddy" -c "Print :NSAppTransportSecurity:NSAllowsLocalNetworking" "$plist" 2>/dev/null || true)"
+          if [ "$scheme" != "glow" ] || [ "$local_networking" != "true" ]; then
+            echo "error: couldn't add the Debug-only keys to $plist" >&2
+            exit 1
+          fi
           touch "${DERIVED_FILE_DIR}/debug-info-plist.stamp"
 
   GlowLiveActivity:

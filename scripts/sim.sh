@@ -147,10 +147,18 @@ xcodebuild_glow() {
     -derivedDataPath "$DERIVED" -clonedSourcePackagesDirPath "$PACKAGES" ${extra[@]+"${extra[@]}"} "$@"
 }
 
-# Keeps ios/Package.resolved in step with what Xcode resolved.
+# Keeps ios/Package.resolved in step with what Xcode resolved. Xcode reads the lockfile from the
+# generated workspace (project.yml's postGenCommand copies it in), but writes a first resolution
+# into the local package's folder when the workspace has none.
 sync_lockfile() {
-  if [ -f "$PROJECT_LOCKFILE" ] && ! cmp -s "$PROJECT_LOCKFILE" "$LOCKFILE"; then
-    cp "$PROJECT_LOCKFILE" "$LOCKFILE"
+  local resolved=""
+  if [ -f "$PROJECT_LOCKFILE" ]; then
+    resolved="$PROJECT_LOCKFILE"
+  elif [ -f "$IOS/Packages/GlowKit/Package.resolved" ]; then
+    resolved="$IOS/Packages/GlowKit/Package.resolved"
+  fi
+  if [ -n "$resolved" ] && ! cmp -s "$resolved" "$LOCKFILE"; then
+    cp "$resolved" "$LOCKFILE"
     say "Updated ios/Package.resolved. Commit it with the dependency change."
   fi
 }
@@ -244,7 +252,16 @@ cmd_scan() {
   if [ -z "$token" ] && [ "$slug" = "$GLOW_DEMO_SLUG" ]; then token="$GLOW_DEMO_TOKEN"; fi
   local url="glow://r/$slug"
   if [ -n "$token" ]; then url="$url?t=$token"; fi
-  open_url "$url" "${2:-both}"
+  # The iPhone camera hands a room's universal link straight to Glow. simctl openurl can't do that
+  # here (no live domain, and iOS asks "Open in Glow?" for glow:// links), so relaunch the Debug app
+  # with the link instead: it goes through the same Router.open as a real link.
+  # `scripts/sim.sh open <url>` takes the system path, prompt and all.
+  local name udid
+  while IFS= read -r name; do
+    udid="$(udid_or_die "$name")"
+    xcrun simctl launch --terminate-running-process "$udid" "$BUNDLE_ID" -GlowDebugOpenURL "$url" >/dev/null
+    say "Opened $url on $name"
+  done < <(targets "${2:-both}")
 }
 
 cmd_open() {
@@ -310,8 +327,16 @@ cmd_record() {
   local pid_a=$!
   xcrun simctl io "$udid_b" recordVideo --codec=h264 --force "$SHOTS/$clip-B.mp4" &
   local pid_b=$!
-  say "Recording both screens. Press Ctrl-C to stop."
+  # Ctrl-C (or `kill <pid>`, since background jobs ignore SIGINT) stops both recorders cleanly.
   trap 'kill -INT $pid_a $pid_b 2>/dev/null || true' INT TERM
+  local seconds="${2:-}"
+  if [ -n "$seconds" ]; then
+    say "Recording both screens for $seconds seconds."
+    sleep "$seconds"
+    kill -INT $pid_a $pid_b 2>/dev/null || true
+  else
+    say "Recording both screens. Press Ctrl-C to stop."
+  fi
   wait $pid_a $pid_b 2>/dev/null || true
   trap - INT TERM
   say "Saved docs/shots/$clip-A.mp4 and docs/shots/$clip-B.mp4"
@@ -409,7 +434,7 @@ Glow Simulator workflow (docs/SPEC.md, "Simulator workflow")
   scripts/sim.sh push A <event>        send a fixture notification (push A match_created)
   scripts/sim.sh allow-push [A|B|both] grant notification permission (once per Simulator)
   scripts/sim.sh shot <name>           save a screenshot of both to docs/shots/<name>-A.png and -B.png
-  scripts/sim.sh record [name]         record both screens until Ctrl-C
+  scripts/sim.sh record [name] [secs]  record both screens until Ctrl-C, or for secs seconds
   scripts/sim.sh test [Module]         unit and UI tests on Glow A; or one module (test AppCore),
                                        test unit (no UI tests), test ui, test Glow (app target)
   scripts/sim.sh lint                  SwiftFormat and SwiftLint, as CI runs them

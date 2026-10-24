@@ -30,6 +30,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
                 }
             }
+            // `scripts/sim.sh scan` launches with a room link here, the way the camera hands a
+            // universal link straight to the app. It goes through the same Router.open as any link,
+            // and waits for onboarding like one. (simctl openurl stops at an "Open in Glow?" prompt.)
+            if let link = UserDefaults.standard.string(forKey: "GlowDebugOpenURL"), let url = URL(string: link) {
+                router.open(url)
+            }
         #endif
         return true
     }

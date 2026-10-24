@@ -182,3 +182,101 @@ On Vercel the server also refuses a localhost or non-https `SUPABASE_URL`, the l
 ## D32 · A2 · One generated Swift Types.swift
 
 **Choice.** swift-openapi-generator 1.14 splits the types into eight `Types+*.swift` files that all carry the same `public import`s, and Swift 6 warns about every one a file doesn't use publicly (40 warnings). `codegen.sh` merges them back into one `Types.swift`, so the client builds with no warnings under strict concurrency.
+
+## D33 · A3 · The web domain is one placeholder variable
+
+**Question.** {DOMAIN} isn't chosen yet, but the app needs it for Associated Domains, the links it accepts and the Release API URL.
+
+**Choice.** `GLOW_WEB_DOMAIN` in `ios/Glow/Config/Shared.xcconfig` is the only place it's set, as `glow-domain-not-chosen.invalid` (the `.invalid` TLD can never resolve). The entitlement (`applinks:$(GLOW_WEB_DOMAIN)`), Info.plist (`GlowWebDomain`) and Release `API_BASE_URL` all read it. B9 changes that one line.
+
+**Why.** One edit, and nothing can ever talk to a domain we don't control by accident.
+
+## D34 · A3 · The glow:// scheme and local networking exist in Debug builds only
+
+**Question.** The spec wants `glow://` in Debug only, and A1 asked for a Debug-only ATS exception for the local API and Supabase.
+
+**Choice.** `ios/Glow/Info.plist` has neither. A build phase in `project.yml` adds `CFBundleURLTypes` (`glow`) and `NSAllowsLocalNetworking` to the built Info.plist in Debug, then checks they're there and fails the build if not. AppCore's `DeepLink` also refuses `glow://` unless `AppConfig.allowsCustomScheme`, which is only true in Debug.
+
+**Why.** Adding in Debug (rather than removing in Release) means a broken script can only make Debug stricter, never Release looser. `NSAllowsLocalNetworking` only opens localhost and local IPs, not arbitrary http.
+
+## D35 · A3 · App analytics are anonymous and take only literals, numbers and flags
+
+**Question.** How do we make "never names, photos, coordinates or message text" hard to break in the app?
+
+**Choice.** AppCore's `AnalyticsEvent` takes a `StaticString` name, `StaticString` keys, and `AnalyticsValue`s that can only be a Bool, an Int or a string literal, so a runtime string (a name, a message) can't be passed. The live adapter also drops keys whose words look sensitive (`lat`, `name`, `user_id`, …). PostHog never calls `identify`, has person profiles, GeoIP, session replay, autocapture and screen views off. Sentry has screenshots, view hierarchy, session replay, tracing, breadcrumbs and default PII off, and `PrivacyScrubber` cleans every event. David: also turn on "Discard client IP data" in the PostHog project settings when it exists.
+
+**Why.** Types catch mistakes at compile time, and the scrubbers are a second line.
+
+## D36 · A3 · The Sentry SDK is deferred; the adapter is ready
+
+**Question.** sentry-cocoa 9.31 declares seven binary frameworks, and SwiftPM downloads all of them: 3.2 GB per checkout. This Mac had under 3 GB free, and Wave 1 has nine iOS worktrees.
+
+**Choice.** The package is commented out in `ios/project.yml`. `Glow/Analytics/LiveAnalytics.swift` keeps the full, privacy-locked Sentry adapter under `#if canImport(Sentry)`; it was type-checked against sentry-cocoa 9.31 under Swift 6 with warnings as errors. Re-adding the package entry and dependency switches it on. PostHog is live. Waiting on David (see Needs David).
+
+**Why.** Disk and CI time, with no privacy cost: until Sentry is linked, error reports go nowhere.
+
+## D37 · A3 · The app links only Supabase Auth and Realtime
+
+**Question.** Which supabase-swift products should the app get?
+
+**Choice.** Session gets `Auth`, GlowRealtime gets `Realtime`. PostgREST, Storage and Functions aren't linked.
+
+**Why.** The spec routes everything except sign-in and the person's own channels through the API. Not linking the table and storage clients means no feature can even try to read data directly.
+
+## D38 · A3 · API retries never resend a request that might have landed
+
+**Question.** "Retries when the network drops" could send a chat message or a tap twice.
+
+**Choice.** `RetryMiddleware` retries every method when the request never left the phone (offline, host not found, can't connect). When it's unclear whether the server got it (connection lost, timeout, or a 503), it retries only GET, HEAD, PUT, DELETE and OPTIONS, or requests with an `Idempotency-Key` header. Streamed bodies are never retried. 401, 404 and 429 are thrown as `APIError.unauthorized`, `.notFound` (P11) and `.rateLimited`, and `ClientError` (which prints full requests, headers included) is never surfaced.
+
+**Why.** A duplicate message or tap is worse than one honest "you're offline".
+
+## D39 · A3 · Links before onboarding wait in memory; signing out forgets everything
+
+**Question.** What happens to a room QR scanned before sign-in, given rooms can't open until onboarding is done?
+
+**Choice.** The Router holds it as `pendingRoute`, in memory only, and opens it when the session becomes ready. Signing out (or going back to onboarding) clears every stack, sheet, takeover and pending route.
+
+**Why.** A scanned code still works after sign-up, and nothing about the previous person's matches survives a sign-out.
+
+## D40 · A3 · Service protocols live in AppCore, one file each
+
+**Question.** Where do the service protocols go, if features may only depend on AppCore, DesignSystem and service modules?
+
+**Choice.** Each protocol is its own file in `AppCore/Services/` with a matching mock in `AppCore/Mocks/`. A3 wrote the first shapes. Proposal for A1: from Wave 1, each service's owner owns those two files (B1 Session, B2 Location, B3 Imaging, B5 Push and Realtime). Each service module exposes a `live` factory the app calls, so owners swap in real code without touching the app target.
+
+**Why.** The container needs the protocols without importing every service, and owners shouldn't wait on A3 to reshape their own API.
+
+## D41 · A3 · Module names GlowRealtime and LiveActivityShared
+
+**Question.** supabase-swift already has a target named `Realtime`, and SwiftPM needs unique target names. The Live Activity attributes must be shared by FeatureGlow and the widget extension.
+
+**Choice.** The spec's Realtime module is `GlowRealtime` (still B5's). A small `LiveActivityShared` module (C3's) holds `GlowActivityAttributes`, so the extension doesn't link AppCore and the API stack.
+
+**Why.** Both are forced by the build graph. The ownership map in `AGENTS.md` names both.
+
+## D42 · A3 · API traffic never touches the disk cache
+
+**Choice.** `GlowAPI.live` uses an ephemeral `URLSession` with no URL cache, no cookies and `reloadIgnoringLocalAndRemoteCacheData`.
+
+**Why.** Signed card links and profile photos must never be readable from the phone's cache (spec: "Display with caching turned off").
+
+## D43 · A3 · The privacy manifest declares more, not less
+
+**Choice.** `ios/Glow/PrivacyInfo.xcprivacy` declares precise location (even though only pass or fail is kept), "who you want to see" as sensitive info, and everything else the app sends, all for app functionality, none for tracking. Analytics and crash data are declared as not linked to the person.
+
+**Why.** Over-declaring costs nothing; under-declaring misleads people. B9 keeps App Store Connect's answers matching it.
+
+## D44 · A3 · Fixture outfit photos are synthetic
+
+**Choice.** `ios/fixtures/photos/` holds four generated images of a faceless figure in different tops, each labelled "synthetic". No real person.
+
+**Why.** No one consented to be a fixture. B3 needs photos with real faces to test the blur: add ones the people in them agreed to, or freely licensed ones.
+
+## D45 · A3 · `sim.sh scan` hands the link to the app at launch
+
+**Question.** On iOS 26, `simctl openurl` stops at an "Open in Glow?" prompt for `glow://` links, so a headless `scan` would hang.
+
+**Choice.** `scripts/sim.sh scan` relaunches the Debug app with `-GlowDebugOpenURL <link>`, which goes through the same `Router.open` as any link (and waits for onboarding like one). It's compiled out of Release. `scripts/sim.sh open <url>` still takes the system path, prompt and all.
+
+**Why.** A real QR scan hands a universal link straight to the app, with no prompt, so this is closer to the real thing than the prompt is.

@@ -46,7 +46,7 @@ struct ModelTests {
     @Test func identifiersCodeAsPlainStrings() throws {
         let id = RoomID(rawValue: "00000000-0000-4000-8000-000000000002")
         let data = try JSONEncoder().encode([id])
-        #expect(String(decoding: data, as: UTF8.self) == #"["00000000-0000-4000-8000-000000000002"]"#)
+        #expect(String(bytes: data, encoding: .utf8) == #"["00000000-0000-4000-8000-000000000002"]"#)
         #expect(try JSONDecoder().decode([RoomID].self, from: data) == [id])
     }
 

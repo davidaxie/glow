@@ -13,6 +13,9 @@ Things only David can do. None of these block Wave 0 work locally.
 5. **Cloud accounts** from Build plan step 2 (Supabase cloud, Upstash, Anthropic, PostHog, Sentry, Apple Developer). None exist yet; local development doesn't need them.
 6. **Confirm the venue** (from A2). The seeded `demo` room sits at a placeholder: the Palace of Fine Arts, San Francisco (37.8029, -122.4484). That's fine for the Simulator. The real event room gets made in B7's admin web with the real center, so this only matters if you want `sim.sh at venue` to match the real hall (D11).
 7. **When the Supabase cloud project exists** (from A2): run the migrations with `supabase db push`, and in the dashboard under Realtime settings turn off "Allow public access", so only private channels work (D27). Don't load `seed.sql` there; it's local test data.
+8. **Disk space and the Sentry iOS SDK** (from A3). This Mac had under 3 GB free during Wave 0 (`df -h /`), and a build failed with "No space left on device". The Sentry iOS SDK alone downloads 3.2 GB of binary frameworks per checkout, so A3 deferred it (D36 in `docs/DECISIONS.md`); PostHog is live and the Sentry adapter is written and switches on when the package is added back. Please free space before Wave 1 (nine iOS worktrees, each with its own build folder of about 2 GB, plus Supabase's Docker images), and decide whether the app gets Sentry now or with B9's release pipeline.
+9. **PostHog project setting** (from A3): when the PostHog project exists, turn on "Discard client IP data". The app already disables GeoIP and never identifies anyone (D35).
+10. **Web domain** (from A3): when {DOMAIN} is chosen, B9 sets it in one place, `GLOW_WEB_DOMAIN` in `ios/Glow/Config/Shared.xcconfig` (D33).
 
 ## Requests
 
@@ -36,6 +39,13 @@ _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 6. **docs/SPEC.md** (yours) needs these after Checkpoint 1: endpoints `GET /api/rooms/:id` and `GET /api/me/photos/:id`, event `match.ended`, and the extra database functions (`glow_met`, `cancel_glow`, `unmatch`, `block_user`, `create_report`, `send_message`, `get_match`, `list_matches`, `match_photo_path`, `get_room_state`). See D16 to D19.
 7. **Root package.json.** I added `@hey-api/openapi-ts` 0.99.0, `typescript` 6.0.3 (its peer, same version as `server`) and `yaml` 2.9.1 as devDependencies, as pre-approved. `pnpm-lock.yaml` is updated.
 8. **Password sign-in** stays on: `config.toml` keeps the defaults `scripts/dev-token.sh` uses.
+
+_From A3, 2026-10-24._
+
+1. **Two ownership rows in `AGENTS.md`**, changed in PR #3 (labeled `cross-owner`) because `agents-md.test.ts` needs every module folder named: B5's module is `GlowRealtime` (supabase-swift already has a target named `Realtime`), and C3 owns a new `LiveActivityShared` module that holds the Live Activity attributes (D41). Please keep or reword them.
+2. **Service protocol ownership** (D40): please add to the iOS table that from Wave 1 each service owner owns its protocol and mock in AppCore: `AppCore/Services/SessionService.swift` and `AppCore/Mocks/PreviewSessionService.swift` (B1), `LocationService` (B2), `ImagingService` (B3), `PushService` and `RealtimeService` (B5). The rest of AppCore stays A3's (A1's, once A3 is done).
+3. **Who owns `Package.swift` and `project.yml` after Wave 0.** Owners will ask under A3 for dependencies and routes. With A3 finished, those requests land on you. The how-tos are in A3's Status section below.
+4. **macOS CI.** `scripts/sim.sh setup`, `build` and `test` run unattended with `GLOW_CI=1` (or `CI`): no signing, no prompts, exact package versions from `ios/Package.resolved`, non-zero exit on any failure, result bundles in `ios/build/results/`. Two suggestions for `ci.yml`: cache `ios/build/SourcePackages` keyed on `hashFiles('ios/Package.resolved')` (it saves the package clones on every run), and point the failure artifact at `ios/build/results/*.xcresult` (already covered by your `ios/build/**/*.xcresult` glob). `scripts/sim.sh lint` runs exactly your SwiftLint and SwiftFormat steps, and `scripts/sim.sh verify-project` checks that xcodegen is deterministic and no `.xcodeproj` is in git, if you want a step for it.
 
 ### For A2
 
@@ -69,6 +79,15 @@ _From A1, 2026-10-24._
 6. **pgTAP in CI** runs `supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta` then `supabase test db`, with CLI 2.122.0 and your `config.toml` ports. Thanks for the port note: `server/.env.example` now uses `http://127.0.0.1:54421`.
 7. **Password sign-in stays on locally**, please: `scripts/dev-token.sh` creates a throwaway `@glow.test` user with the admin API and signs in with a password, so CI can smoke-test every endpoint with a real token.
 
+_From A3, 2026-10-24._
+
+1. **Where the Swift client goes.** Write swift-openapi-generator's output (modes `types` and `client`, `accessModifier: public`) to `ios/Packages/GlowKit/Sources/APIClient/Generated/`, as `Types.swift` and `Client.swift`. When `Client.swift` exists, `Package.swift` switches on `GLOW_GENERATED_CLIENT`, which adds `GlowAPI.client` and `GlowAPI.perform { try await $0.getMe() }`. Nothing else to wire. Keep the generator config and any other non-Swift files out of `Sources/` (SwiftPM warns about them).
+2. **Paths keep the `/api` prefix** in `openapi.yaml` (`/api/me`, not `/me` under a `/api` server), matching A1's route helper. `GlowAPI` uses `API_BASE_URL` (`http://localhost:3000`) as the server URL.
+3. **Swift constants** from `constants.json`: put them in the same `Generated/` folder (say `Constants.swift`), public, so every module that imports APIClient sees them.
+4. **Runtime version.** The package pins `swift-openapi-runtime` 1.13.3 and `swift-openapi-urlsession` 1.4.0. Generate with a swift-openapi-generator 1.x that works with them (1.14.x does). Tell A3 or A1 if you need different pins.
+5. **Demo room values.** `ios/fixtures/demo-room.env` copies the demo room from your `seed.sql` (slug `demo`, 37.8029, -122.4484, token `DEMOSTATICTOKEN2`, code `HACK26`) for `sim.sh at venue` and `sim.sh scan demo`. Tell A1 if those change.
+6. **Event payload keys.** The one push fixture A3 added (`ios/fixtures/push/match_created.apns`) guesses `type` and `match_id` next to `aps`. B5 replaces it from `contracts/events.json`.
+
 ### For A3
 
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
@@ -95,6 +114,24 @@ _From A1, 2026-10-24._
 2. **Local server for Debug builds.** `pnpm dev` serves `http://localhost:3000`. The local Supabase is `http://127.0.0.1:54421` with the public demo publishable key `sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH` (the same as `server/.env.example`). Debug needs an ATS exception for local networking.
 3. **Server errors** reach the app as `{ "error": { "code", "message" } }`. 401 means sign in again, 404 means not found or not yours (map both to your not-found error), 503 means retry, and 429 comes with `Retry-After`.
 4. **Ownership.** `AGENTS.md` gives you `ios/` for anything not listed, `ios/GlowTests/` and the package files under `ios/Packages/GlowKit/`. A server test fails if a file in git has no owner in `AGENTS.md`, so tell A1 if you add a top-level folder somewhere else.
+
+_Answered by A3, 2026-10-24, in PR #3._ 1: done. `setup`, `build` and `test` run headless with `GLOW_CI=1` and exit non-zero on failure, and the scheme is `Glow`. Nothing is pinned newer than Xcode 26.0.1 (Swift tools 6.2, iOS 17 deployment target). 2: done. Debug uses `http://localhost:3000`, `http://127.0.0.1:54421` and that publishable key, and the ATS exception (`NSAllowsLocalNetworking`) and `glow://` scheme are added to Debug builds only (D34). 3: done. 401 is `APIError.unauthorized`, 404 is `.notFound`, 429 is `.rateLimited`, and idempotent requests retry 503 using `Retry-After`. 4: no new top-level folders. Two module rows changed (see For A1).
+
+### For B3
+
+_From A3, 2026-10-24._ `ios/fixtures/photos/` has four synthetic, faceless outfit images (D44). Add fixture photos with real faces that the people in them agreed to (or freely licensed ones) for the blur tests. `ios/fixtures/` is A3's, so add them in a `cross-owner` PR or ask A1.
+
+### For B5
+
+_From A3, 2026-10-24._ Please replace `ios/fixtures/push/match_created.apns` (A3's stand-in: lock screen text plus a match ID) with fixtures built from `contracts/events.json`, one per event. `scripts/sim.sh push A <event>` picks up `ios/fixtures/push/<event>.apns`. The spec's Realtime module is `GlowRealtime`.
+
+### For B6
+
+_From A3, 2026-10-24._ The app icon (`ios/Glow/Assets.xcassets/AppIcon.appiconset`), the accent color and `LaunchBackground` (the launch screen color) are A3's placeholders; they're yours to replace. `.swiftlint.yml` has a marked spot under `custom_rules` for your "no colors or fonts in feature modules" rule.
+
+### For B9
+
+_From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVELOPMENT_TEAM` is empty, `CODE_SIGN_STYLE = Automatic`), so set the team there. `GLOW_WEB_DOMAIN` (same file) is {DOMAIN}. Release `SUPABASE_URL` and `SUPABASE_ANON_KEY` are empty in `Release.xcconfig`: pass them, and `POSTHOG_KEY` (and `SENTRY_DSN` once Sentry is back, D36), as xcodebuild settings from CI. `aps-environment` is `development` in Debug and `production` in Release. App Privacy answers should match `ios/Glow/PrivacyInfo.xcprivacy` (D43).
 
 ## Status
 
@@ -164,3 +201,65 @@ _2026-10-24, Wave 0._ PR [#1](https://github.com/davidaxie/glow/pull/1) on `w0/a
 **Still mocked**: the operation registry. `server/src/server/http/contract-placeholder.ts` stands in for A2's generated `server/src/contracts` with the right paths, methods, auth and path params, and empty request and response schemas. A1 swaps it for the generated registry when A2's PR merges, then deletes the placeholder.
 
 **Next wave needs**: build your endpoint by replacing `notImplemented` in its route file (the owner is named at the top of each file). Get a local token with `pnpm -s dev:token`, and check every endpoint with `pnpm smoke`.
+
+### A3 · iPhone app skeleton
+
+_2026-10-24, Wave 0._ PR [#3](https://github.com/davidaxie/glow/pull/3) on `w0/a3-ios`.
+
+**Built**
+
+- `ios/project.yml` (XcodeGen): the `Glow` app (iOS 17, Swift 6 language mode, complete strict concurrency, warnings as errors), the `GlowLiveActivity` widget extension, `GlowTests` (hosted unit tests) and `GlowUITests`, Debug and Release from `ios/Glow/Config/{Shared,Debug,Release}.xcconfig`, and one scheme, `Glow`, whose test action runs every test target, package tests included. The `.xcodeproj` is generated and git-ignored.
+- Capabilities in `ios/Glow/Glow.entitlements`: push (`aps-environment` per configuration), Time Sensitive Notifications, Sign in with Apple, Associated Domains (`applinks:{DOMAIN}`), plus the remote-notification background mode, Live Activities, purpose strings (camera, photo library, location, temporary full accuracy) in `Info.plist`, `PrivacyInfo.xcprivacy`, and a placeholder icon and launch color. `glow://` and the local-networking ATS exception are added to Debug builds only (D34).
+- `ios/Packages/GlowKit`: every module from the spec, each with a placeholder (an entry view or a `live` factory) and a passing test: AppCore, APIClient, DesignSystem, Session, Location, Imaging, Push, GlowRealtime (the spec's Realtime, D41), LiveActivityShared (C3), and the nine feature modules. Supabase `Auth` is linked to Session, `Realtime` to GlowRealtime, and swift-snapshot-testing to DesignSystem's and every feature's tests.
+- AppCore: `Route` (every screen), `Router`, `NavigateAction`, `DeepLink`, the `Dependencies` container with every service as a protocol (`SessionService`, `LocationService`, `ImagingService`, `PushService`, `RealtimeService`, `Analytics`), a preview mock for each, `AppConfig`, typed IDs (`RoomID`, `MatchID`, `CardID`; there is deliberately no user ID type), `RoomLink`, `JoinTicket` and `LocationFix` (which never print their secrets or coordinates), `PrivacyScrubber`, `Broadcaster` and `PlaceholderScreen`.
+- APIClient wrapper: `GlowAPI` (base URL from config, an ephemeral no-cache URLSession), `AuthMiddleware` (Bearer token from Session, only to the API's own host), `RetryMiddleware` (D38), `StatusErrorMiddleware` (401, 404, 429 to `APIError`), `GlowDateTranscoder`, and `MockTransport` for tests and previews.
+- The app target: `AppDelegate` (owns the dependencies and router, forwards push callbacks to `PushService`), `AppComposition` (the composition root), `RootView` (launching, onboarding or the Rooms, Matches and Settings tabs, by session state and Route; sheets; full-screen takeovers; incoming links) and `LiveAnalytics` (PostHog live, Sentry ready but not linked, D35 and D36).
+- `scripts/sim.sh`: every command in the spec's Simulator workflow, plus `launch`, `open`, `allow-push`, `lint`, `verify-project`, `logs` and `reset`. `scripts/sim.sh help` lists them.
+- `ios/fixtures/`: synthetic outfit photos (D44), the demo room's values from A2's seed (`demo-room.env`), and one stand-in push payload for B5 to replace.
+
+**Proof**: [launch](shots/launch-rooms-A.png), [scan demo on Glow A](shots/scan-demo-A.png) and [Glow B](shots/scan-demo-B.png), [push A match_created](shots/push-match-created-A.png), and a 12-second recording of both ([A](shots/skeleton-scan-and-push-A.mp4), [B](shots/skeleton-scan-and-push-B.mp4)).
+
+**Still mocked**: every service. Each service module's `live` factory returns the AppCore preview mock, and the session starts signed in and onboarded so the tabs show (launch with `-GlowPreviewSession onboarding` or `signedOut` to see the other phases). The generated client isn't merged yet: `GlowAPI.client` and `GlowAPI.perform` switch on by themselves when A2's `Generated/Client.swift` lands. Sentry isn't linked (D36).
+
+**Commands**
+
+```
+scripts/sim.sh setup              # create and boot Glow A and Glow B (newest iPhone Pro, newest iOS)
+scripts/sim.sh build              # xcodegen + Debug build (log: ios/build/logs/build.log)
+scripts/sim.sh install            # install and launch on both
+scripts/sim.sh scan demo          # open the demo room's link on both
+scripts/sim.sh allow-push A       # once per Simulator: grant notification permission
+scripts/sim.sh push A match_created
+scripts/sim.sh shot <name>        # docs/shots/<name>-A.png and -B.png
+scripts/sim.sh record <name> 15   # 15 seconds of both screens (or Ctrl-C without a duration)
+scripts/sim.sh test               # every test on Glow A
+scripts/sim.sh test AppCore       # one module's tests
+scripts/sim.sh lint               # SwiftFormat + SwiftLint, as CI runs them
+```
+
+If `xcode-select` points at the Command Line Tools, `sim.sh` uses `/Applications/Xcode.app` by itself. Builds live in `ios/build/` (about 2 GB with package checkouts); delete it any time.
+
+**How to add a file to a module.** Drop the `.swift` file anywhere under `ios/Packages/GlowKit/Sources/{Module}/` (tests under `Tests/{Module}Tests/`). SwiftPM picks it up; there's no project file to edit, and no need to rerun xcodegen. Make anything other modules use `public`. Need resources (images, a string catalog)? Put them in `Sources/{Module}/Resources/` and ask for `resources: [.process("Resources")]` on your module in `Package.swift`. Need another package or module dependency? Ask under A3 (then A1) in Requests. Feature modules may depend on AppCore, APIClient, DesignSystem and service modules, never on each other.
+
+**How to add a route.**
+1. Add a case to `Route` in `AppCore/Navigation/Route.swift`, with its `presentation` (which tab to push on, or `.sheet`, or `.fullScreen`) and a `name` (no IDs in names: they go to logs and analytics).
+2. Add a public entry view for it in the module that draws it, taking the case's values.
+3. Map the case to that view in `ios/Glow/Navigation/RouteDestination.swift`.
+4. Add a test to `AppCoreTests/RouterTests.swift`.
+Steps 1, 3 and 4 touch A3's files, so ask in Requests or open a small `cross-owner` PR. Then any module navigates with `@Environment(\.navigate) private var navigate` and `navigate(.yourRoute(id))`. A screen that only one module ever shows (like the What did you notice sheet) doesn't need a Route.
+
+**How to run one module's tests on its own.** `scripts/sim.sh test {Module}`, for example `scripts/sim.sh test FeatureRooms` (about 10 seconds once built). It runs `xcodebuild test -only-testing:{Module}Tests` on Glow A. Also: `test unit` (everything but UI tests), `test ui`, `test Glow` (the app target's tests). In Xcode, open `ios/Glow.xcodeproj` after `scripts/sim.sh build`, and click the diamond next to a test.
+
+**Next wave needs**
+
+- **Plugging in your service** (B1, B2, B3, B5): replace the body of your module's `live` factory (`SessionModule.live`, `LocationModule.live`, `ImagingModule.live`, `PushModule.live`, `RealtimeModule.live`) with your implementation. Keep the signature: `ios/Glow/AppComposition.swift` calls it. Your protocol is in `AppCore/Services/` and its mock in `AppCore/Mocks/`. Change both together (D40, pending A1).
+- **Using a service in a feature**: `@Environment(\.dependencies) private var dependencies`, then `dependencies.location`, `dependencies.api` and so on. In previews and tests, inject `.environment(\.dependencies, .preview(location: MyMock()))`.
+- **Calling the API**: once A2's client lands, `try await dependencies.api.perform { try await $0.getMe() }`. It throws `APIError`: `.notFound` (missing or not yours, P11), `.unauthorized`, `.rateLimited`, `.offline`, `.cancelled` or `.unexpected(status:)`. For a POST that's safe to repeat, send an `Idempotency-Key` header and it'll be retried on a dropped connection. Test with `GlowAPI.mock(.responses(["getMe": .json("…")]))`.
+- **Analytics**: `dependencies.analytics.track(AnalyticsEvent("room_joined", ["via": "qr", "retries": .int(1)]))`. Names, keys and string values must be literals; numbers and flags are fine. Never coordinates, names, photos or message text (D35). Report unexpected errors with `dependencies.analytics.record(error, context: "rooms.join")`.
+- **Logging**: `Logger(subsystem: Log.subsystem, category: "…")`, never `print` (SwiftLint fails it).
+- **Entry views the app shows**: keep these public initializers (the app's `RouteDestination` and `RootView` call them): `OnboardingFlowView(step:)`; `SettingsView()`, `EditProfileView()`, `EditPhotosView()`; `RoomsHomeView()`, `RoomScannerView()`, `RoomCodeEntryView()`, `RoomJoinView(link:)`; `CheckInView(roomID:ticket:)`; `PauseView()`, `DeleteAccountView()`, `BlockSheet(context:)`, `ReportSheet(context:)`; `RoomHomeView(roomID:)`, `DeckView(roomID:)`; `MatchesListView()`, `MutualMomentView(matchID:)`, `MatchView(matchID:)`; `GlowView(matchID:)`; `ChatView(matchID:)`; `GalleryView()`.
+- **B1**: the session drives the root. Emit `.signedOut`, `.onboarding(step)` and `.ready` from `states()`; the Router holds any room link until `.ready` (D39). Email codes show up in Mailpit at `http://127.0.0.1:54424` (A2).
+- **B2**: room links arrive as `.joinRoom(RoomLink)` (already validated: slug, optional token). After the location check passes, `navigate(.checkIn(roomID, JoinTicket(ticket)))`. `scripts/sim.sh scan demo` and `at venue` / `at away` use `ios/fixtures/demo-room.env`.
+- **B5**: `PushService.route(for:)` turns a tapped notification into a Route, and `foregroundPresentation(for:)` decides banners while the app is open. The app delegate already forwards both, plus the device token.
+- **C3**: `GlowActivityAttributes` is in `LiveActivityShared`, which both FeatureGlow and the extension link.
+- **D1**: `GlowUITests/SimulatorSetupUITests.swift` isn't a product test: `scripts/sim.sh allow-push` runs it to tap Allow on the notification prompt. Please keep it.

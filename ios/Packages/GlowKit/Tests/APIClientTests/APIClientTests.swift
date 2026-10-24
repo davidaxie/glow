@@ -191,7 +191,7 @@ struct APIClientTests {
         let (response, body) = try await api.send(request(.get), operationID: "getMe")
         #expect(response.status == .ok)
         let data = try await Data(collecting: #require(body), upTo: 1024)
-        #expect(String(decoding: data, as: UTF8.self) == #"{"ok":true}"#)
+        #expect(String(bytes: data, encoding: .utf8) == #"{"ok":true}"#)
         let (unknown, _) = try await api.send(request(.get), operationID: "unknown")
         #expect(unknown.status == .notImplemented)
     }

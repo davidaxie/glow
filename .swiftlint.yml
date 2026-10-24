@@ -48,10 +48,10 @@ nesting:
 custom_rules:
   # Privacy: print and NSLog can leak coordinates, names or tokens into device logs.
   no_print:
-    name: "No print"
+    name: 'No print'
     regex: '(^|[^\w.])(print|debugPrint|NSLog)\('
     excluded: '/Tests/|UITests/'
-    message: "Use os.Logger with privacy annotations (see AppCore Log)."
+    message: 'Use os.Logger with privacy annotations (see AppCore Log).'
     severity: error
   # B6 adds design-token rules here (feature modules may not define their own colors or fonts).
 
