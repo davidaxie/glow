@@ -4,18 +4,29 @@
  * Events carry only `{ type, matchId }` (contracts/events.json). The user IDs here come from
  * the database, go only to `notify()`, and never reach a reply (P1).
  *
- * A notification that fails never fails the request: the match is already committed, and
- * the app finds it with `GET /api/matches` anyway. Failures are logged by event type only.
+ * Sending runs after the response (Next's `after()`), so a slow push never slows a tap. A
+ * notification that fails never fails the request: the match is already committed, and the
+ * app finds it with `GET /api/matches` anyway. Failures are logged by event type only.
  */
-import type { GlowEvent } from '@/contracts';
+import { after } from 'next/server';
 import { serviceDb } from '@/server/deck/db';
 import { notify } from '@/server/deck/dependencies';
 import { logger } from '@/server/log';
 
-async function notifyAll(userIds: readonly string[], event: GlowEvent): Promise<void> {
-  const results = await Promise.allSettled(userIds.map((id) => notify(id, event)));
-  const failed = results.filter((r) => r.status === 'rejected').length;
-  if (failed > 0) logger.warn('notify.failed', { type: event.type, failed });
+/**
+ * Runs `task` after the response is sent. Outside a request (tests, scripts) there is no
+ * response to wait for, so it runs now and is awaited, which keeps tests deterministic.
+ */
+export async function afterResponse(task: () => Promise<void>): Promise<void> {
+  const safe = () =>
+    task().catch((error: unknown) =>
+      logger.warn('notify.failed', { error: error instanceof Error ? error.name : 'unknown' }),
+    );
+  try {
+    after(safe);
+  } catch {
+    await safe();
+  }
 }
 
 /** The two people in a match, from the matches table (server only). */
@@ -31,16 +42,14 @@ async function matchPeople(matchId: string): Promise<readonly string[] | null> {
 
 /** match.created to both people. Called once, by the tap that made the match. */
 export async function announceMatch(matchId: string): Promise<void> {
-  try {
+  await afterResponse(async () => {
     const people = await matchPeople(matchId);
     if (!people) {
-      logger.warn('notify.failed', { type: 'match.created', failed: 2 });
+      logger.warn('notify.failed', { type: 'match.created', cause: 'match_not_found' });
       return;
     }
-    await notifyAll(people, { type: 'match.created', matchId });
-  } catch {
-    logger.warn('notify.failed', { type: 'match.created', failed: 2 });
-  }
+    await notify(people, { type: 'match.created', matchId });
+  });
 }
 
 /**
@@ -53,25 +62,22 @@ export type SettledTransition = {
   readonly userIds: readonly string[];
 };
 
-const EVENT_FOR_KIND: Readonly<Record<string, GlowEvent['type']>> = {
-  choice_timeout: 'match.choice',
-  glow_expired: 'glow.ended',
-};
-
 /** Tells both people about each settled transition: match.choice or glow.ended. */
 export async function announceSettled(
   settled: readonly SettledTransition[] | null | undefined,
 ): Promise<void> {
   if (!settled || settled.length === 0) return;
-  await Promise.all(
-    settled.map(async (t) => {
-      const type = EVENT_FOR_KIND[t.kind];
-      if (!type) return;
-      try {
-        await notifyAll(t.userIds, { type, matchId: t.matchId } as GlowEvent);
-      } catch {
-        logger.warn('notify.failed', { type, failed: t.userIds.length });
-      }
-    }),
-  );
+  await afterResponse(async () => {
+    await Promise.all(
+      settled.map((t) => {
+        if (t.kind === 'choice_timeout') {
+          return notify(t.userIds, { type: 'match.choice', matchId: t.matchId });
+        }
+        if (t.kind === 'glow_expired') {
+          return notify(t.userIds, { type: 'glow.ended', matchId: t.matchId });
+        }
+        return undefined;
+      }),
+    );
+  });
 }

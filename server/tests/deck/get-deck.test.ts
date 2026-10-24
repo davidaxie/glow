@@ -6,7 +6,7 @@ import { createHmac } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CARD_URL_TTL_SECONDS, CARD_VIEWS_PER_ROOM_PER_DAY, zDeck } from '@/contracts';
-import { HttpError } from '@/server/http';
+import { HttpError, rateLimited } from '@/server/http';
 import { LOCAL_ENV } from '../helpers/env';
 import { fakeAccessToken, mockVerify, USER_ID } from '../helpers/auth';
 
@@ -14,12 +14,17 @@ vi.mock('@/server/auth/verify', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/auth/verify')>();
   return { ...actual, verifyAccessToken: vi.fn() };
 });
+vi.mock('@/server/deck/dependencies', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
+  return { ...actual, rateLimit: vi.fn(async () => {}) };
+});
 vi.mock('@/server/deck/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/db')>();
   return { ...actual, rpc: vi.fn() };
 });
 
 const { rpc } = await import('@/server/deck/db');
+const { rateLimit } = await import('@/server/deck/dependencies');
 const { loadDeck, toDeck, validateFilters } = await import('@/server/deck/get-deck');
 const { POST } = await import('../../app/api/rooms/[id]/deck/route');
 
@@ -222,6 +227,15 @@ describe('POST /api/rooms/{id}/deck', () => {
   it('answers 400 for repeated filter values, before touching the database', async () => {
     const res = await call({ filters: { extras: ['hat', 'hat'] } });
     expect(res.status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('counts against the deck rate limit first, and a 429 reads nothing', async () => {
+    vi.mocked(rateLimit).mockRejectedValue(rateLimited(12));
+    const res = await call({});
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('12');
+    expect(rateLimit).toHaveBeenCalledWith(USER_ID, 'deck');
     expect(rpc).not.toHaveBeenCalled();
   });
 

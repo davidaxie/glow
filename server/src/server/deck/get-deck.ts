@@ -22,7 +22,7 @@ import {
 import { badRequest, type RouteHandler } from '@/server/http';
 import type { ErrorIssue } from '@/server/http/errors';
 import { rpc } from './db';
-import { cardImageLink } from './dependencies';
+import { cardImageLink, rateLimit } from './dependencies';
 
 /** What `get_deck` returns (docs/CONTRACTS.md). `cardPath` is storage-internal and never sent. */
 type DbCard = {
@@ -121,7 +121,7 @@ export async function loadDeck(
   return toDeck(raw, viewerId, now);
 }
 
-export const getDeckRoute: RouteHandler<'getDeck'> = async ({ user, params, body }) => ({
-  status: 200,
-  body: await loadDeck(user.id, params.id, body),
-});
+export const getDeckRoute: RouteHandler<'getDeck'> = async ({ user, params, body }) => {
+  await rateLimit(user.id, 'deck');
+  return { status: 200, body: await loadDeck(user.id, params.id, body) };
+};

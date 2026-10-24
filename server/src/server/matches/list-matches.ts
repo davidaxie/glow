@@ -11,6 +11,7 @@
  */
 import type { MatchList, MatchStatus, MatchSummary } from '@/contracts';
 import { rpc } from '@/server/deck/db';
+import { rateLimit } from '@/server/deck/dependencies';
 import type { RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
 import { announceSettled, type SettledTransition } from './announce';
@@ -65,7 +66,7 @@ export async function listMatches(userId: string): Promise<MatchList> {
   return { matches };
 }
 
-export const listMatchesRoute: RouteHandler<'listMatches'> = async ({ user }) => ({
-  status: 200,
-  body: await listMatches(user.id),
-});
+export const listMatchesRoute: RouteHandler<'listMatches'> = async ({ user }) => {
+  await rateLimit(user.id, 'api');
+  return { status: 200, body: await listMatches(user.id) };
+};

@@ -16,7 +16,7 @@ vi.mock('@/server/deck/db', async (importOriginal) => {
 });
 vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
-  return { ...actual, notify: vi.fn(async () => {}) };
+  return { ...actual, notify: vi.fn(async () => {}), rateLimit: vi.fn(async () => {}) };
 });
 
 const { rpc } = await import('@/server/deck/db');
@@ -98,11 +98,12 @@ describe('GET /api/matches', () => {
     } as never);
     const res = await call();
     expect(res.status).toBe(200);
-    expect(notify).toHaveBeenCalledTimes(4);
-    expect(notify).toHaveBeenCalledWith(OTHER_USER, { type: 'match.choice', matchId: M1 });
-    expect(notify).toHaveBeenCalledWith(USER_ID, { type: 'match.choice', matchId: M1 });
-    expect(notify).toHaveBeenCalledWith(OTHER_USER, { type: 'glow.ended', matchId: M2 });
-    expect(notify).toHaveBeenCalledWith(USER_ID, { type: 'glow.ended', matchId: M2 });
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenCalledWith([USER_ID, OTHER_USER], {
+      type: 'match.choice',
+      matchId: M1,
+    });
+    expect(notify).toHaveBeenCalledWith([USER_ID, OTHER_USER], { type: 'glow.ended', matchId: M2 });
     expect(JSON.stringify(await res.clone().json())).not.toContain('settled');
   });
 

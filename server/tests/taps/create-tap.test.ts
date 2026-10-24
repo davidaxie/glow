@@ -5,7 +5,7 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { zTapResult } from '@/contracts';
-import { HttpError } from '@/server/http';
+import { HttpError, rateLimited } from '@/server/http';
 import { fakeAccessToken, mockVerify, USER_ID } from '../helpers/auth';
 
 vi.mock('@/server/auth/verify', async (importOriginal) => {
@@ -18,11 +18,11 @@ vi.mock('@/server/deck/db', async (importOriginal) => {
 });
 vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
-  return { ...actual, notify: vi.fn(async () => {}) };
+  return { ...actual, notify: vi.fn(async () => {}), rateLimit: vi.fn(async () => {}) };
 });
 
 const { rpc, serviceDb } = await import('@/server/deck/db');
-const { notify } = await import('@/server/deck/dependencies');
+const { notify, rateLimit } = await import('@/server/deck/dependencies');
 const { POST } = await import('../../app/api/rooms/[id]/taps/route');
 
 const ROOM = 'de000000-0000-4000-8000-000000000001';
@@ -96,9 +96,10 @@ describe('POST /api/rooms/{id}/taps', () => {
     expect(body).toEqual({ result: 'mutual', tapsLeftToday: 1, matchId: MATCH });
     expect(zTapResult.parse(body)).toEqual(body);
     expect(JSON.stringify(body)).not.toContain(OTHER_USER);
-    expect(notify).toHaveBeenCalledTimes(2);
-    expect(notify).toHaveBeenCalledWith(USER_ID, { type: 'match.created', matchId: MATCH });
-    expect(notify).toHaveBeenCalledWith(OTHER_USER, { type: 'match.created', matchId: MATCH });
+    expect(notify).toHaveBeenCalledExactlyOnceWith([USER_ID, OTHER_USER], {
+      type: 'match.created',
+      matchId: MATCH,
+    });
   });
 
   it('a failed notification never fails the tap: the match exists either way', async () => {
@@ -135,6 +136,15 @@ describe('POST /api/rooms/{id}/taps', () => {
   it('a card ID that is not a UUID is 400, before touching the database', async () => {
     const res = await call({ cardId: 'not-a-card' });
     expect(res.status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('counts against the taps rate limit first, and a 429 records nothing', async () => {
+    vi.mocked(rateLimit).mockRejectedValue(rateLimited(30));
+    const res = await call({ cardId: CARD });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('30');
+    expect(rateLimit).toHaveBeenCalledWith(USER_ID, 'taps');
     expect(rpc).not.toHaveBeenCalled();
   });
 
