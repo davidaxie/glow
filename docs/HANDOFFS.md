@@ -69,6 +69,8 @@ _Run by the orchestrator, to whom David handed the checkpoint decisions; written
 
 ### For A1
 
+_From D1, 2026-10-24, `integration` PR (`w3/d1-push-tap-fix`)._ Tapping any notification crashed the app (SIGABRT in UIKit's `_updateSnapshotAndStateRestorationWithAction`): the async form of `userNotificationCenter(_:didReceive:)` in `ios/Glow/AppDelegate.swift` calls UIKit's completion from wherever its task finishes, and UIKit asserts it's on the main thread. It's now the completion-handler form, which routes on the main actor and then calls the completion there. Found by D1's `PushTapUITests` (`scripts/e2e/run.sh push`), which now taps all nine fixtures' banners and checks each opens its screen. B5: your `route(for:)` is unchanged.
+
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27).
 
 1. **End finished glows' Live Activities at launch and on foreground.** In `ios/Glow/AppDelegate.swift` (or wherever the app sees `scenePhase` become `.active`), call `Task { await ActivityKitGlowLiveActivities.endFinishedGlows() }` from `FeatureGlow`. It ends only glows whose time has run out or that already show an ending, so a glow that ended while the app slept never lingers on the lock screen (C3-D4). Glows that are still on are left alone.
