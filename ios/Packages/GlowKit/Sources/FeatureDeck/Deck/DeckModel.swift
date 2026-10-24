@@ -153,25 +153,6 @@ final class DeckModel {
         }
     }
 
-    /// `deck.changed` arrived: someone here paused, left or blocked. Refetch soon, once per burst.
-    func deckChanged() {
-        scheduleRefresh()
-    }
-
-    /// A card's photo link expired (they last CARD_URL_TTL) or the card left the deck: refetch.
-    func imageUnavailable(_ card: CardID) {
-        logger.debug("A card photo was unavailable; refreshing")
-        _ = card
-        scheduleRefresh()
-    }
-
-    /// Waits for any scheduled live refresh to finish. For tests.
-    func settle() async {
-        while let task = refreshTask {
-            await task.value
-        }
-    }
-
     func scheduleRefresh() {
         guard phase != .choosing else { return }
         if refreshTask != nil {
@@ -285,6 +266,38 @@ final class DeckModel {
         ]))
     }
 
+    /// For snapshot tests and previews: puts the model straight into a state.
+    func preview(phase: Phase, cards: [DeckCard] = [], filters: NoticedFilters = .none, tapsLeft: Int? = 3, viewsLeft: Int? = 41) {
+        self.phase = phase
+        self.cards = cards
+        self.filters = filters
+        tapsLeftToday = tapsLeft
+        viewsLeftToday = viewsLeft
+        started = true
+    }
+}
+
+// Live refetch triggers and the card bookkeeping after a fetch.
+extension DeckModel {
+    /// `deck.changed` arrived: someone here paused, left or blocked. Refetch soon, once per burst.
+    func deckChanged() {
+        scheduleRefresh()
+    }
+
+    /// A card's photo link expired (they last CARD_URL_TTL) or the card left the deck: refetch.
+    func imageUnavailable(_ card: CardID) {
+        logger.debug("A card photo was unavailable; refreshing")
+        _ = card
+        scheduleRefresh()
+    }
+
+    /// Waits for any scheduled live refresh to finish. For tests.
+    func settle() async {
+        while let task = refreshTask {
+            await task.value
+        }
+    }
+
     /// Keeps a card's current photo link while it's still good, so photos already on screen don't
     /// reload on every live refresh.
     private func merged(_ fresh: [DeckCard]) -> [DeckCard] {
@@ -326,15 +339,5 @@ final class DeckModel {
     func close() {
         confirming = nil
         enlarged = nil
-    }
-
-    /// For snapshot tests and previews: puts the model straight into a state.
-    func preview(phase: Phase, cards: [DeckCard] = [], filters: NoticedFilters = .none, tapsLeft: Int? = 3, viewsLeft: Int? = 41) {
-        self.phase = phase
-        self.cards = cards
-        self.filters = filters
-        tapsLeftToday = tapsLeft
-        viewsLeftToday = viewsLeft
-        started = true
     }
 }
