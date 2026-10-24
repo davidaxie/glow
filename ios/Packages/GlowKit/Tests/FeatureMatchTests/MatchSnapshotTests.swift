@@ -21,8 +21,9 @@ struct MatchSnapshotTests {
     }
 
     private static let id = FixtureMatchClient.revealMatch
-    /// The fixed "now" every countdown reads, so snapshots never depend on the clock.
-    private static let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+    /// The fixed "now" every countdown reads, so snapshots never depend on the clock. In the
+    /// future, so the fixtures never time the match out.
+    private static let now = Date(timeIntervalSinceReferenceDate: 1_000_000_000)
 
     /// A match with no photos (so nothing loads while the snapshot is taken), 8:12 left to choose.
     private static func match(choice: MatchSnapshot.Choice? = nil) -> MatchSnapshot {
@@ -42,6 +43,7 @@ struct MatchSnapshotTests {
                 analytics: NoopAnalytics(),
             )
             await model.load()
+            #expect(model.phase == (screen == .waiting ? .waiting : .choosing))
             if screen == .notInRoom {
                 model.notice = .notInRoom
             } else if screen == .locationDenied {
@@ -57,7 +59,7 @@ struct MatchSnapshotTests {
 
     @Test(arguments: Screen.allCases, [DynamicTypeSize.large, .accessibility5])
     func screen(_ screen: Screen, size: DynamicTypeSize) async {
-        let height: CGFloat = size == .large ? 852 : 2400
+        let height: CGFloat = size == .large ? 852 : 1900
         let view = await Self.view(for: screen)
             .frame(width: 393, height: height)
             .background(.glowBackground)
