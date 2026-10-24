@@ -8,14 +8,7 @@
  * fields by name anyway, so nothing depends on that alone.
  */
 import { z } from 'zod';
-import {
-  zChoiceNext,
-  zChoiceReason,
-  zGlow,
-  zMatchDetail,
-  type Glow,
-  type MatchDetail,
-} from '@/contracts';
+import { zChoiceNext, zChoiceReason, zMatchDetail, type Glow, type MatchDetail } from '@/contracts';
 
 /** A timeout a function applied on the spot. The route that called it sends the events. */
 export const zSettled = z.object({
