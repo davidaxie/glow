@@ -112,35 +112,38 @@ struct ChatScreen: View {
         case .ready:
             ChatThread(model: model, composerFocused: $composerFocused)
         case .notOpen:
-            GlowEmptyState(
-                systemImage: "hourglass",
-                title: "The chat isn't open yet.",
-                message: "It opens once you've both chosen.",
-            ) {
-                Button("Back to the match") { navigate(.match(model.matchID)) }
-                    .buttonStyle(.glowSecondary)
+            ChatStateView {
+                GlowEmptyState(
+                    systemImage: "hourglass",
+                    title: "The chat isn't open yet.",
+                    message: "It opens once you've both chosen.",
+                ) {
+                    Button("Back to the match") { navigate(.match(model.matchID)) }
+                        .buttonStyle(.glowSecondary)
+                }
             }
-            .padding(GlowSpacing.screenMargin)
         case .ended:
-            GlowEmptyState(
-                systemImage: "moon.stars",
-                title: "This chat has ended.",
-                message: "It isn't available anymore.",
-            ) {
-                Button("Back to matches") { navigate(.matches) }
-                    .buttonStyle(.glowSecondary)
+            ChatStateView {
+                GlowEmptyState(
+                    systemImage: "moon.stars",
+                    title: "This chat has ended.",
+                    message: "It isn't available anymore.",
+                ) {
+                    Button("Back to matches") { navigate(.matches) }
+                        .buttonStyle(.glowSecondary)
+                }
             }
-            .padding(GlowSpacing.screenMargin)
         case .failed:
-            GlowEmptyState(
-                systemImage: "wifi.exclamationmark",
-                title: "The chat didn't load.",
-                message: "Check your connection, then try again.",
-            ) {
-                Button("Try again") { Task { await model.refresh() } }
-                    .buttonStyle(.glowSecondary)
+            ChatStateView {
+                GlowEmptyState(
+                    systemImage: "wifi.exclamationmark",
+                    title: "The chat didn't load.",
+                    message: "Check your connection, then try again.",
+                ) {
+                    Button("Try again") { Task { await model.refresh() } }
+                        .buttonStyle(.glowSecondary)
+                }
             }
-            .padding(GlowSpacing.screenMargin)
         }
     }
 
@@ -163,6 +166,23 @@ struct ChatScreen: View {
             return Text("Unmatch \(name)?")
         }
         return Text("Unmatch?")
+    }
+}
+
+/// A state that replaces the thread: centered, and scrollable when large text needs the room.
+struct ChatStateView<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            content()
+                .padding(GlowSpacing.screenMargin)
+                .frame(maxHeight: .infinity)
+            ScrollView {
+                content()
+                    .padding(GlowSpacing.screenMargin)
+            }
+        }
     }
 }
 

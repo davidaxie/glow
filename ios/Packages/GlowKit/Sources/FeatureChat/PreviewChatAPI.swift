@@ -17,6 +17,7 @@ final class PreviewChatAPI: ChatAPI, @unchecked Sendable {
     private var sends: [(body: String, clientID: String)] = []
     private var pages: [Date?] = []
     private var unmatches = 0
+    private var sendDelay: Duration = .zero
 
     init(
         thread: [ChatMessage] = PreviewChatAPI.sampleThread,
@@ -33,6 +34,11 @@ final class PreviewChatAPI: ChatAPI, @unchecked Sendable {
     /// The next sends fail like this, in order.
     func failNextSends(_ errors: ChatError...) {
         lock.withLock { failures.append(contentsOf: errors) }
+    }
+
+    /// Sends wait this long before the server answers, to see them on their way.
+    func delaySends(by delay: Duration) {
+        lock.withLock { sendDelay = delay }
     }
 
     /// Every page load fails like this until set back to nil.
@@ -97,6 +103,10 @@ final class PreviewChatAPI: ChatAPI, @unchecked Sendable {
     }
 
     func send(_: MatchID, body: String, clientID: String) async throws(ChatError) -> ChatMessage {
+        let delay = lock.withLock { sendDelay }
+        if delay > .zero {
+            try? await Task.sleep(for: delay)
+        }
         let result: Result<ChatMessage, ChatError> = lock.withLock {
             if !failures.isEmpty {
                 return .failure(failures.removeFirst())

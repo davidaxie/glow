@@ -16,6 +16,8 @@ struct ChatBubble: View {
 
     @State private var choosingFix = false
 
+    static let sendingOpacity = 0.85
+
     private var message: ChatMessage {
         row.message
     }
@@ -73,13 +75,9 @@ struct ChatBubble: View {
                 message.fromMe ? .glowAccent : .glowSurfaceRaised,
                 in: RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous),
             )
-            .opacity(message.delivery == .sending ? 0.6 : 1)
-            .overlay {
-                if isFailed {
-                    RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous)
-                        .strokeBorder(.glowDanger, lineWidth: 1.5)
-                }
-            }
+            // A little quieter while it's on its way. 85% keeps the text at 4.9:1 on the faded
+            // accent (WCAG AA); 60% would drop it to 2.9:1.
+            .opacity(message.delivery == .sending ? Self.sendingOpacity : 1)
             .contentShape(RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous))
             .onTapGesture {
                 if isFailed {

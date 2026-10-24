@@ -1,4 +1,5 @@
 import AppCore
+import DesignSystem
 import Foundation
 import Testing
 @testable import FeatureChat
@@ -33,9 +34,15 @@ struct ChatModelTests {
         await model.start()
         model.draft = "  On my way \n"
         #expect(model.outgoingBody == "On my way")
+        api.delaySends(by: .milliseconds(300))
         let sending = Task { await model.send() }
-        // The draft clears and the message shows before the server answers.
+        for _ in 0 ..< 50 where model.outgoing.isEmpty {
+            await Task.yield()
+        }
+        // The draft clears and the message shows as sending before the server answers.
         #expect(model.draft.isEmpty)
+        #expect(model.outgoing.map(\.delivery) == [.sending])
+        #expect(model.rows.last?.message.body == "On my way")
         await sending.value
         #expect(model.outgoing.isEmpty)
         let last = model.items.last
@@ -286,6 +293,15 @@ struct ChatLayoutTests {
         thread.append(PreviewChatAPI.sample(6, "On my way", fromMe: true, minutesAgo: 1))
         let rows = ChatLayout.rows(for: thread, now: PreviewChatAPI.sampleNow, calendar: calendar)
         #expect(rows.map(\.showsSent) == [false, false, false, false, false, true])
+    }
+}
+
+struct ChatBubbleContrastTests {
+    @Test func aSendingBubbleStillMeetsAA() {
+        let fade = 1 - ChatBubble.sendingOpacity
+        let fill = GlowPalette.accent.mixed(with: GlowPalette.background, amount: fade)
+        let text = GlowPalette.onAccent.mixed(with: GlowPalette.background, amount: fade)
+        #expect(GlowContrast.ratio(text, fill) >= GlowContrast.minimumTextRatio)
     }
 }
 

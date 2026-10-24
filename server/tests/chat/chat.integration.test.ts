@@ -207,7 +207,13 @@ describe.runIf(IT)('chat routes (integration)', { timeout: 120_000 }, () => {
       .from('matches')
       .update({ choice_deadline: new Date(Date.now() - 1000).toISOString() })
       .eq('id', choosing);
+    notifySpy.mockClear();
     await sent(cal, choosing, 'the window ran out, so here I am');
+    // The send applied the timeout, so it tells both people the chat opened (A2's settled).
+    expect(events()).toEqual([
+      { to: [ana.id, cal.id].sort(), event: { type: 'match.choice', matchId: choosing } },
+      { to: [ana.id], event: { type: 'message.created', matchId: choosing } },
+    ]);
     await world.unmatch(ana, choosing);
   });
 

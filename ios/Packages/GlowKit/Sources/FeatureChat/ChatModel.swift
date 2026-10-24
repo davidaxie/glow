@@ -64,6 +64,27 @@ final class ChatModel {
         self.calendar = calendar
     }
 
+    /// A model already showing a state, without loading anything: for previews and snapshots,
+    /// which render synchronously.
+    static func showing(
+        _ phase: Phase,
+        messages: [ChatMessage] = [],
+        outgoing: [ChatMessage] = [],
+        header: ChatHeader? = nil,
+        draft: String = "",
+        api: any ChatAPI = PreviewChatAPI(),
+        now: @escaping @Sendable () -> Date = { PreviewChatAPI.sampleNow },
+        calendar: Calendar = .autoupdatingCurrent,
+    ) -> ChatModel {
+        let model = ChatModel(matchID: PreviewChatAPI.sampleMatch, api: api, now: now, calendar: calendar)
+        model.phase = phase
+        model.messages = messages
+        model.outgoing = outgoing
+        model.header = header
+        model.draft = draft
+        return model
+    }
+
     /// Everything the thread shows, oldest first.
     var items: [ChatMessage] {
         messages + outgoing
