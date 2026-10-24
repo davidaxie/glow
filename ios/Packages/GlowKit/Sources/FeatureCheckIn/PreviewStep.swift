@@ -25,7 +25,7 @@ struct PreviewStep: View {
                         .resizable()
                         .scaledToFit()
                         .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card))
-                        .frame(maxWidth: 360, maxHeight: 480)
+                        .frame(maxWidth: 320, maxHeight: 360)
                         .accessibilityLabel(Text(facesBlurred > 0
                                 ? "Your outfit photo, with faces blurred"
                                 : "Your outfit photo"))

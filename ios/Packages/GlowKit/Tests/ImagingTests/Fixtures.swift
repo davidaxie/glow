@@ -22,7 +22,7 @@ enum Fixtures {
     static let faces: [(name: String, faces: Int)] = [
         ("face-portrait-fincke.jpg", 1),
         ("face-portrait-mann.jpg", 1),
-        ("faces-group-of-3.jpg", 3),
+        ("faces-group-of-3.jpg", 6), // two crews of three
         ("faces-group-inflight.jpg", 7),
         ("faces-group-large.jpg", 13),
     ]

@@ -41,13 +41,25 @@ private struct LibraryPicker: View {
                 FramingGuide().padding(GlowSpacing.lg)
             }
             .aspectRatio(3 / 4, contentMode: .fit)
-            .frame(maxWidth: 360)
+            .frame(maxWidth: 260)
 
             PhotosPicker(selection: $item, matching: .images, photoLibrary: .shared()) {
                 Label("Choose a photo", systemImage: "photo.on.rectangle")
             }
             .buttonStyle(.glowPrimary)
             .accessibilityIdentifier("checkin.choosePhoto")
+
+            // UI tests launch with `-GlowDebugCheckInPhoto <path to a fixture>` to skip the
+            // system photo picker, which runs out of process.
+            if let path = UserDefaults.standard.string(forKey: "GlowDebugCheckInPhoto") {
+                Button("Use test photo") {
+                    if let data = FileManager.default.contents(atPath: path) {
+                        onPhoto(data)
+                    }
+                }
+                .buttonStyle(.glowSecondary)
+                .accessibilityIdentifier("checkin.debugPhoto")
+            }
         }
         .onChange(of: item) { _, newItem in
             guard let newItem else { return }
@@ -97,7 +109,7 @@ private struct CameraStep: View {
                 }
             }
             .aspectRatio(3 / 4, contentMode: .fit)
-            .frame(maxWidth: 360)
+            .frame(maxWidth: 260)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text("Camera. Frame your outfit from the neck down."))
 
