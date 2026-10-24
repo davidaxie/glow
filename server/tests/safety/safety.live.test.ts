@@ -378,16 +378,30 @@ describe.skipIf(!LIVE)('purge (P9)', () => {
     expect(warnings).toEqual([{ userIds: [a.id], event: { type: 'checkin.expiring', roomId } }]);
   });
 
-  it('sweeps photos whose row is gone, but not ones still being uploaded', async () => {
+  it('sweeps photos whose row is gone, but not live cards or ones still being uploaded', async () => {
     const roomId = await world.room();
+    const live = await world.checkIn(await world.person(), roomId);
     const orphan = `${roomId}/${randomUUID()}.jpg`;
     const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
     await world.db.storage.from('room-cards').upload(orphan, jpeg, { contentType: 'image/jpeg' });
+    // A profile photo whose row was never written.
+    const owner = await world.person();
+    const strayPhoto = `${owner.id}/${randomUUID()}.jpg`;
+    await world.db.storage
+      .from('profile-photos')
+      .upload(strayPhoto, jpeg, { contentType: 'image/jpeg' });
+
     const { sweepOrphans } = await import('@/server/safety/storage');
     await sweepOrphans(); // younger than the grace period: kept
     expect(await world.objectExists('room-cards', orphan)).toBe(true);
-    await sweepOrphans(Date.now() + 3 * 60_000);
+    expect(await world.objectExists('profile-photos', strayPhoto)).toBe(true);
+
+    const swept = await sweepOrphans(Date.now() + 3 * 60_000);
     expect(await world.objectExists('room-cards', orphan)).toBe(false);
+    expect(await world.objectExists('profile-photos', strayPhoto)).toBe(false);
+    expect(await world.objectExists('room-cards', live.path)).toBe(true);
+    expect(swept.cardPhotos).toBeGreaterThanOrEqual(1);
+    expect(swept.profilePhotos).toBeGreaterThanOrEqual(1);
   });
 
   it('refuses anyone without the cron secret', async () => {
