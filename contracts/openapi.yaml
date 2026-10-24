@@ -1263,7 +1263,7 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
           example:
-            error: { code: rate_limited, message: Slow down., retryAfterSeconds: 10 }
+            error: { code: rate_limited, message: Slow down a little and try again. }
     Unavailable:
       description: A dependency is down; try again (`unavailable`, with `reason` such as `moderation`).
       headers:
