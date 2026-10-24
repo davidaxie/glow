@@ -73,7 +73,7 @@ jobs:
         run: bundle exec fastlane check
 
   testflight:
-    name: TestFlight · ${{ inputs.lane || 'beta' }}
+    name: TestFlight
     if: github.event_name != 'pull_request'
     needs: check
     # beta builds with Xcode; external and status only talk to App Store Connect.

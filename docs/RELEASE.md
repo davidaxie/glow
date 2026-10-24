@@ -42,7 +42,7 @@ A1's end-of-wave tags (`wave-1-done` and so on) ship the same way. You can also 
 
 ## What the release lane refuses
 
-`beta` stops before building if anything below is wrong, with one line per problem naming the fix, and marks each one that only the Apple account, the hosted Supabase project or the web domain can unblock. After building, it checks the exported app and refuses to upload it if:
+This is the release gate (B9-D3). `beta` stops before building if anything below is wrong, with one line per problem naming the fix, and marks each one that only the Apple account, the hosted Supabase project or the web domain can unblock. After building, it checks the exported app and refuses to upload it if:
 
 - the Debug-only `glow://` scheme or any App Transport Security exception is in the Info.plist (D34)
 - the API URL isn't `https://{DOMAIN}`, or the Supabase URL isn't a hosted https address
