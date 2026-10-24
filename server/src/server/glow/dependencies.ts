@@ -1,7 +1,8 @@
 /**
- * Owner: C3. What the glow module uses from other owners, in one place to swap.
+ * Owner: C3. What the glow module uses from other owners, in one place.
  *
- * - B5 (PR #15): `notify(userIds, event)` from `@/server/notify`. A stand-in with the same
- *   signature until it merges.
+ * - B5: `notify(userIds, event)` from `@/server/notify`. A Realtime broadcast to each person's
+ *   `user:{id}` channel plus an Apple push when the event has one, built only from
+ *   contracts/events.json. It never throws.
  */
-export { notify, type UserEvent } from './stubs/notify';
+export { notify, type UserEvent } from '@/server/notify';

@@ -256,7 +256,7 @@ struct GlowCountdown: View {
     }
 
     /// "12:34", for a frozen snapshot.
-    static func remaining(from now: Date, to end: Date) -> String {
+    nonisolated static func remaining(from now: Date, to end: Date) -> String {
         let seconds = max(Int(end.timeIntervalSince(now).rounded(.down)), 0)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
