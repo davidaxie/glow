@@ -188,14 +188,15 @@ Once the review is approved:
 
 1. TestFlight → **Public** → **Public Link** → **Enable Public Link** → set a tester limit (for example 1,000) → Enable.
 2. Copy the link (`https://testflight.apple.com/join/XXXXXXXX`).
-3. Give it to B2's `/r/{slug}` page (people without Glow see it there; it's waiting on a server variable, see HANDOFFS), to B7 for the posters, and put it in B9's section of `HANDOFFS.md`. Lane **status** prints it too.
+3. In Vercel, set **`TESTFLIGHT_URL`** to it for Production, and redeploy. B2's `/r/{slug}` page shows it to people who don't have Glow yet.
+4. Give it to B7 for the posters, and put it in B9's section of `HANDOFFS.md`. Lane **status** prints it too.
 
 ### 12. Check Associated Domains on a real iPhone
 
 Once the web domain exists:
 
 1. Set `GLOW_WEB_DOMAIN` in `ios/Glow/Config/Shared.xcconfig` (the only place the app reads it; it feeds `applinks:{DOMAIN}`, the links the app accepts and the Release API URL, D33). Ask A1, since A1 owns the file.
-2. Point the domain at the Vercel production deploy (Vercel → Settings → Domains).
+2. Point the domain at the Vercel production deploy (Vercel → Settings → Domains), and set **`APPLE_APP_ID`** to `{TEAM_ID}.com.davidxie.glow` (Production and Preview), then redeploy. B2's link file reads it.
 3. Check B2's link file: `curl -si https://{DOMAIN}/.well-known/apple-app-site-association` must answer `200`, `application/json`, no redirect, with `appIDs` `["{TEAM_ID}.com.davidxie.glow"]` and the component `/r/*`. Apple's copy, which phones actually read: `curl -s https://app-site-association.cdn-apple.com/a/v1/{DOMAIN}` (it can lag a few hours).
 4. Ship a build (step 9) and install it from TestFlight. iOS fetches the file when the app installs, so delete and reinstall if you changed it.
 5. Open the iPhone **Camera**, point it at a room poster's QR code, and tap the banner. Glow must open on the room (not Safari). Also try a room link pasted into Notes and long-pressed: "Open in Glow" should be there.
@@ -205,7 +206,7 @@ Once the web domain exists:
 Two places, once it's chosen:
 
 - **The app:** `GLOW_WEB_DOMAIN` in `ios/Glow/Config/Shared.xcconfig`. Everything in the app derives from it. The release lane refuses to ship while it's still the `.invalid` placeholder.
-- **The server:** B2's `GET /.well-known/apple-app-site-association` route, which must list `{TEAM_ID}.com.davidxie.glow` for `/r/*`, and the Vercel project's domain. The team and bundle IDs are already server variables (`APNS_TEAM_ID`, `APNS_BUNDLE_ID`).
+- **The server:** the Vercel project's domain, and `APPLE_APP_ID` = `{TEAM_ID}.com.davidxie.glow`, which B2's `GET /.well-known/apple-app-site-association` route lists for `/r/*` (step 12). The `/r/{slug}` page's TestFlight link is `TESTFLIGHT_URL` (step 11).
 
 ## App Privacy answers
 
@@ -239,7 +240,7 @@ The texts Apple and testers see live in `ios/fastlane/testflight/`, and the lane
 | `what-to-test.txt` | What to Test, on every build (plus the build number and commit) | `beta` and `external` |
 | `review-notes.txt` | Beta App Review Information → Review Notes (plus `GLOW_REVIEW_VIDEO_URL` if set) | `external` |
 
-Sign-in for reviewers: none needed (Sign in with Apple or the email code works for anyone), so "Sign-in required" stays off. There's deliberately no reviewer back door around the location check (D49); the notes explain what a reviewer can see outside a venue, and a recording of the full loop helps. Contact details come from the `GLOW_REVIEW_*` secrets, never from git.
+Sign-in for reviewers: none needed (Sign in with Apple or the email code works for anyone), so "Sign-in required" stays off. There's deliberately no reviewer back door around the location check (B9-D4); the notes explain what a reviewer can see outside a venue, and a recording of the full loop helps. Contact details come from the `GLOW_REVIEW_*` secrets, never from git.
 
 Export compliance is answered in the app: `ITSAppUsesNonExemptEncryption` is `false` (standard HTTPS only), so no build waits on the question.
 
@@ -269,7 +270,7 @@ Needed at `https://{DOMAIN}/privacy` for App Privacy and external testing. A dra
 
 ## How signing works
 
-Release builds sign manually (D46): the archive is signed with the Apple Distribution certificate and the two App Store profiles, by name, from `ios/project.yml`'s Release settings. That's what makes the archive's `aps-environment` `production`, which TestFlight push needs. It needs no registered device, no Admin-role API key and no extra repository for certificates. Debug builds still sign automatically with the team from `Shared.xcconfig`, and Simulator and CI builds aren't signed.
+Release builds sign manually (B9-D1): the archive is signed with the Apple Distribution certificate and the two App Store profiles, by name, from `ios/project.yml`'s Release settings. That's what makes the archive's `aps-environment` `production`, which TestFlight push needs. It needs no registered device, no Admin-role API key and no extra repository for certificates. Debug builds still sign automatically with the team from `Shared.xcconfig`, and Simulator and CI builds aren't signed.
 
 ## Crash reports (Sentry)
 

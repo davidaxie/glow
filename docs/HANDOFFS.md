@@ -16,10 +16,31 @@ Things only David can do. None of these block Wave 0 work locally.
 8. **Disk space and the Sentry iOS SDK** (from A3). This Mac had under 3 GB free during Wave 0 (`df -h /`), and a build failed with "No space left on device". The Sentry iOS SDK alone downloads 3.2 GB of binary frameworks per checkout, so A3 deferred it (D36 in `docs/DECISIONS.md`); PostHog is live and the Sentry adapter is written and switches on when the package is added back. Please free space before Wave 1 (nine iOS worktrees, each with its own build folder of about 2 GB, plus Supabase's Docker images), and decide whether the app gets Sentry now or with B9's release pipeline.
 9. **PostHog project setting** (from A3): when the PostHog project exists, turn on "Discard client IP data". The app already disables GeoIP and never identifies anyone (D35).
 10. **Web domain** (from A3): when {DOMAIN} is chosen, B9 sets it in one place, `GLOW_WEB_DOMAIN` in `ios/Glow/Config/Shared.xcconfig` (D33).
+11. **Apple Developer account and TestFlight** (from B9). Everything is click by click in [`docs/RELEASE.md`](RELEASE.md#apple-setup-for-david); the release pipeline is ready and waits on these, in order:
+    1. Join the paid Apple Developer Program; copy the **Team ID** into `DEVELOPMENT_TEAM` in `ios/Glow/Config/Shared.xcconfig` (via A1).
+    2. Register bundle IDs `com.davidxie.glow` (capabilities: Associated Domains, Push Notifications, Sign In with Apple, Time Sensitive Notifications) and `com.davidxie.glow.LiveActivity` (none).
+    3. Make the APNs key (`.p8`, Sandbox & Production) and put it in Vercel production: `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (the file's contents), `APNS_BUNDLE_ID=com.davidxie.glow`.
+    4. Make an **Apple Distribution** certificate in Xcode, and export it as a `.p12` with a password.
+    5. Make two **App Store** provisioning profiles, named exactly `Glow App Store` (app) and `Glow Live Activity App Store` (extension).
+    6. Create the app record in App Store Connect (bundle ID `com.davidxie.glow`, SKU `glow-ios`).
+    7. Make an App Store Connect **API key** with the **App Manager** role.
+    8. Add the GitHub secrets: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY`, `DIST_CERT_P12_BASE64`, `DIST_CERT_PASSWORD`, `PROFILE_APP_BASE64`, `PROFILE_LIVE_ACTIVITY_BASE64`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` (the hosted project's), optionally `POSTHOG_KEY`; and for beta review, `GLOW_REVIEW_FIRST_NAME`, `GLOW_REVIEW_LAST_NAME`, `GLOW_REVIEW_EMAIL`, `GLOW_REVIEW_PHONE`, `GLOW_FEEDBACK_EMAIL`.
+    9. Run `ios/fastlane/ship release`, then make the internal group **Glow team** (automatic distribution on) with you, Robin (an App Store Connect user with the Developer role) and the two stage phones. Install from TestFlight, and check push between two iPhones.
+    10. When sign-in and room joining work on `main`: create the external group **Public**, fill in App Privacy (answers in RELEASE.md) with a privacy policy at `https://{DOMAIN}/privacy`, and run the workflow's **external** lane to submit for beta review.
+    11. When it's approved: turn on the **public link**, set it as `TESTFLIGHT_URL` in Vercel, and give it to B7 for the posters.
+    12. When the domain exists: set `GLOW_WEB_DOMAIN` (via A1) and `APPLE_APP_ID={TEAM_ID}.com.davidxie.glow` in Vercel, then scan a poster QR with the iPhone Camera and check Glow opens.
 
 ## Requests
 
 ### For A1
+
+_From B9, 2026-10-24._ PRs [#5](https://github.com/davidaxie/glow/pull/5) (release pipeline) and [#17](https://github.com/davidaxie/glow/pull/17) (`cross-owner`).
+
+1. **Signing in `ios/project.yml`**, PR #17: 16 lines that make Release device builds of `Glow` and `GlowLiveActivity` sign manually with Apple Distribution and the profiles `Glow App Store` and `Glow Live Activity App Store` (B9-D1). Debug, Simulator and CI builds don't change. `ios/fastlane/ship check` lists this as the one non-Apple blocker for `beta`, and a test in `ios/fastlane/test` stops skipping once it's merged. #5 doesn't depend on #17 to merge; they can go in either order.
+2. **`Shared.xcconfig` values, later.** When David has them, `DEVELOPMENT_TEAM` (the Team ID) and `GLOW_WEB_DOMAIN` go in `ios/Glow/Config/Shared.xcconfig`, which is yours now. The release lane refuses to ship while either is empty or the placeholder.
+3. **A privacy policy page** at `https://{DOMAIN}/privacy`. App Privacy and external TestFlight testing need a policy URL. A draft in Glow's voice is in `docs/RELEASE.md` ("Privacy policy draft"), with `{CONTACT_EMAIL}` to fill in. The path isn't in the ownership map, so it's yours to place or assign.
+4. **Privacy manifest, two candidates to declare** (D43 says more, not less): `NSPrivacyCollectedDataTypeEmailsOrTextMessages` for chat messages (Apple's definition is about message contents; the manifest has them only as Other User Content), and `NSPrivacyCollectedDataTypeDeviceID` for the push token stored with each account. If you add either, run `ios/fastlane/ship privacy_answers`, commit `ios/fastlane/app-privacy.json` and tell B9 to update the table in `docs/RELEASE.md`. CI's **Release iOS → Release checks** job fails while the two disagree.
+5. **CI.** `.github/workflows/release-ios.yml` adds one Ubuntu job (**Release checks**, about a minute) on PRs that touch release files: the lane helper tests and `fastlane check`. The macOS TestFlight job only runs on `beta-*` and `wave-*-done` tags or by hand, and skips with a notice until the Apple secrets exist. After you tag `wave-1-done`, the build number shows in that run's summary.
 
 _From B8, 2026-10-24._
 
@@ -177,6 +198,8 @@ if (verdict.decision === 'flagged') throw messageRejected(); // 422 message_reje
 
 ### For B5
 
+_From B9, 2026-10-24._ Every TestFlight build is the **Release** configuration, signed for the App Store, so its entitlement is `aps-environment = production` (B9-D1); Debug builds from Xcode are `development`. So register `production` in Release builds and `sandbox` in Debug (a compile-time `#if DEBUG` is enough; there's no development-signed Release build in the pipeline). On the server, the one `.p8` key in `APNS_*` covers both environments; send to `api.push.apple.com` for `production` rows and `api.sandbox.push.apple.com` for `sandbox` ones. B9's Done-when box "Push works on a TestFlight build, through production" is checked with your sender, two iPhones and a mutual tap (docs/RELEASE.md, step 9).
+
 _From A3, 2026-10-24._ Please replace `ios/fixtures/push/match_created.apns` (A3's stand-in: lock screen text plus a match ID) with fixtures built from `contracts/events.json`, one per event. `scripts/sim.sh push A <event>` picks up `ios/fixtures/push/<event>.apns`. The spec's Realtime module is `GlowRealtime`.
 
 ### For B6
@@ -185,9 +208,49 @@ _From A3, 2026-10-24._ The app icon (`ios/Glow/Assets.xcassets/AppIcon.appiconse
 
 ### For B9
 
+_Answered by B9, 2026-10-24, in PRs #5 and #17._ The team stays in `DEVELOPMENT_TEAM` in `Shared.xcconfig` (David fills it in; the lane refuses to ship while it's empty). The Release Supabase values, `POSTHOG_KEY` and `SENTRY_DSN` go in from CI secrets through an `xcodebuild -xcconfig` override, never into git (B9-D2). Release `aps-environment = production` needed manual App Store signing for the archive (#17, B9-D1). The App Privacy answers are generated from the manifest and CI fails if they drift (`ios/fastlane/app-privacy.json`).
+
 _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVELOPMENT_TEAM` is empty, `CODE_SIGN_STYLE = Automatic`), so set the team there. `GLOW_WEB_DOMAIN` (same file) is {DOMAIN}. Release `SUPABASE_URL` and `SUPABASE_ANON_KEY` are empty in `Release.xcconfig`: pass them, and `POSTHOG_KEY` (and `SENTRY_DSN` once Sentry is back, D36), as xcodebuild settings from CI. `aps-environment` is `development` in Debug and `production` in Release. App Privacy answers should match `ios/Glow/PrivacyInfo.xcprivacy` (D43).
 
 ## Status
+
+### B9 · Release and TestFlight
+
+_2026-10-24, Wave 1._ PR [#5](https://github.com/davidaxie/glow/pull/5) on `w1/b9-release`, plus the `cross-owner` signing change in PR [#17](https://github.com/davidaxie/glow/pull/17) for A1. The manual is [`docs/RELEASE.md`](RELEASE.md).
+
+| | |
+| --- | --- |
+| Public TestFlight link | none yet (blocked: needs Apple Developer account) |
+| Latest build | none yet. Update this row after every release. |
+| External beta review | not submitted (blocked: needs Apple Developer account, then sign-in from B1 and room joining from B2 on `main`) |
+
+**Built**
+
+- `ios/fastlane/`: the `beta` lane (TestFlight build number + 1, archive the Release configuration with manual App Store signing, check the exported app, upload with the App Store Connect API key, set What to Test), plus `external` (Public group, beta review submission with the review notes and test information), `status` (latest build, review state, public link), `check` and `verify_release` (no Apple account needed), `privacy` and `privacy_answers`. Helpers are plain Ruby in `glow_release.rb` with 33 unit tests in `test/`.
+- `ios/fastlane/ship`: one command for all of it. `ios/fastlane/ship release` tags `main` and CI ships it.
+- `.github/workflows/release-ios.yml`: `beta` on `beta-*` and `wave-*-done` tags or by hand (also `external` and `status`). It skips cleanly, with a notice and a job summary saying "blocked: needs Apple Developer account", while the API key secrets are missing. PRs touching release files run the tests and `fastlane check` on Ubuntu.
+- The release gate (B9-D3): `beta` refuses non-anon Supabase keys, PostHog personal keys, local endpoints and the placeholder domain before building, and after building refuses an app with Debug-only Info.plist keys, ATS exceptions, non-production push, wrong Associated Domains, secrets, the test sign-in route or `GlowDebug` launch arguments in any file.
+- App Privacy answers from `ios/Glow/PrivacyInfo.xcprivacy`, as data (`ios/fastlane/app-privacy.json`, checked against the manifest in CI) and as a click-through table in RELEASE.md. Beta texts in `ios/fastlane/testflight/`. A privacy policy draft in RELEASE.md.
+- `docs/RELEASE.md`: shipping with one command, what the lane refuses, David's Apple setup click by click (bundle IDs, capabilities, APNs key and where it goes, certificate, profiles, app record, API key, secrets, internal group, external review, public link, Associated Domains on a device), where the web domain goes, signing, adding Sentry back, and fixes for common failures.
+
+**Proof (local, Xcode 26.0.1, no Simulators used).** `ios/fastlane/ship test`: 33 runs, 0 failures (1 skip until #17 merges). `ios/fastlane/ship check`: passes and lists what `beta` still needs. `ios/fastlane/ship verify_release`: an unsigned Release device build passes every check that doesn't need signing (placeholder domain and empty Supabase values show as warnings). A Release build with a test `-xcconfig` override put build 42 in both the app and the Live Activity and the hosted Supabase URL in the Info.plist. `ios/fastlane/ship beta` and `status` without credentials stop with the list of blocked items. With #17: `-showBuildSettings` gives Manual + Apple Distribution + both profiles for Release device builds only, a Release Simulator build succeeds, and a signed Release device build asks for the team and the "Glow App Store" profile.
+
+**Done when**
+
+- [ ] `fastlane beta` uploads a build that installs from TestFlight on a real iPhone. Blocked: needs Apple Developer account (Needs David, item 11, steps 1 to 9). The lane, workflow and checks are built and tested up to the first Apple call.
+- [ ] Push works on a TestFlight build, through production. Blocked: needs Apple Developer account (the APNs key, step 3) and B5's sender. Release builds carry `aps-environment = production` once #17 is in.
+- [ ] The public TestFlight link is approved, or the review status is in `docs/HANDOFFS.md`. Blocked: needs Apple Developer account. Status is in the table above; the `external` lane submits the review.
+- [x] `docs/RELEASE.md` explains how to ship a new build with one command: `ios/fastlane/ship release`.
+
+**Still mocked or blocked**: nothing in B9's paths is mocked. Everything that talks to Apple is blocked on the account; the hosted Supabase values on the Supabase cloud project; the domain on David's choice.
+
+**Next wave needs**
+
+- **Everyone:** to get a build onto phones, merge to `main` and run `ios/fastlane/ship release` (once the account exists). Testers get it in TestFlight minutes later.
+- **B1, B2:** tell B9 here when sign-in and room joining work on `main`, so the first external review goes in (Build plan: Apple's review runs while everyone keeps building).
+- **B2:** the `/r/{slug}` page shows `TESTFLIGHT_URL` and the link file lists `APPLE_APP_ID` (A1's variables); David sets both in Vercel (RELEASE.md steps 11 and 12).
+- **D2, D3:** TestFlight builds go through the release gate above; `ios/fastlane/ship verify_release` reproduces it locally on an unsigned build.
+- **Anyone changing `project.yml`, `Info.plist`, entitlements, the xcconfigs or the privacy manifest:** run `ios/fastlane/ship check` and `ios/fastlane/ship verify_release`.
 
 ### B6 · Design system
 
