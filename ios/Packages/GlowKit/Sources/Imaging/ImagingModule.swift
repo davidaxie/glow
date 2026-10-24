@@ -1,22 +1,34 @@
+import APIClient
 import AppCore
-import SwiftUI
+import Foundation
 
-// Placeholder from A3 so the module graph compiles on day one. Owner: B3.
-// Replace the body of `live` with the Vision blur pipeline. Keep its signature: the app target
-// calls it in AppComposition.
-
+/// The Imaging module (B3): the on-device blur pipeline and the private image loader.
 public enum ImagingModule {
-    /// The imaging service the app runs on. For now, the AppCore preview mock.
-    public static func live(_: ServiceContext) -> any ImagingService {
-        PreviewImagingService()
+    /// The imaging service the app runs on. `ios/Glow/AppComposition.swift` calls this.
+    public static func live(_ context: ServiceContext) -> any ImagingService {
+        LiveImagingService(pipeline: CardPhotoPipeline(), loader: PrivateImageLoader(api: context.api))
     }
 }
 
-/// Placeholder view for the Imaging module.
-public struct ImagingPlaceholderView: View {
-    public init() {}
+/// Vision and Core Image on the phone for check-in photos, the API for private images.
+public struct LiveImagingService: ImagingService {
+    private let pipeline: CardPhotoPipeline
+    private let loader: PrivateImageLoader
 
-    public var body: some View {
-        PlaceholderScreen("Imaging", module: "Imaging", owner: "B3")
+    public init(pipeline: CardPhotoPipeline, loader: PrivateImageLoader) {
+        self.pipeline = pipeline
+        self.loader = loader
+    }
+
+    public func prepareCardPhoto(from original: Data) async throws -> PreparedCardPhoto {
+        let pipeline = pipeline
+        // Vision and Core Image are synchronous and heavy: keep them off the main actor.
+        return try await Task.detached(priority: .userInitiated) {
+            try pipeline.prepare(original)
+        }.value
+    }
+
+    public func loadPrivateImage(_ source: PrivateImageSource) async throws(PrivateImageError) -> PrivateImage {
+        try await loader.load(source)
     }
 }
