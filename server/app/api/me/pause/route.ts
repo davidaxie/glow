@@ -1,4 +1,5 @@
-// Owner: B8. Replace `notImplemented` with a handler that lives in `server/src/server/safety`.
-import { notImplemented, route } from '@/server/http';
+// Owner: B8. The handler lives in `server/src/server/safety`.
+import { route } from '@/server/http';
+import { setPaused } from '@/server/safety/routes';
 
-export const POST = route('setPaused', notImplemented);
+export const POST = route('setPaused', setPaused);

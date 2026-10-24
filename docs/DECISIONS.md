@@ -388,6 +388,42 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 
 **Why.** Upstash is a third party, so it shouldn't learn user IDs or IP addresses. The service role key never leaves the server, so a dictionary of IPs doesn't help anyone who reads Redis. Failing open means a Redis blip slows nobody down; the caps that matter for privacy (taps, views) are enforced in the database regardless.
 
+### B8-D4 · Deleting an account also deletes what Supabase Auth keeps about the person
+
+**Question.** "Every row, storage object and device token, then the auth user." Deleting the auth user cascades through every table, but Supabase Auth's own audit log (`auth.audit_log_entries`) keeps the person's user ID, email and IP for every sign-up and sign-in, and the deletion writes one more entry naming them. Some rows also point at a person without a foreign key (other people's `card_views` of their cards).
+
+**Choice.** `DELETE /api/me` reads what has to go, deletes their card and profile photos from storage, deletes `card_views` of their cards, deletes the profile (which cascades to every other table), deletes the auth user, then calls `forget_account_traces()` (migration `0003_b8_forget_account.sql`) to delete the audit entries and any stored Realtime message on their topic. A storage failure doesn't stop the deletion (no row is left that could serve those files, and the purge sweep removes them), and neither does a failure of the last step (the account is already gone; the audit retention below catches it). The other person in each match gets `match.ended`. The deleted person's token stops working at once (D3). The test checks every uuid column of every public table, both buckets, the auth user and the audit log.
+
+**Why.** Deletion should mean nobody can find the person afterwards, including in our own logs.
+
+### B8-D5 · Purge sweeps orphaned photos and keeps Auth's audit log for 7 days
+
+**Question.** `purge_expired()` deletes the check-in rows and returns their photo paths, so if deleting a photo from storage fails once, nothing would ever try again. And P9 says "within 10 minutes of expiring".
+
+**Choice.** After deleting the returned paths, every run also sweeps both buckets: any card photo with no `checkins` row, and any profile photo with no `profile_photos` row (or no profile at all), older than 2 minutes, is deleted. The 2-minute grace covers B3 and B1 uploading a photo just before writing its row. With the cron every 5 minutes, a card's photo is gone within 5 minutes of expiring, or 10 if storage fails once. Each run also sends `deck.changed` to every room that lost a card, so expired cards leave screens too, and deletes Supabase Auth audit entries older than 7 days (`purge_auth_audit`), which hold emails and IP addresses.
+
+**Why.** P9 must hold even when a storage call fails, and the sign-in history of people who keep their accounts shouldn't pile up forever either.
+
+### B8-D6 · A block looks exactly like an unmatch
+
+**Choice.** A block or report sends `match.ended` to both people in any match it ended and `deck.changed` to the rooms either person is checked into, never `glow.ended` or anything that says why (D18). C4's unmatch should send the same `match.ended`, so the other person can't tell which happened. The response to the person blocking is a bare 204, and a card, match or chat ID the caller can't act on is 404 (P11).
+
+### B8-D7 · Capture logs keep the room only if the person is in it
+
+**Question.** `POST /api/abuse/capture` takes a room ID and has no 404 in the contract.
+
+**Choice.** The `abuse_signals` row keeps the room only if the person has a check-in there; otherwise the room is left empty. The answer is always 204, so the endpoint never says whether a room exists. Three captures in 24 hours log `safety.capture_review` with the person's ID; B7's admin can list those accounts from `abuse_signals`.
+
+### B8-D8 · The purge runs every 5 minutes from Vercel, or from any scheduler
+
+**Question.** Vercel's Hobby plan only runs crons daily, and P9 needs every 5 minutes.
+
+**Choice.** `server/vercel.json` schedules `/api/cron/purge` at `*/5 * * * *`, which is what P9 needs on a Pro plan. On Hobby, use an outside scheduler that calls `GET /api/cron/purge` every 5 minutes with `Authorization: Bearer $CRON_SECRET` (Upstash QStash schedules can forward that header; Upstash is already in the stack) and change the schedule to daily so the deploy is accepted. The route is safe to call from both at once and as often as anyone likes: the database work is one transaction, each expiry warning is sent once, and deleting a photo that's already gone does nothing. It has no rate limit, and anything without the secret gets 401.
+
+### B8-D9 · The safety screens never hold a user ID
+
+**Choice.** FeatureSafety sends only a card ID or match ID (the server works out the person), and analytics get only literals (where it started, the reason, whether details were given). After a block or report from a match or chat, Close goes back to the matches list, since that match has ended. Pausing waits for the server's answer before the toggle changes, then refreshes the profile. Deleting needs a confirmation and signs out after.
+
 ## B9 · Release and TestFlight
 
 ### B9-D1 · Release builds sign manually, with the signing files in CI secrets

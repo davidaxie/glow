@@ -116,9 +116,13 @@ export function clientIp(req: Request): string {
   return forwarded || req.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
+/** Requests already counted, so calling `limitRequest` twice for one request counts once. */
+const counted = new WeakSet<Request>();
+
 /**
  * Limits one API request by its contract operation: per person when signed in, per IP
- * otherwise. Throws 429. Operations without a policy (the purge cron) pass.
+ * otherwise. Throws 429. Operations without a policy (the purge cron) pass. Counts each
+ * request once, so a handler may call it even if the route helper already did.
  */
 export async function limitRequest(
   operationId: string,
@@ -126,7 +130,8 @@ export async function limitRequest(
   user: { readonly id: string } | null,
 ): Promise<void> {
   const policy = policyForOperation(operationId);
-  if (!policy) return;
+  if (!policy || counted.has(req)) return;
+  counted.add(req);
   // A user ID is a UUID, so it can never collide with an `ip:` key.
   await rateLimit(user ? user.id : `ip:${clientIp(req)}`, policy);
 }
