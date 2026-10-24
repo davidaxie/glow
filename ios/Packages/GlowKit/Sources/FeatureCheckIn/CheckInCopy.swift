@@ -5,18 +5,14 @@ import SwiftUI
 enum CheckInCopy {
     static func message(for notice: CheckInModel.Notice) -> String {
         switch notice {
-        case .noPerson, .rejected(.noPerson):
-            String(localized: "We couldn't find you in that photo. Try again with your outfit in the frame.")
-        case .unreadable, .rejected(.unreadable):
-            String(localized: "That photo didn't come through. Try another one.")
+        case .noPerson:
+            message(for: .rejected(.noPerson))
+        case .unreadable:
+            message(for: .rejected(.unreadable))
+        case let .rejected(reason):
+            retake(reason)
         case .processingFailed:
             String(localized: "We couldn't blur that photo, so we didn't use it. Try again.")
-        case .rejected(.faceVisible):
-            String(localized: "A face is still visible. Retake it from the neck down.")
-        case .rejected(.noOutfit):
-            String(localized: "We couldn't see your outfit. Step back so more of it is in the frame.")
-        case .rejected(.nudity), .rejected(.possiblyMinor):
-            String(localized: "That photo can't be used. Try another outfit photo.")
         case .roomCheckExpired:
             String(localized: "Your room check timed out. Join the room again to check in.")
         case .roomNotLive:
@@ -29,6 +25,22 @@ enum CheckInCopy {
             String(localized: "You're offline. Check your connection and try again.")
         case .failed:
             String(localized: "That didn't go through. Try again.")
+        }
+    }
+
+    /// What to say when moderation refuses a photo. Each one ends in what to do next.
+    static func retake(_ reason: PhotoRejection) -> String {
+        switch reason {
+        case .faceVisible:
+            String(localized: "A face is still visible. Retake it from the neck down.")
+        case .noOutfit:
+            String(localized: "We couldn't see your outfit. Step back so more of it is in the frame.")
+        case .noPerson:
+            String(localized: "We couldn't find you in that photo. Try again with your outfit in the frame.")
+        case .unreadable:
+            String(localized: "That photo didn't come through. Try another one.")
+        case .nudity, .possiblyMinor:
+            String(localized: "That photo can't be used. Try another outfit photo.")
         }
     }
 

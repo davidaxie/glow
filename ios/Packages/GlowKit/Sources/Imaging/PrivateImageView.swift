@@ -80,7 +80,9 @@ public struct PrivateImageView: View {
             let photo = try await dependencies.imaging.loadPrivateImage(source)
             phase = .loaded(photo)
         } catch {
-            if error == .cancelled { return }
+            if error == .cancelled {
+                return
+            }
             phase = .failed(error)
             await onFailure?(error)
         }

@@ -92,26 +92,24 @@ public struct CheckInUploader: Sendable {
         } catch {
             throw Self.map(error)
         }
-        switch output {
-        case let .created(created):
-            guard case let .json(checkin) = created.body else { throw .failed }
+        if case let .created(created) = output, case let .json(checkin) = created.body {
             return checkin
+        }
+        throw Self.failure(for: output)
+    }
+
+    /// Why a non-201 answer failed.
+    static func failure(for output: Operations.CreateCheckin.Output) -> CheckInFailure {
+        switch output {
         case let .unprocessableContent(response):
-            guard case let .json(body) = response.body else { throw .failed }
-            throw Self.map(unprocessable: body.error)
+            (try? response.body.json).map { map(unprocessable: $0.error) } ?? .failed
         case let .conflict(response):
-            guard case let .json(body) = response.body else { throw .failed }
-            throw body.error.code == .roomNotLive ? .roomNotLive : .failed
-        case .serviceUnavailable:
-            throw .unavailable
-        case .unauthorized:
-            throw .signedOut
-        case .notFound:
-            throw .notFound
-        case .tooManyRequests:
-            throw .rateLimited
-        case .badRequest, .contentTooLarge, .default:
-            throw .failed
+            (try? response.body.json)?.error.code == .roomNotLive ? .roomNotLive : .failed
+        case .serviceUnavailable: .unavailable
+        case .unauthorized: .signedOut
+        case .notFound: .notFound
+        case .tooManyRequests: .rateLimited
+        case .created, .badRequest, .contentTooLarge, .default: .failed
         }
     }
 

@@ -211,7 +211,14 @@ struct VisionDetector {
     private static func preferCPUInSimulator(_ request: VNRequest) {
         #if targetEnvironment(simulator)
             if let devices = try? request.supportedComputeStageDevices,
-               let cpu = devices[.main]?.first(where: { if case .cpu = $0 { true } else { false } }) {
+               let cpu = devices[.main]?.first(where: {
+                   if case .cpu = $0 {
+                       true
+                   } else {
+                       false
+                   }
+               })
+            {
                 request.setComputeDevice(cpu, for: .main)
             }
         #endif

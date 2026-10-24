@@ -126,7 +126,7 @@ struct CheckInModelTests {
     ])
     func aRejectedPhotoAsksForARetake(_ reason: String, _ expected: PhotoRejection) async throws {
         let model = model(status: .unprocessableContent, json: CheckInFixtures.error("photo_rejected", reason: reason))
-        await model.photoTaken(try CheckInFixtures.face("face-portrait-mann.jpg"))
+        try await model.photoTaken(CheckInFixtures.face("face-portrait-mann.jpg"))
         model.confirmPhoto()
         model.tags.topColor = .black
         await model.submit()
@@ -142,7 +142,7 @@ struct CheckInModelTests {
 
     @Test func anExpiredJoinTicketSendsThemBackToTheRoomCheck() async throws {
         let model = model(status: .unprocessableContent, json: CheckInFixtures.error("join_ticket_invalid"))
-        await model.photoTaken(try CheckInFixtures.face("face-portrait-mann.jpg"))
+        try await model.photoTaken(CheckInFixtures.face("face-portrait-mann.jpg"))
         model.confirmPhoto()
         model.tags.topColor = .black
         await model.submit()
@@ -151,7 +151,7 @@ struct CheckInModelTests {
 
     @Test func aModerationOutageKeepsThePhotoAndTags() async throws {
         let model = model(status: .serviceUnavailable, json: CheckInFixtures.error("unavailable", reason: "moderation"))
-        await model.photoTaken(try CheckInFixtures.face("face-portrait-mann.jpg"))
+        try await model.photoTaken(CheckInFixtures.face("face-portrait-mann.jpg"))
         model.confirmPhoto()
         model.tags.topColor = .black
         await model.submit()
@@ -163,14 +163,14 @@ struct CheckInModelTests {
 
     @Test func aRoomThatIsNotLiveSaysSo() async throws {
         let model = model(status: .conflict, json: CheckInFixtures.error("room_not_live"))
-        await model.photoTaken(try CheckInFixtures.face("face-portrait-mann.jpg"))
+        try await model.photoTaken(CheckInFixtures.face("face-portrait-mann.jpg"))
         model.confirmPhoto()
         model.tags.topColor = .black
         await model.submit()
         #expect(model.notice == .roomNotLive)
     }
 
-    @Test func aPhotoWithNobodyInItAsksForARetakeBeforeAnythingIsSent() async throws {
+    @Test func aPhotoWithNobodyInItAsksForARetakeBeforeAnythingIsSent() async {
         let recorder = UploadRecorder()
         let model = model(recorder: recorder, imaging: FailingImaging(error: .noPersonFound))
         await model.photoTaken(Data([1, 2, 3]))
@@ -181,7 +181,7 @@ struct CheckInModelTests {
 
     @Test func checkInNeedsATopColor() async throws {
         let model = model()
-        await model.photoTaken(try CheckInFixtures.face("face-portrait-mann.jpg"))
+        try await model.photoTaken(CheckInFixtures.face("face-portrait-mann.jpg"))
         model.confirmPhoto()
         #expect(!model.canSubmit)
         model.tags.hairLength = .short
@@ -192,7 +192,7 @@ struct CheckInModelTests {
 
     @Test func retakeForgetsThePhoto() async throws {
         let model = model()
-        await model.photoTaken(try CheckInFixtures.face("face-portrait-mann.jpg"))
+        try await model.photoTaken(CheckInFixtures.face("face-portrait-mann.jpg"))
         #expect(model.previewImage != nil)
         model.retake()
         #expect(model.prepared == nil)

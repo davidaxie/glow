@@ -34,7 +34,9 @@ final class CameraController: NSObject, @unchecked Sendable {
         let ok: Bool = await withCheckedContinuation { continuation in
             queue.async {
                 let ready = self.configureIfNeeded()
-                if ready, !self.session.isRunning { self.session.startRunning() }
+                if ready, !self.session.isRunning {
+                    self.session.startRunning()
+                }
                 continuation.resume(returning: ready)
             }
         }
@@ -43,7 +45,9 @@ final class CameraController: NSObject, @unchecked Sendable {
 
     func stop() {
         queue.async {
-            if self.session.isRunning { self.session.stopRunning() }
+            if self.session.isRunning {
+                self.session.stopRunning()
+            }
         }
     }
 
@@ -68,7 +72,9 @@ final class CameraController: NSObject, @unchecked Sendable {
     }
 
     private func configureIfNeeded() -> Bool {
-        if configured { return true }
+        if configured {
+            return true
+        }
         session.beginConfiguration()
         defer { session.commitConfiguration() }
         session.sessionPreset = .photo

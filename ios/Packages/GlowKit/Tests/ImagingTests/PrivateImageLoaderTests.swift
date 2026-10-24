@@ -13,8 +13,15 @@ struct PrivateImageLoaderTests {
     static let link = "/api/cards/\(card)/image?exp=1793040000&sig=Xb3fQ0x2lN4m3P1QeRrS5T6uV7wX8yZ9a0b1c2d3e4f"
     static let match = MatchID(rawValue: "dddddddd-0000-4000-8000-000000000004")
 
+    struct Sent: Sendable {
+        let path: String?
+        let operation: String
+        let authorization: String?
+        let url: URL
+    }
+
     final class Recorder: Sendable {
-        let requests = OSAllocatedUnfairLock<[(path: String?, operation: String, authorization: String?, url: URL)]>(initialState: [])
+        let requests = OSAllocatedUnfairLock<[Sent]>(initialState: [])
     }
 
     static func jpeg() throws -> Data {
@@ -30,7 +37,7 @@ struct PrivateImageLoaderTests {
         let payload = try body ?? jpeg()
         let transport = MockTransport { request, _, baseURL, operation in
             recorder.requests.withLock {
-                $0.append((request.path, operation, request.headerFields[.authorization], baseURL))
+                $0.append(Sent(path: request.path, operation: operation, authorization: request.headerFields[.authorization], url: baseURL))
             }
             var fields = HTTPFields()
             fields[.contentType] = contentType

@@ -87,11 +87,24 @@ struct BlurPipelineTests {
         }
     }
 
-    @Test(arguments: Fixtures.outfits)
-    func outfitPhotosWithoutFacesGoThrough(_ name: String) throws {
+    @Test(arguments: Fixtures.realOutfits)
+    func neckDownOutfitPhotosGoThroughUntouched(_ name: String) throws {
         let original = try Fixtures.outfit(name)
         let photo = try pipeline.prepare(original)
+        #expect(photo.facesBlurred == 0)
         #expect(!JPEGSanitizer.hasMetadata(photo.jpegData))
+        let image = try Fixtures.cgImage(original)
+        #expect(photo.pixelWidth == image.width)
+        #expect(photo.pixelHeight == image.height)
+    }
+
+    /// Spec step 4: nobody in the photo means a retake. Vision doesn't see drawings as people.
+    @Test(arguments: Fixtures.syntheticOutfits)
+    func drawingsOfPeopleAskForARetake(_ name: String) throws {
+        let original = try Fixtures.outfit(name)
+        #expect(throws: ImagingError.noPersonFound) {
+            try pipeline.prepare(original)
+        }
     }
 
     @Test func somethingThatIsNotAnImageIsUnreadable() {

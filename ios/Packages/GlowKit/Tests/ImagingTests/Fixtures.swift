@@ -29,8 +29,12 @@ enum Fixtures {
 
     static let faceNames = faces.map(\.name)
 
-    /// A3's synthetic, faceless outfit photos.
-    static let outfits = ["outfit-black-jacket.jpg", "outfit-blue-shirt.jpg", "outfit-green-hoodie.jpg", "outfit-red-top.jpg"]
+    /// Real people's outfits from the neck down, no faces (public-domain crops, see
+    /// ios/fixtures/photos/README.md).
+    static let realOutfits = ["outfit-real-blue-flightsuit.jpg", "outfit-real-white-suit.jpg", "outfit-real-lightblue-suit.jpg"]
+
+    /// A3's synthetic drawings of a faceless figure. Vision doesn't see them as people.
+    static let syntheticOutfits = ["outfit-black-jacket.jpg", "outfit-blue-shirt.jpg", "outfit-green-hoodie.jpg", "outfit-red-top.jpg"]
 
     static func face(_ name: String) throws -> Data {
         try Data(contentsOf: iosDirectory.appending(path: "fixtures/faces/\(name)"))
