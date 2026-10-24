@@ -200,8 +200,10 @@ describe.skipIf(!LIVE)('red-team journey (live)', () => {
     const ops = ['getMatch', 'listMessages', 'getMatchPhoto', 'getGlow'] as const;
     for (const op of ops) {
       if (await isStub(op)) continue;
-      const params = op === 'getMatchPhoto' ? { id: matchId, n: '0' } : { id: matchId };
-      const missingParams = op === 'getMatchPhoto' ? { id: nobody, n: '0' } : { id: nobody };
+      const params: Record<string, string> =
+        op === 'getMatchPhoto' ? { id: matchId, n: '0' } : { id: matchId };
+      const missingParams: Record<string, string> =
+        op === 'getMatchPhoto' ? { id: nobody, n: '0' } : { id: nobody };
       const theirs = await call(op, { token: casey.token, params });
       const missing = await call(op, { token: casey.token, params: missingParams });
       expect(theirs.status, op).toBe(404);

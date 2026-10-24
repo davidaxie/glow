@@ -30,7 +30,7 @@ afterAll(async () => {
 });
 
 describe.skipIf(!LIVE)('P4: storage is closed to the app (live)', () => {
-  const objects = () => [
+  const objects = (): [string, string][] => [
     ['room-cards', card.path],
     ['profile-photos', photoPath],
   ];

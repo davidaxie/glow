@@ -58,7 +58,7 @@ describe('P6 and P1: every push and event', () => {
       );
       for (const value of [
         request!.collapseId,
-        (request!.payload.aps as Record<string, string>)['thread-id'],
+        (request!.payload.aps as unknown as Record<string, string>)['thread-id'],
       ]) {
         expect(value).toMatch(/^[a-z.]+:[0-9a-f-]{36}$/);
       }
