@@ -9,10 +9,14 @@ public enum SessionModule {
     /// - `-GlowTestSignIn new@glow.test`: if nobody is signed in, sign in that test person through
     ///   `POST /api/dev/test-login` (needs `ALLOW_TEST_LOGIN` on the local server).
     /// - `-GlowSignOutAtLaunch YES`: start signed out.
+    /// - `-GlowResetAgeGate YES`: reopen the profile step after an under-18 answer on this phone.
     /// - `-GlowPreviewSession ready|onboarding|signedOut`: no Supabase at all, the AppCore preview
     ///   session in that state (for other modules' screenshots).
     public static func live(config: AppConfig, analytics: any Analytics) -> any SessionService {
         #if DEBUG
+            if UserDefaults.standard.bool(forKey: "GlowResetAgeGate") {
+                AgeGateLock().reopen()
+            }
             if let preview = previewSession() {
                 return preview
             }
