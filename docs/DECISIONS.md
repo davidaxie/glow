@@ -886,3 +886,50 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 ### D5-D9 · The seed leaves an existing room's demo mode alone
 
 **Choice.** A room the seed creates has demo mode on. An existing room keeps its setting unless `--demo-mode` is passed, so seeding the shared local `demo` room doesn't let `admin@glow.test` skip location checks in other agents' tests.
+## C4 · Chat
+
+### C4-D1 · The thread is checked before the text goes anywhere
+
+**Question.** Sending runs a rate limit, moderation and `send_message`, which rejects blocked, unmatched and still-choosing threads. In which order?
+
+**Choice.** Rate limit, then a blank-body check, then `get_match` (404 if the match isn't mine or ended, 409 `chat_not_open` while choosing), then moderation, then `send_message`, which repeats the thread check in the same transaction as the insert. So a blocked or unmatched person's text is never sent to the moderation model, and a flagged message to a closed chat answers 404 or 409, never 422. `get_match` also applies the lazy timeouts, so a choice window that ran out opens the chat at once, and its `settled` events (match.choice, glow.ended) are sent by the chat route.
+
+**Why.** Message text should reach as few places as possible, and only for a thread the sender may write in. The cost is one extra database round trip per message.
+
+### C4-D2 · Messages are stored pending, then marked passed
+
+**Question.** B8's notes say to pass the verdict to `send_message`, but `send_message` has no moderation argument; every row starts `pending`.
+
+**Choice.** After `send_message`, a `passed` verdict updates that row to `passed`, only if it's still `pending` and its body is the text that was checked (a retry with an old `clientId` returns the first message, which may differ). No migration. If the update fails, the message stays `pending`: it's delivered as usual and B8's review checks it again.
+
+**Why.** It fails safe: the worst case is one more review, never an unchecked message marked passed.
+
+### C4-D3 · Review-flagged messages disappear for the recipient, and say nothing to the sender
+
+**Choice.** A message B8's review flags after the fact is left out of `listMessages` for the recipient and still shown to its sender, with no sign it was flagged (the contract has no field for it). The app replaces what each refresh covers, so a flagged message disappears from the recipient's open thread on the next event or refresh.
+
+**Why.** The recipient is the one to protect. The sender already knows what they wrote, and telling them which message was flagged would teach them how to get around the filter.
+
+### C4-D4 · Pages never end inside a millisecond
+
+**Question.** `before` and `nextBefore` have millisecond precision, the database keeps microseconds, and a Swift `Date` loses up to a millisecond when it's formatted again.
+
+**Choice.** A page that's full drops the messages of its oldest millisecond, and `nextBefore` is the start of the millisecond after it, so the next page (`created_at < nextBefore`) picks all of them up and nothing is skipped or repeated. A page can therefore hold a few fewer than `limit` messages. The app adds half a millisecond to `nextBefore` before sending it back, so the formatter lands on the exact millisecond whether it truncates or rounds (`LiveChatAPI.wireDate`, tested for all 1,000 values).
+
+### C4-D5 · Messages show exactly as written
+
+**Choice.** Message text is drawn verbatim: no Markdown, no tappable links, no link previews, no data detectors, and no suggested replies or openers. People can select and copy text.
+
+**Why.** A link preview would make the phone fetch whatever URL the other person sent, which tells that server the reader's IP address and that they opened the chat. Markdown would let a message disguise a link. Suggestions would put words in people's mouths (brief: no AI in chat).
+
+### C4-D6 · An unmatch sends exactly what a block sends
+
+**Choice.** Unmatch sends `match.ended` to both people and `deck.changed` to every room where either has an open check-in: the same events, to the same people and rooms, as B8's block (B8-D6). A test runs an unmatch and a block side by side and checks that what goes out is identical. The app of the person who unmatched goes to the Matches tab. The other person's open chat refetches on the event, gets 404 and shows "This chat has ended." with no reason (D18).
+
+**Why.** If a block sent `deck.changed` and an unmatch didn't, the other person's phone could tell which one happened from whether a room event arrived at the same moment. And the room's decks really did change: after an unmatch the two are eligible for each other again (D16). (C4 first chose no room event, then matched B8 at B8's request.)
+
+### C4-D7 · The open chat refetches on any event about its match
+
+**Choice.** FeatureChat doesn't branch on event types: any Realtime event whose match ID is this chat's (message.created, match.ended, glow.ended, match.choice) refetches the newest page, and a 404 closes the thread. Bursts fold into at most one extra request. It also refetches when the app comes back to the foreground, because events sent while it was suspended never arrive.
+
+**Why.** Events carry only a type and a match ID anyway (P1), and one code path that asks the server is harder to get wrong than one per event.

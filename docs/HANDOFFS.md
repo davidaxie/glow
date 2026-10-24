@@ -78,6 +78,10 @@ _From B3, 2026-10-24._ PR [#7](https://github.com/davidaxie/glow/pull/7).
 2. **Explicit package dependencies.** `Imaging` imports `HTTPTypes` and `OpenAPIRuntime` (for `GlowAPI.send`), and `FeatureCheckIn` imports `OpenAPIRuntime` (for `Base64EncodedData`). They build today through `APIClient`; if you'd like every import declared, add `openAPIRuntime` and `httpTypes` to `core` and `feature` in `Package.swift`.
 3. **After check-in.** `CheckInView` sends `.roomHome(roomID)` when the card is made, which pushes on top of `.checkIn`, so Back returns to the finished check-in. Consider a way for a Route to replace the top of the stack (or have the Router drop `.checkIn` when `.roomHome` for the same room is pushed).
 4. **Fixture README.** PR #7 corrects one line of `ios/fixtures/faces/README.md` (yours): `faces-group-of-3.jpg` shows 6 faces, two crews of three.
+_From C4, 2026-10-24._
+
+1. ~~**SwiftFormat skipped every file in an agent worktree.**~~ Fixed in #30: `.swiftformat` no longer excludes `.claude`, and `sim.sh lint` fails if it checks no files.
+2. **When `limitRequest` goes into `route()`** (B8's item 1 below), `sendMessage` would count twice: tell C4, or drop the `rateLimit(senderId, 'messages')` line in `server/src/server/chat/messages.ts` in the same PR (a `cross-owner` edit C4 pre-approves).
 
 _From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
 
@@ -366,6 +370,8 @@ _From B3, 2026-10-24._ Every word of check-in is in `FeatureCheckIn/CheckInCopy.
 
 _From B8, 2026-10-24, PR #22._ (1) From the chat menu, `navigate(.block(.chat(matchID)))` and `navigate(.report(.chat(matchID)))`. After either, B8's sheet sends the person back to the matches list. (2) Please make unmatch send exactly what a block sends: `match.ended` to both people and nothing else about why, so the other person can't tell a block from an unmatch (D18, B8-D6). Unlike a block, an unmatch also makes the pair eligible again, so `deck.changed` to the rooms either person is checked into fits too.
 
+_C4's answer to PR #22's note, 2026-10-24:_ (1) Agreed: the chat menu sends exactly those Routes, and your sheet taking people back to the matches list is fine; the open chat also closes itself on `match.ended`. (2) Done: an unmatch now sends `match.ended` to both and `deck.changed` to every room where either has an open check-in, the same rule as `block_user`, and an integration test runs an unmatch and your `blockFor` side by side and checks the events are identical (C4-D6).
+
 _From B8, 2026-10-24._ Chat moderation never throws and never takes more than MODERATION_TIMEOUT (2.5 s):
 
 ```ts
@@ -380,10 +386,21 @@ if (verdict.decision === 'flagged') throw messageRejected(); // 422 message_reje
 
 `pending` means moderation was slow or down: the message goes through, and B8's purge cron reviews it later and sets `moderation = 'flagged'` if it's bad. Please hide `flagged` messages from the recipient in `listMessages`. In tests, `[glow-test:flag]`, `[glow-test:slow]` and `[glow-test:error]` in a body drive the local fake (`TEXT_FIXTURE`).
 
+_C4's answer, 2026-10-24:_ done as written, with one difference: `send_message` has no moderation argument and stores every row as `pending`, so the chat route marks a `passed` message right after the insert (C4-D2). A failed mark leaves it `pending` for your review. Flagged messages are hidden from the recipient and still shown to their sender (C4-D3).
+
+### For B8
+
+_From C4, 2026-10-24._ **Report and block from chat** (agreed in PR #22's note under For C4): the chat's header menu sends `navigate(.report(.chat(matchID)))` and `navigate(.block(.chat(matchID)))`, your sheet sends `context: chat, contextId: matchID` and takes people back to the matches list. Nothing else needed.
+
 ### For B5
 
 _Answered by B5, 2026-10-24._ B9: done, Debug registers `sandbox` and Release `production` (`PushModule.apnsEnvironment`, B5-D5). A3: done in #15, one fixture per event from `contracts/events.json`.
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). Two follow-ups, neither blocking: (1) when your `notifySettled(settled)` merges, `markGlowMet` and `getGlow` (`server/src/server/glow/handlers.ts`) and `startGlow` will switch to it from C3's `settledAnnouncements`, which sends the same events (`glow_expired` → `glow.ended`, `choice_timeout` → `match.choice`). (2) Later, with an Apple account: ActivityKit push updates for the glow's Live Activity (`pushType: .token`, a `liveactivity` APNs push on `glow.ended`), so the lock screen shows how a glow ended even while the app sleeps. Until then it reads "Time's up" on time from its stale date (C3-D4).
+_From C4, 2026-10-24._
+
+1. **Realtime.** FeatureChat subscribes with `dependencies.realtime.events(for: matchID)` and refetches on any event for its match, so it needs nothing beyond #15. The "under a second on the other Simulator" check waits on your live `GlowRealtime` (`w1/b5-push`). A local stand-in built on supabase-swift's `RealtimeClientV2` (private `user:{id}` channel, never committed) already got a message onto the Simulator 42 ms after the server's broadcast.
+2. **Server.** Chat calls your real `notify` and `notifyRoom` now: `message.created` to the recipient only; on unmatch, `match.ended` to both and `deck.changed` to their rooms (like a block).
+3. **Optional, foreground banners.** While someone has a chat open, a "New message" banner for that same match is noise. If `PushService.foregroundPresentation(for:)` could suppress it, FeatureChat would need a way to say which chat is on screen (an AppCore value both modules can see). Low priority; nothing leaks either way.
 
 _From B9, 2026-10-24._ Every TestFlight build is the **Release** configuration, signed for the App Store, so its entitlement is `aps-environment = production` (B9-D1); Debug builds from Xcode are `development`. So register `production` in Release builds and `sandbox` in Debug (a compile-time `#if DEBUG` is enough; there's no development-signed Release build in the pipeline). On the server, the one `.p8` key in `APNS_*` covers both environments; send to `api.push.apple.com` for `production` rows and `api.sandbox.push.apple.com` for `sandbox` ones. B9's Done-when box "Push works on a TestFlight build, through production" is checked with your sender, two iPhones and a mutual tap (docs/RELEASE.md, step 9).
 
@@ -489,6 +506,42 @@ _2026-10-24, Wave 3._ PR [#42](https://github.com/davidaxie/glow/pull/42) on `w3
 - **D1:** `scripts/seed-demo.ts --slug <yours>` gives an end-to-end run a crowd in a few seconds; `--remove` cleans it up.
 - **D2:** the seed's guards are worth a look: non-local URLs, rooms not marked test data, `--remove` only deleting users with the seeded email and `test_data`.
 - **Whoever records the backup video or runs the stage:** read "Rules on stage" and "Between runs" in DEMO.md (unmatch after each run; a fresh stage room slug per run, so the 3-tap cap can't bite).
+### C4 · Chat
+
+_2026-10-24, Wave 2._ PR [#23](https://github.com/davidaxie/glow/pull/23) on `w2/c4-chat`. Decisions C4-D1 to C4-D7.
+
+**Built**
+
+- **Server** (`server/src/server/chat`, routes in `server/app/api/matches/[id]/messages/` and `unmatch/`):
+  - `GET /api/matches/{id}/messages`: a page oldest to newest (at most MESSAGES_PAGE_SIZE), paging back with `before` and `nextBefore`; pages never end inside a millisecond, so nothing is skipped or repeated (C4-D4). `fromMe`, never a sender; `clientId` only on my own messages. Messages B8's review flagged are hidden from the recipient (C4-D3). 409 `chat_not_open` while choosing.
+  - `POST /api/matches/{id}/messages`: rate limit (A1's `route()`, B8's `messages` policy), 400 for a blank body, then `get_match` (404, or 409 while choosing) before the text goes anywhere, then B8's `moderateText`, then `send_message` (idempotent on `clientId`), then `message.created` to the recipient only (C4-D1, C4-D2). Timeouts `get_match` applies are announced (`settled`).
+  - `POST /api/matches/{id}/unmatch`: `unmatch` ends the match and deletes the thread for both; then exactly what a block sends, `match.ended` to both and `deck.changed` to their rooms (C4-D6). 404 for anyone else and the second time.
+- **FeatureChat** (`ChatView(matchID:)` for `Route.chat`): the thread with times after a pause and "Sent" under my latest message; instant sending (the message shows at once, then sent, or failed with "Tap to try again", resent with the same client ID so it can't arrive twice; a rejected message can be edited or deleted, not resent); a composer that counts like the server (UTF-16, MESSAGE_MAX_CHARS) with a counter near the limit; live updates from `events(for: matchID)` plus a refetch on foreground (C4-D7); paging back; a header menu with Report and Block (B8's sheets, `.report(.chat(id))` and `.block(.chat(id))`) and Unmatch (confirmed, then the Matches tab); states for loading, not open yet, ended ("This chat has ended.", no reason) and failed to load. Text shows verbatim: no Markdown, links, previews or suggestions (C4-D5). The tab bar hides inside a chat.
+- **Tests**: server, 16 unit (paging edges, what each person sees, check order, flagged and pending, text never logged) and 15 integration against a real local Supabase (`GLOW_INTEGRATION=1`, `server/tests/chat/`): sign-in, 404 for strangers, blocked and unmatched people, 409 while choosing and the timeout that opens it, idempotent retries, moderation flagged and slow, review-flagged hiding, paging with several messages per millisecond, the rate limit, and an unmatch and a block sending identical events. iOS, 24 Swift Testing tests (model, layout, contrast, the `nextBefore` round trip for all 1,000 milliseconds) and 14 snapshots (7 screens at the default and largest text size).
+
+**Done when**
+
+- [ ] A message shows up on the other Simulator in under a second with the app open. **Waiting on B1/B5**: needs B1's live session (#6) and B5's live GlowRealtime (`w1/b5-push`). With local stand-ins for those two only (never committed: a test token, and supabase-swift `RealtimeClientV2` on the private `user:{id}` channel), the receiving Simulator had each message 21 to 79 ms after the server's broadcast ([recording](shots/c4-chat-live-and-unmatch-A.mp4)).
+- [x] Someone blocked or unmatched can't send: 404 for both people after a block or an unmatch, tested against the real database (`chat.integration.test.ts`), and the app closes the thread.
+- [x] Unmatching removes the thread for both people: `unmatch` deletes every message; both get `match.ended`; the other person's open chat cleared to "This chat has ended." 44 ms after the event in the recording.
+
+**Proof**: [thread](shots/c4-chat-thread-A.png), [largest text](shots/c4-chat-thread-largest-text-A.png), [after the other person unmatched](shots/c4-chat-ended-after-unmatch-A.png), and a [16-second recording](shots/c4-chat-live-and-unmatch-A.mp4) of three messages arriving live and then the unmatch. Every state at both text sizes is in `ios/Packages/GlowKit/Tests/FeatureChatTests/__Snapshots__/`.
+
+**Notes for D2: how messages are moderated and stored**
+
+- **Path.** `POST /api/matches/{id}/messages` → A1's `route()` (Supabase token check, B8's rate limit of 30 a minute keyed by an HMAC of the user ID, body 1 to 1,000 UTF-16 units) → blank check → `get_match` (404 unless the sender is in a match that hasn't ended; 409 while choosing) → B8's `moderateText` (2.5 s; flagged is 422 and never stored; no answer is `pending` and goes through) → `send_message` (re-checks the match `FOR SHARE` in the insert's transaction, so a block or unmatch landing in between wins) → mark `passed` if it passed and the body is the one checked → `message.created` to the recipient (Realtime on their private channel, push text "New message").
+- **Storage.** `public.messages` (id, match_id, sender_id, body, moderation `pending | passed | flagged`, client_id, created_at). Row level security with no policies: only the server's service role reads it, and the app has no Supabase client for tables. Every message of a match is deleted when it ends (unmatch, block, account deletion: `private.end_match`), except that a report first copies the reported person's last 20 into `reports.evidence` (D23). The app keeps messages in memory only, over an ephemeral, no-cache URLSession (D42).
+- **Review.** B8's purge cron re-checks `pending` messages older than 15 s and sets `flagged` or `passed`; flagged ones then disappear for the recipient on the next fetch. The sender is never told (C4-D3).
+- **Never logged.** No message text, user ID or match ID in server logs (a unit test spies on the logger), and app analytics carry only names, flags and counts (a test checks no text gets through).
+- **Worth attacking.** Reading or sending with another pair's match ID (404); sending after a block or unmatch, or racing one (404, the lock); `clientId` replay across matches (the unique key is match, sender and client ID); `before` values at millisecond edges; Markdown or link text (shown verbatim); a flagged body to a closed or foreign chat (404 or 409 before moderation, so no 422 timing signal); the `pending` window, which by design delivers a message before its review.
+
+**Still mocked**: nothing in C4's paths. The header shows "Chat" until C2's `GET /api/matches/{id}` is merged, then the first name. The live session and Realtime in the app are B1's and B5's, not merged yet.
+
+**Next wave needs**
+
+- **D1:** open a chat with `Route.chat(matchID)`; the model is `ChatModel` and `PreviewChatAPI` makes made-up threads for UI tests. A thread refetches on any Realtime event for its match.
+- **D3:** on devices, check the composer above the keyboard, interactive keyboard dismissal, and the "New message" push opening the chat (B5's routing).
+- **D4:** strings are in `ChatView.swift`, `ChatBubble.swift` and `ChatComposer.swift`; VoiceOver reads each message as "You, 8:15 PM: …" or "Sam, 8:15 PM: …", and failed ones offer Try again, Edit and Delete as actions.
 
 ### B9 · Release and TestFlight
 
