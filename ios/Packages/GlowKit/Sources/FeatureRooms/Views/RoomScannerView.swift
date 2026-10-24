@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import AppCore
+import DesignSystem
 import SwiftUI
 import UIKit
 
@@ -44,6 +45,7 @@ public struct RoomScannerView: View {
         case .starting:
             ProgressView()
                 .controlSize(.large)
+                .tint(.glowAccent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel("Starting the camera")
         case .denied:
@@ -59,8 +61,7 @@ public struct RoomScannerView: View {
                         openURL(url)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.glowPrimary)
                 typeCodeButton
             }
         case .noCamera:
@@ -83,12 +84,13 @@ public struct RoomScannerView: View {
             CameraPreview(session: camera.session)
                 .ignoresSafeArea()
             RoundedRectangle(cornerRadius: 20)
-                .strokeBorder(.white.opacity(0.85), lineWidth: 3)
+                .strokeBorder(.glowTextPrimary.opacity(0.85), lineWidth: 3)
                 .frame(width: 240, height: 240)
                 .accessibilityHidden(true)
             VStack(spacing: 12) {
                 Text(notGlow ? "That isn't a Glow room code." : "Point at the room's QR code")
-                    .font(.headline)
+                    .glowFont(.headline)
+                    .foregroundStyle(.glowTextPrimary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -102,8 +104,7 @@ public struct RoomScannerView: View {
                         } label: {
                             Label(torchOn ? "Torch on" : "Torch off", systemImage: torchOn ? "flashlight.on.fill" : "flashlight.off.fill")
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
+                        .buttonStyle(.glow(.secondary, size: .compact))
                         .accessibilityLabel("Torch")
                         .accessibilityValue(torchOn ? "On" : "Off")
                         .accessibilityIdentifier("rooms.scanner.torch")
@@ -123,8 +124,7 @@ public struct RoomScannerView: View {
         } label: {
             Label("Type the code", systemImage: "keyboard")
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
+        .buttonStyle(.glow(.secondary, size: .compact))
         .accessibilityIdentifier("rooms.scanner.type_code")
     }
 

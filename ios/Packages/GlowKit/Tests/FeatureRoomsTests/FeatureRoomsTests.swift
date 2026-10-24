@@ -22,6 +22,17 @@ enum Demo {
         endsAt: now.addingTimeInterval(3600),
     )
     static let link = RoomEntry.link(slug: "demo", token: "DEMOSTATICTOKEN2")
+
+    static func room(status: RoomInfo.Status, startsAt: Date? = nil, endsAt: Date? = nil) -> RoomInfo {
+        RoomInfo(
+            id: roomID,
+            slug: "demo",
+            name: "Glow demo room (test data)",
+            status: status,
+            startsAt: startsAt ?? room.startsAt,
+            endsAt: endsAt ?? room.endsAt,
+        )
+    }
     static let fix = LocationFix(latitude: 37.8029, longitude: -122.4484, accuracy: 5, timestamp: now)
 }
 
@@ -31,7 +42,10 @@ final class MockJoining: RoomJoining, @unchecked Sendable {
     private(set) var resolveCalls = 0
     private(set) var joinCalls: [(RoomID, RoomEntry)] = []
 
-    init(resolve: [Result<RoomInfo, JoinFailure>] = [.success(Demo.room)], join: [Result<JoinTicket, JoinFailure>] = [.success(JoinTicket("T"))]) {
+    init(
+        resolve: [Result<RoomInfo, JoinFailure>] = [.success(Demo.room)],
+        join: [Result<JoinTicket, JoinFailure>] = [.success(JoinTicket("T"))],
+    ) {
         resolveResults = resolve
         joinResults = join
     }
@@ -76,7 +90,8 @@ struct JoinModelTests {
         let joining = MockJoining(join: [.success(JoinTicket("ticket-1"))])
         let model = makeModel(joining: joining)
         await model.startIfNeeded()
-        #expect(model.phase == .passed(Demo.roomID, JoinTicket("ticket-1"), expiresAt: Demo.now.addingTimeInterval(GlowConstants.joinTicketTTL)))
+        let expiresAt = Demo.now.addingTimeInterval(GlowConstants.joinTicketTTL)
+        #expect(model.phase == .passed(Demo.roomID, JoinTicket("ticket-1"), expiresAt: expiresAt))
         #expect(model.room == Demo.room)
         #expect(joining.joinCalls.count == 1)
         #expect(model.liveTicket?.1 == JoinTicket("ticket-1"))
@@ -160,14 +175,14 @@ struct JoinModelTests {
 
     @Test func aRoomThatHasNotStartedSaysWhenItOpens() async {
         let opens = Demo.now.addingTimeInterval(1800)
-        let early = RoomInfo(id: Demo.roomID, slug: "demo", name: "Soon", status: .live, startsAt: opens, endsAt: opens.addingTimeInterval(3600))
+        let early = Demo.room(status: .live, startsAt: opens, endsAt: opens.addingTimeInterval(3600))
         let model = makeModel(joining: MockJoining(resolve: [.success(early)]))
         await model.startIfNeeded()
         #expect(model.phase == .failed(.roomNotOpenYet(opens)))
     }
 
     @Test func aPausedRoomRetriesTheLookup() async {
-        let paused = RoomInfo(id: Demo.roomID, slug: "demo", name: "P", status: .paused, startsAt: Demo.room.startsAt, endsAt: Demo.room.endsAt)
+        let paused = Demo.room(status: .paused)
         let joining = MockJoining(resolve: [.success(paused), .success(Demo.room)])
         let model = makeModel(joining: joining)
         await model.startIfNeeded()
@@ -178,7 +193,7 @@ struct JoinModelTests {
     }
 
     @Test func aRoomThatClosesMidCheckIsLookedUpAgain() async {
-        let paused = RoomInfo(id: Demo.roomID, slug: "demo", name: "P", status: .paused, startsAt: Demo.room.startsAt, endsAt: Demo.room.endsAt)
+        let paused = Demo.room(status: .paused)
         let joining = MockJoining(resolve: [.success(Demo.room), .success(paused)], join: [.failure(.roomClosed)])
         let model = makeModel(joining: joining)
         await model.startIfNeeded()
@@ -207,7 +222,10 @@ struct JoinModelTests {
 // MARK: - Server answers
 
 struct APIRoomJoiningTests {
-    static let summary = #"{"id":"de000000-0000-4000-8000-000000000001","slug":"demo","name":"Glow demo room (test data)","status":"live","startsAt":"2026-10-23T06:00:00.000Z","endsAt":"2026-11-22T06:00:00.000Z"}"#
+    static let summary = """
+    {"id":"de000000-0000-4000-8000-000000000001","slug":"demo","name":"Glow demo room (test data)","status":"live",\
+    "startsAt":"2026-10-23T06:00:00.000Z","endsAt":"2026-11-22T06:00:00.000Z"}
+    """
 
     static func error(_ code: String) -> String {
         #"{"error":{"code":"\#(code)","message":"x"}}"#

@@ -57,28 +57,36 @@ public struct APIRoomJoining: RoomJoining {
             }
             throw JoinFailure(apiError)
         }
-        switch output {
-        case let .ok(ok):
-            guard let ticket = try? ok.body.json else { throw .unexpected }
+        if case let .ok(ok) = output, let ticket = try? ok.body.json {
             return JoinTicket(ticket.ticket)
+        }
+        throw Self.failure(for: output, entry: entry)
+    }
+
+    /// Why a join didn't give a ticket.
+    static func failure(for output: Operations.JoinRoom.Output, entry: RoomEntry) -> JoinFailure {
+        switch output {
         case let .unprocessableContent(refused):
-            switch try? refused.body.json.error.code {
-            case .notInRoom: throw .notInRoom
-            case .locationInaccurate: throw .weakSignal
-            default: throw .unexpected
-            }
+            failure(for: try? refused.body.json.error.code)
         case let .conflict(conflict):
-            switch try? conflict.body.json.error.code {
-            case .roomNotLive: throw .roomClosed
-            case .onboardingIncomplete: throw .onboardingIncomplete
-            default: throw .unexpected
-            }
+            failure(for: try? conflict.body.json.error.code)
         case .notFound:
-            throw entry.isRotatingToken ? .codeChanged : .roomNotFound
+            entry.isRotatingToken ? .codeChanged : .roomNotFound
         case .tooManyRequests:
-            throw .rateLimited
-        case .badRequest, .unauthorized, .default:
-            throw .unexpected
+            .rateLimited
+        case .ok, .badRequest, .unauthorized, .default:
+            .unexpected
+        }
+    }
+
+    /// 409 and 422 codes the join route answers with.
+    static func failure(for code: Components.Schemas.ErrorCode?) -> JoinFailure {
+        switch code {
+        case .notInRoom: .notInRoom
+        case .locationInaccurate: .weakSignal
+        case .roomNotLive: .roomClosed
+        case .onboardingIncomplete: .onboardingIncomplete
+        default: .unexpected
         }
     }
 }

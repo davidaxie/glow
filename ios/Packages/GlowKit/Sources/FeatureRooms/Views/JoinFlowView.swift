@@ -1,4 +1,5 @@
 import AppCore
+import DesignSystem
 import SwiftUI
 import UIKit
 
@@ -83,8 +84,7 @@ struct JoinStateView: View {
                 identifier: "rooms.join.passed",
             ) {
                 Button("Continue") { continueToCheckIn() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.glowPrimary)
             }
         case let .failed(failure):
             JoinMessageView(
@@ -104,13 +104,8 @@ struct JoinStateView: View {
 
     @ViewBuilder
     private func actionButton(_ action: JoinFailure.Action, prominent: Bool) -> some View {
-        let button = Button(action.title) { perform(action) }
-            .controlSize(.large)
-        if prominent {
-            button.buttonStyle(.borderedProminent)
-        } else {
-            button.buttonStyle(.bordered)
-        }
+        Button(action.title) { perform(action) }
+            .buttonStyle(prominent ? .glowPrimary : .glowSecondary)
     }
 
     private func perform(_ action: JoinFailure.Action) {
@@ -155,19 +150,20 @@ struct JoinProgressView: View {
             VStack(spacing: 16) {
                 ProgressView()
                     .controlSize(.large)
+                    .tint(.glowAccent)
                     .padding(.bottom, 8)
                 Text(title)
-                    .font(.title2.bold())
+                    .glowFont(.title)
                     .multilineTextAlignment(.center)
                 if let message {
                     Text(message)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+                        .glowFont(.body)
+                        .foregroundStyle(.glowTextSecondary)
                         .multilineTextAlignment(.center)
                 }
                 Text(caption)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .glowFont(.footnote)
+                    .foregroundStyle(.glowTextSecondary)
             }
             .frame(maxWidth: .infinity)
             .padding(24)
@@ -190,22 +186,22 @@ struct JoinMessageView<Actions: View>: View {
         ScrollView {
             VStack(spacing: 16) {
                 Image(systemName: symbol)
-                    .font(.system(.largeTitle))
+                    .glowFont(.display)
                     .imageScale(.large)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.glowAccent)
                     .padding(.bottom, 8)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.title2.bold())
+                    .glowFont(.title)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
                 Text(message)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .glowFont(.body)
+                    .foregroundStyle(.glowTextSecondary)
                     .multilineTextAlignment(.center)
                 Text(caption)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .glowFont(.footnote)
+                    .foregroundStyle(.glowTextSecondary)
                 VStack(spacing: 12) {
                     actions
                 }

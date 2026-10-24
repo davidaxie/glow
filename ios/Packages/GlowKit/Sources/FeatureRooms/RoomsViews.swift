@@ -1,4 +1,5 @@
 import AppCore
+import DesignSystem
 import SwiftUI
 
 // Owner: B2. The app shows these for `.rooms`, `.scanner`, `.roomCode` and `.joinRoom`; keep these
@@ -6,6 +7,9 @@ import SwiftUI
 
 /// The Rooms tab: scan a room's QR code, or type its code.
 public struct RoomsHomeView: View {
+    static let intro = "Scan the room's QR code with your iPhone camera or here. "
+        + "Glow checks once that you're inside, then forgets your location."
+
     @Environment(\.navigate) private var navigate
 
     public init() {}
@@ -14,18 +18,18 @@ public struct RoomsHomeView: View {
         ScrollView {
             VStack(spacing: 20) {
                 Image(systemName: "qrcode.viewfinder")
-                    .font(.system(.largeTitle))
+                    .glowFont(.display)
                     .imageScale(.large)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.glowAccent)
                     .padding(.top, 48)
                     .accessibilityHidden(true)
                 Text("Join a room")
-                    .font(.largeTitle.bold())
+                    .glowFont(.display)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
-                Text("Scan the room's QR code with your iPhone camera or here. Glow checks once that you're inside, then forgets your location.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                Text(Self.intro)
+                    .glowFont(.body)
+                    .foregroundStyle(.glowTextSecondary)
                     .multilineTextAlignment(.center)
                 VStack(spacing: 12) {
                     Button {
@@ -34,8 +38,7 @@ public struct RoomsHomeView: View {
                         Label("Scan a room code", systemImage: "qrcode.viewfinder")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.glowPrimary)
                     .accessibilityIdentifier("rooms.home.scan")
 
                     Button {
@@ -44,8 +47,7 @@ public struct RoomsHomeView: View {
                         Label("Type a room code", systemImage: "keyboard")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
+                    .buttonStyle(.glowSecondary)
                     .accessibilityIdentifier("rooms.home.code")
                 }
                 .padding(.top, 12)
@@ -88,19 +90,19 @@ public struct RoomCodeEntryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Type the room code")
-                    .font(.title2.bold())
+                    .glowFont(.title)
                     .accessibilityAddTraits(.isHeader)
                 Text(note ?? "It's the \(RoomCode.length)-character code on the room's poster or screen.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.glowTextSecondary)
                 TextField("Room code", text: $code)
-                    .font(.system(.title, design: .monospaced).weight(.semibold))
+                    .glowFont(.code)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .keyboardType(.asciiCapable)
                     .submitLabel(.join)
                     .focused($focused)
                     .padding(12)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+                    .background(.glowSurfaceRaised, in: RoundedRectangle(cornerRadius: GlowRadius.control))
                     .onChange(of: code) { _, newValue in
                         let normalized = RoomCode.normalize(newValue)
                         if normalized != newValue {
@@ -115,8 +117,7 @@ public struct RoomCodeEntryView: View {
                     Text("Join")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.glowPrimary)
                 .disabled(!RoomCode.isComplete(code))
                 .accessibilityIdentifier("rooms.code.join")
             }
