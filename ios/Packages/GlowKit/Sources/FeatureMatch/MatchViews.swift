@@ -56,6 +56,7 @@ struct MatchHost: View {
             Rectangle().fill(.glowBackground).ignoresSafeArea()
             if let model {
                 MatchScreen(model: model, style: style)
+                    .environment(\.dependencies, MatchClients.environment(clientOverride, dependencies))
                     .task { await model.load() }
                     .task(id: model.snapshot?.choiceDeadline) { await model.watchDeadline() }
                     .task {

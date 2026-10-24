@@ -123,20 +123,4 @@ struct APIMatchClientTests {
         #expect(matches.map(\.status) == [.chatting])
         #expect(matches.first?.route == .chat(matchID))
     }
-
-    @Test func photosOutsideTheRangeAreNeverRequested() async {
-        let recorder = Recorder([:])
-        await #expect(throws: MatchError.notFound) {
-            try await APIMatchClient(api: recorder.api).photo(matchID, index: GlowConstants.profilePhotosMax)
-        }
-        #expect(recorder.requests.isEmpty)
-    }
-
-    @Test func readsAPhoto() async throws {
-        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xD9])
-        let recorder = Recorder(["getMatchPhoto": MockTransport.Response(status: .ok, body: jpeg, contentType: "image/jpeg")])
-        let data = try await APIMatchClient(api: recorder.api).photo(matchID, index: 1)
-        #expect(data == jpeg)
-        #expect(recorder.requests.first?.path == "/api/matches/64bfd966-bf7f-426a-b7aa-f0dc371bae1a/photos/1")
-    }
 }

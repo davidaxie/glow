@@ -1,5 +1,6 @@
 import AppCore
 import DesignSystem
+import Imaging
 import SwiftUI
 
 /// The other person's profile photos, one page each. Rendered only once the match has loaded, so
@@ -24,8 +25,8 @@ struct MatchPhotoCarousel: View {
                 Monogram(firstName: snapshot.firstName)
             } else {
                 TabView(selection: $page) {
-                    ForEach(0 ..< snapshot.photoCount, id: \.self) { index in
-                        MatchPhotoPage(model: model, index: index, of: snapshot.photoCount, firstName: snapshot.firstName)
+                    ForEach(Array(model.photoSources.enumerated()), id: \.offset) { index, source in
+                        MatchPhotoPage(source: source, index: index, of: snapshot.photoCount, firstName: snapshot.firstName)
                             .tag(index)
                     }
                 }
@@ -38,47 +39,17 @@ struct MatchPhotoCarousel: View {
     }
 }
 
-/// One photo, loaded when its page first shows.
+/// One photo, loaded by B3's `PrivateImageView` when its page first shows: a checked, watermarked,
+/// never-cached request (P4).
 struct MatchPhotoPage: View {
-    let model: MatchModel
+    let source: PrivateImageSource
     let index: Int
     let of: Int
     let firstName: String
 
-    @State private var image: UIImage?
-    @State private var failed = false
-
     var body: some View {
-        ZStack {
-            Rectangle().fill(.glowSurface)
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .accessibilityLabel(Text("Photo \(index + 1) of \(of) of \(Text(verbatim: firstName))"))
-                    .accessibilityAddTraits(.isImage)
-            } else if failed {
-                Image(systemName: "photo")
-                    .glowFont(.title)
-                    .foregroundStyle(.glowTextSecondary)
-                    .accessibilityLabel(Text("Photo unavailable"))
-            } else {
-                ProgressView()
-                    .tint(.glowAccent)
-                    .accessibilityLabel(Text("Loading photo"))
-            }
-        }
-        .clipped()
-        .privacySensitive()
-        .accessibilityIgnoresInvertColors()
-        .task {
-            guard image == nil else { return }
-            if let loaded = await model.photo(index) {
-                image = loaded
-            } else {
-                failed = true
-            }
-        }
+        PrivateImageView(source, label: "Photo \(index + 1) of \(of) of \(firstName)")
+            .background(.glowSurface)
     }
 }
 

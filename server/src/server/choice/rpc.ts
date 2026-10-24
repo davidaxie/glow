@@ -8,15 +8,7 @@
 import type { MatchChoice } from '@/contracts';
 import { badRequest, notFound, unprocessable } from '@/server/http';
 import type { Db } from './db';
-import {
-  parseResult,
-  zDbChoice,
-  zDbMatch,
-  zDbStartGlow,
-  type DbChoice,
-  type DbMatch,
-  type DbStartGlow,
-} from './shapes';
+import { parseResult, zDbChoice, zDbMatch, type DbChoice, type DbMatch } from './shapes';
 
 /** A database call that failed for a reason the contract doesn't name. Becomes a 500. */
 export class DatabaseError extends Error {
@@ -63,18 +55,4 @@ export async function setChoiceRow(
   });
   if (error) throw failure('set_choice', error);
   return parseResult(zDbChoice, data, 'set_choice');
-}
-
-/** `start_glow`: starts the glow, opens the chat, or says why it waits. Never raises for those. */
-export async function startGlowRow(
-  db: Db,
-  matchId: string,
-  codeWords: readonly string[],
-): Promise<DbStartGlow> {
-  const { data, error } = await db.rpc('start_glow', {
-    p_match_id: matchId,
-    p_code_words: [...codeWords],
-  });
-  if (error) throw failure('start_glow', error);
-  return parseResult(zDbStartGlow, data, 'start_glow');
 }

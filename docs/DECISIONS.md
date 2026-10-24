@@ -979,9 +979,9 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 
 **Choice.** While waiting on Find, a quiet "Just chat instead" sends Chat (`set_choice` accepts a change while choosing). When `match.recheck` arrives while I'm waiting on Find, the app gets a fresh fix and sends Find again by itself; it never sends Find for someone who hasn't chosen it. If the fresh fix fails (outside the room, or location off), it shows a calm note with both choices again.
 
-### C2-D7 · Match photos are loaded only on the match screen, never cached
+### C2-D7 · Match photos are loaded only on the match screen, through B3's loader
 
-**Choice.** Photos are fetched only after `GET /api/matches/{id}` has answered (so only for a match that exists, P1), only below `photoCount`, one page at a time, through the API's no-cache session. Each image lives in its page's view state and is marked privacy sensitive. The matches list shows each person's initial, not their photo. Someone whose photos are all held for review shows as their initial.
+**Choice.** Photos come from B3's `PrivateImageView(.matchPhoto(matchID, index:))`: a checked, watermarked, never-cached request (P4). FeatureMatch only builds those sources after `GET /api/matches/{id}` has answered (so only for a match that exists, P1), only below `photoCount`, and none once the match is gone. The matches list shows each person's initial, not their photo. Someone whose photos are all held for review shows as their initial.
 
 ### C2-D8 · The takeover opens from the app root, and can be closed
 

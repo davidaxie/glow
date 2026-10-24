@@ -23,12 +23,27 @@ vi.mock('@/server/auth/verify', async (importOriginal) => {
   return { ...actual, verifyAccessToken: vi.fn() };
 });
 
+// One `notify` mock for everything that sends. B5's notifySettled is played by a stand-in that
+// sends each settled entry the way the real helper does (B5 tests the real one).
+const sends = vi.hoisted(() => ({ notify: vi.fn() }));
+const settledType = { choice_timeout: 'match.choice', glow_expired: 'glow.ended' } as const;
+
 vi.mock('@/server/choice/deps', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/choice/deps')>();
-  return { ...actual, notify: vi.fn(async () => ({ realtime: 'sent' })) };
+  return {
+    ...actual,
+    notify: sends.notify,
+    notifySettled: async (
+      settled: { matchId: string; kind: keyof typeof settledType; userIds: string[] }[],
+    ) => {
+      for (const { matchId, kind, userIds } of settled ?? []) {
+        await sends.notify(userIds, { type: settledType[kind], matchId });
+      }
+    },
+  };
 });
-const deps = await import('@/server/choice/deps');
-const notify = vi.mocked(deps.notify);
+vi.mock('@/server/glow/dependencies', () => ({ notify: sends.notify }));
+const notify = vi.mocked(sends.notify);
 
 /** The standard keys of every local `supabase start`. Public, and only valid on 127.0.0.1. */
 const LOCAL_ANON = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';

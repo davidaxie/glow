@@ -21,19 +21,20 @@
 import type { ChoiceReason, ChoiceResult, MatchDetail } from '@/contracts';
 import type { RouteHandler } from '@/server/http';
 import { serviceDb } from './db';
-import { rateLimit } from './deps';
-import { send, settledEvents, type Outgoing } from './events';
+import { notifySettled, rateLimit, startGlow } from './deps';
+import { send, type Outgoing } from './events';
 import { checkFindLocation } from './find-check';
 import { loadMatch } from './get-match';
-import { startGlow, type StartGlowOutcome } from './glow-start';
 import { setChoiceRow } from './rpc';
 import { publicMatch, type DbChoice } from './shapes';
+
+type StartGlowOutcome = Awaited<ReturnType<typeof startGlow>>;
 
 /** The events `set_choice`'s own answer implies (not `start_glow`'s, which C3's sends). */
 export function choiceEvents(userId: string, matchId: string, row: DbChoice): Outgoing[] {
   const both = row.match.userIds;
   const others = both.filter((id) => id.toLowerCase() !== userId.toLowerCase());
-  const outgoing = settledEvents(row.settled);
+  const outgoing: Outgoing[] = [];
   if (row.next === 'waiting' && row.reason === 'other_undecided') {
     outgoing.push({ to: others, event: { type: 'match.choice', matchId } });
   } else if (row.next === 'waiting' && row.reason === 'other_location_stale') {
@@ -84,7 +85,7 @@ export const setChoiceFor: RouteHandler<'setChoice'> = async ({ user, params, bo
   }
 
   const row = await setChoiceRow(db, user.id, matchId, body.choice);
-  await send(choiceEvents(user.id, matchId, row));
+  await Promise.all([notifySettled(row.settled), send(choiceEvents(user.id, matchId, row))]);
 
   if (row.next === 'glow' && row.reason === 'both_find') {
     const outcome = await startGlow(db, matchId);

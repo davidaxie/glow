@@ -5,26 +5,11 @@
  * function's server-only `userIds`, never from the request.
  */
 import { notify, type UserEvent } from './deps';
-import type { Settled } from './shapes';
 
 /** A `user:{id}` event about a match: only its type and the match ID. */
 export type MatchUserEvent = Extract<UserEvent, { matchId: string }>;
 
 export type Outgoing = { readonly to: readonly string[]; readonly event: MatchUserEvent };
-
-/**
- * The events for timeouts a function applied on the spot (docs/CONTRACTS.md, "Settled
- * timeouts"). Purge skips anything already settled, so nobody else will send these.
- */
-export function settledEvents(settled: readonly Settled[]): Outgoing[] {
-  return settled.map(({ matchId, kind, userIds }) => ({
-    to: userIds,
-    event:
-      kind === 'choice_timeout'
-        ? { type: 'match.choice', matchId }
-        : { type: 'glow.ended', matchId },
-  }));
-}
 
 /** Merges the list so each person gets each event once, grouped by event. */
 export function merge(outgoing: readonly Outgoing[]): Outgoing[] {

@@ -578,7 +578,7 @@ export type StartGlowOutcome =
 export async function startGlow(db: SupabaseClient<Database>, matchId: string): Promise<StartGlowOutcome>;
 ```
 
-_Answered by C3, 2026-10-24:_ accepted as proposed, in `@/server/glow` on PR #27. Until #27 merges, C2 keeps its stand-in; then `set-choice.ts` imports C3's and `glow-start.ts` goes.
+_Answered by C3, 2026-10-24:_ accepted as proposed, in `@/server/glow` (#27, merged). `set-choice.ts` imports it; C2's stand-in is gone.
 
 The split C2 assumes: **`startGlow` sends every event `start_glow`'s result implies** (CONTRACTS.md, "start_glow results" and "Settled timeouts"): `glow.started` to both on `started`, `match.choice` to both on `chat`, `match.recheck` to each of `staleUserIds` on `waiting` with `location_stale`, and the `settled` entries (`glow.ended` for `glow_expired`, including other pairs' glows in the room, and `match.choice` for `choice_timeout`). C2's `setChoice` sends only what `set_choice` itself implies. After `startGlow`, C2 refetches the match with `get_match` and answers `next: glow` for `started`, `next: chat` for `chat`, and `next: waiting` (`other_location_stale`) for `waiting`.
 
@@ -611,10 +611,8 @@ _2026-10-24, Wave 2, in progress._ Draft PR [#26](https://github.com/davidaxie/g
 
 **Still mocked**
 
-- **`startGlow`**: C2's stand-in `server/src/server/choice/glow-start.ts` (same signature, placeholder word list) until C3's #27 merges.
-- **Match photos** load through `APIMatchClient.photo` (the API's no-cache session). Swap to B3's `PrivateImageView(.matchPhoto(matchID, index:))` when B3's Imaging lands.
-- **The real two-phone reveal timing** needs B1's live session, B5's live Realtime (GlowRealtime's `live` is still the preview mock) and C1's deck. FeatureMatch opens the takeover the moment `match.created` arrives; the fixtures show both phones doing it at once.
-- **`notifySettled`**: C2 sends `settled` events itself (`events.ts`); switch to B5's helper once it merges.
+- Nothing in C2's paths is mocked any more: `startGlow` is C3's (`@/server/glow`, #27), match photos load through B3's `PrivateImageView(.matchPhoto(matchID, index:))` (watermarked, no cache, P4), and `settled` events go through B5's `notifySettled`.
+- **The real two-phone reveal** needs B1's live session (not merged yet). The recording shows both phones from Debug fixtures. FeatureMatch opens the takeover the moment `match.created` arrives from B5's live Realtime.
 
 **Next wave needs**
 

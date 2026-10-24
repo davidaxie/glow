@@ -38,10 +38,6 @@ private struct FailingChoices: MatchClient {
         try await base.matches()
     }
 
-    func photo(_ id: MatchID, index: Int) async throws(MatchError) -> Data {
-        try await base.photo(id, index: index)
-    }
-
     func events() -> AsyncStream<MatchEvent> {
         base.events()
     }
@@ -73,16 +69,23 @@ struct MatchModelTests {
     }
 
     @Test func photosAreNeverAskedForBeforeTheMatchHasLoaded() async {
-        // P1: a photo is only requested for a match the server has shown me.
-        let client = FixtureMatchClient(matches: [choosing(photos: 2)])
-        let model = makeModel(client)
-        #expect(await model.photo(0) == nil)
-        #expect(client.photoRequests.isEmpty)
+        // P1: a photo source exists only for a match the server has shown me, and only below
+        // photoCount.
+        let model = makeModel(FixtureMatchClient(matches: [choosing(photos: 2)]))
+        #expect(model.photoSources.isEmpty)
 
         await model.load()
-        #expect(await model.photo(0) != nil)
-        #expect(await model.photo(2) == nil) // only below photoCount
-        #expect(client.photoRequests.map(\.1) == [0])
+        #expect(model.photoSources == [.matchPhoto(matchID, index: 0), .matchPhoto(matchID, index: 1)])
+    }
+
+    @Test func anEndedMatchHasNoPhotos() async {
+        let client = FixtureMatchClient(matches: [choosing(photos: 3)])
+        let model = makeModel(client)
+        await model.load()
+        client.end(matchID)
+        await model.handle(MatchEvent(.ended, matchID))
+        #expect(model.phase == .gone)
+        #expect(model.photoSources.isEmpty)
     }
 
     @Test func findAndFindOpensTheGlow() async {

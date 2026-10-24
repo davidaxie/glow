@@ -1,10 +1,7 @@
 import APIClient
 import AppCore
-import DesignSystem
 import Foundation
 import os
-import SwiftUI
-import UIKit
 
 /// Made-up matches for previews, tests and Debug Simulator runs. Never touches the network.
 ///
@@ -46,7 +43,6 @@ public final class FixtureMatchClient: MatchClient {
         var matches: [MatchID: MatchSnapshot]
         var partner: Partner
         var choices: [(MatchSnapshot.Choice, MatchID)] = []
-        var photoRequests: [(MatchID, Int)] = []
         var listeners: [UUID: AsyncStream<MatchEvent>.Continuation] = [:]
     }
 
@@ -128,11 +124,6 @@ public final class FixtureMatchClient: MatchClient {
     /// Every choice sent, in order.
     public var choices: [(MatchSnapshot.Choice, MatchID)] {
         state.withLockUnchecked { $0.choices }
-    }
-
-    /// Every photo asked for, in order.
-    public var photoRequests: [(MatchID, Int)] {
-        state.withLockUnchecked { $0.photoRequests }
     }
 
     /// Changes a match as if the server had, and tells listeners like Realtime would.
@@ -229,20 +220,6 @@ public final class FixtureMatchClient: MatchClient {
         }
     }
 
-    public func photo(_ id: MatchID, index: Int) async throws(MatchError) -> Data {
-        if let failure {
-            throw failure
-        }
-        let exists = state.withLockUnchecked { state -> Bool in
-            state.photoRequests.append((id, index))
-            guard let match = state.matches[id] else { return false }
-            return index >= 0 && index < match.photoCount
-        }
-        guard exists else { throw .notFound }
-        guard let data = await Self.renderPhoto(index) else { throw .failed }
-        return data
-    }
-
     public func events() -> AsyncStream<MatchEvent> {
         let (stream, continuation) = AsyncStream<MatchEvent>.makeStream(bufferingPolicy: .bufferingNewest(16))
         let id = UUID()
@@ -271,36 +248,5 @@ public final class FixtureMatchClient: MatchClient {
             try? await Task.sleep(for: delay)
             work()
         }
-    }
-
-    /// A faceless, made-up "photo": soft glow colors. Nothing like a real person.
-    @MainActor
-    private static func renderPhoto(_ index: Int) -> Data? {
-        let hues: [(GlowHue, GlowHue)] = [(.violet, .rose), (.sky, .aqua), (.ember, .sun)]
-        let (top, bottom) = hues[index % hues.count]
-        let renderer = ImageRenderer(content: FixturePhoto(top: top, bottom: bottom))
-        renderer.scale = 2
-        return renderer.uiImage?.jpegData(compressionQuality: 0.8)
-    }
-}
-
-/// The made-up photo's picture.
-private struct FixturePhoto: View {
-    let top: GlowHue
-    let bottom: GlowHue
-
-    var body: some View {
-        ZStack {
-            LinearGradient(colors: [top.color, bottom.color], startPoint: .topLeading, endPoint: .bottomTrailing)
-            Circle()
-                .fill(GlowPalette.textPrimary.color.opacity(0.18))
-                .frame(width: 180, height: 180)
-                .offset(x: 70, y: -110)
-            Circle()
-                .fill(GlowPalette.background.color.opacity(0.16))
-                .frame(width: 240, height: 240)
-                .offset(x: -90, y: 140)
-        }
-        .frame(width: 320, height: 400)
     }
 }

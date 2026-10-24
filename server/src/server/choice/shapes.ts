@@ -44,29 +44,6 @@ export const zDbChoice = z.object({
 });
 export type DbChoice = z.output<typeof zDbChoice>;
 
-/** `start_glow` (CONTRACTS.md, "start_glow results"). */
-export const zDbStartGlow = z.discriminatedUnion('result', [
-  z.object({
-    result: z.literal('started'),
-    glow: zGlow.extend({ userIds: zPair }),
-    settled: z.array(zSettled).default([]),
-  }),
-  z.object({
-    result: z.literal('chat'),
-    reason: z.enum(['not_checked_in', 'no_code_word', 'already_decided']),
-    userIds: zPair,
-    settled: z.array(zSettled).default([]),
-  }),
-  z.object({
-    result: z.literal('waiting'),
-    reason: z.enum(['location_stale', 'not_both_find']),
-    userIds: zPair,
-    staleUserIds: z.array(z.uuid()).optional(),
-    settled: z.array(zSettled).default([]),
-  }),
-]);
-export type DbStartGlow = z.output<typeof zDbStartGlow>;
-
 /** A database result that doesn't match what the function promises. Becomes a 500. */
 export class UnexpectedResult extends Error {
   override readonly name = 'UnexpectedResult';

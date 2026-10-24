@@ -3,7 +3,6 @@ import AppCore
 import Foundation
 import Observation
 import os
-import UIKit
 
 /// One match from my side: the reveal, the choice, and waiting for the other person.
 ///
@@ -197,12 +196,12 @@ public final class MatchModel {
 
     // MARK: Photos
 
-    /// The other person's photo `index`, decoded. Only once the match has loaded, and only below
-    /// its `photoCount` (P1). Held by whoever shows it, never cached.
-    public func photo(_ index: Int) async -> UIImage? {
-        guard let snapshot, index >= 0, index < snapshot.photoCount,
-              let data = try? await client.photo(matchID, index: index) else { return nil }
-        return UIImage(data: data)
+    /// Where to load the other person's photos from: B3's watermarked, never-cached path (P4).
+    /// Empty until the match has loaded, and never more than `photoCount` (P1), so a photo is only
+    /// ever asked for once the server has shown me a match that exists.
+    public var photoSources: [PrivateImageSource] {
+        guard let snapshot, phase != .gone else { return [] }
+        return (0 ..< snapshot.photoCount).map { PrivateImageSource.matchPhoto(matchID, index: $0) }
     }
 
     // MARK: State

@@ -1,7 +1,6 @@
 import APIClient
 import AppCore
 import Foundation
-import OpenAPIRuntime
 import SwiftUI
 
 /// What FeatureMatch needs from the server. `APIMatchClient` is the real one; previews, tests and
@@ -13,9 +12,6 @@ public protocol MatchClient: Sendable {
     func choose(_ choice: MatchSnapshot.Choice, for id: MatchID, fix: LocationFix?) async throws(MatchError) -> ChoiceOutcome
     /// My matches that haven't ended, newest first.
     func matches() async throws(MatchError) -> [MatchSummary]
-    /// The other person's photo `index` (below `photoCount`), as JPEG data. Only for a match that
-    /// exists: the server answers 404 otherwise (P1). Held in memory only, never cached.
-    func photo(_ id: MatchID, index: Int) async throws(MatchError) -> Data
     /// Events this client makes up itself. Only the Debug fixtures have any; the live client's
     /// events come from Realtime.
     func events() -> AsyncStream<MatchEvent>
@@ -95,6 +91,19 @@ enum MatchClients {
             }
         #endif
         return APIMatchClient(api: dependencies.api)
+    }
+
+    /// The services the match screens see. The Debug fixtures never touch the network, so their
+    /// photos come from the preview imaging service's placeholders, not B3's API loader (C2-D9).
+    static func environment(_ override: (any MatchClient)?, _ dependencies: Dependencies) -> Dependencies {
+        #if DEBUG
+            if override == nil, dependencies.config.environment == .debug, FixtureMatchClient.launchFixtures != nil {
+                var preview = dependencies
+                preview.imaging = PreviewImagingService()
+                return preview
+            }
+        #endif
+        return dependencies
     }
 
     /// The location service for Find. The Debug fixtures never touch the network, so they never
@@ -189,26 +198,6 @@ public struct APIMatchClient: MatchClient {
         case .unauthorized: throw .unauthorized
         case .tooManyRequests: throw .rateLimited
         case .default: throw .failed
-        }
-    }
-
-    public func photo(_ id: MatchID, index: Int) async throws(MatchError) -> Data {
-        guard index >= 0, index < GlowConstants.profilePhotosMax else { throw .notFound }
-        do {
-            return try await api.perform { client in
-                let output = try await client.getMatchPhoto(path: .init(id: id.rawValue, n: index))
-                switch output {
-                case let .ok(ok):
-                    guard case let .jpeg(body) = ok.body else { throw APIError.unexpected(status: 200) }
-                    // A profile photo is a few hundred KB; 6 MB is a generous ceiling.
-                    return try await Data(collecting: body, upTo: 6 * 1024 * 1024)
-                case .notFound: throw APIError.notFound
-                case .unauthorized: throw APIError.unauthorized
-                case let .default(statusCode, _): throw APIError.unexpected(status: statusCode)
-                }
-            }
-        } catch {
-            throw MatchError(error)
         }
     }
 

@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET as getMatchRoute } from '../../app/api/matches/[id]/route';
 import { POST as setChoiceRoute } from '../../app/api/matches/[id]/choice/route';
-import { STAND_IN_CODE_WORDS } from '@/server/choice/glow-start';
+import { CODE_WORDS } from '@/server/glow';
 import { mockVerify, USER_ID } from '../helpers/auth';
 import { FakeDb, raise, type Result } from './fake-db';
 import { call, captureLogs, sentEvents, uuidsIn } from './helpers';
@@ -19,16 +19,29 @@ vi.mock('@/server/auth/verify', async (importOriginal) => {
 let db: FakeDb;
 vi.mock('@/server/choice/db', () => ({ serviceDb: () => db.asDb() }));
 
+// One `notify` mock for everything that sends: C2's own sends, B5's notifySettled (played here by
+// a stand-in that sends each settled entry the way B5's helper does) and C3's startGlow.
+const sends = vi.hoisted(() => ({ notify: vi.fn() }));
+const settledType = { choice_timeout: 'match.choice', glow_expired: 'glow.ended' } as const;
+
 vi.mock('@/server/choice/deps', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/choice/deps')>();
   return {
     ...actual,
-    notify: vi.fn(async () => ({ realtime: 'sent' })),
+    notify: sends.notify,
+    notifySettled: vi.fn(
+      async (settled: { matchId: string; kind: keyof typeof settledType; userIds: string[] }[]) => {
+        for (const { matchId, kind, userIds } of settled ?? []) {
+          await sends.notify(userIds, { type: settledType[kind], matchId });
+        }
+      },
+    ),
     rateLimit: vi.fn(async () => {}),
   };
 });
+vi.mock('@/server/glow/dependencies', () => ({ notify: sends.notify }));
 const deps = await import('@/server/choice/deps');
-const notify = vi.mocked(deps.notify);
+const notify = vi.mocked(sends.notify);
 const rateLimit = vi.mocked(deps.rateLimit);
 
 const ME = USER_ID;
@@ -415,7 +428,7 @@ describe('POST /api/matches/{id}/choice · Find each other', () => {
     expect(db.rpcCalls.map((c) => c.name)).toEqual(['set_choice', 'start_glow', 'get_match']);
     expect(db.rpcCalls[1]?.args).toEqual({
       p_match_id: MATCH,
-      p_code_words: [...STAND_IN_CODE_WORDS],
+      p_code_words: [...CODE_WORDS],
     });
     expect(sentEvents(notify)).toEqual([
       { type: 'glow.started', matchId: MATCH, to: [ME, THEM].sort() },

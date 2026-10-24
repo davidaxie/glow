@@ -11,14 +11,15 @@
 import type { MatchDetail } from '@/contracts';
 import type { RouteHandler } from '@/server/http';
 import { serviceDb, type Db } from './db';
-import { send, settledEvents } from './events';
+import { notifySettled } from './deps';
 import { getMatchRow } from './rpc';
 import { publicMatch } from './shapes';
 
 /** The match as the caller may see it, after sending the events for any timeout it applied. */
 export async function loadMatch(db: Db, userId: string, matchId: string): Promise<MatchDetail> {
   const row = await getMatchRow(db, userId, matchId);
-  await send(settledEvents(row.settled));
+  // Purge skips anything already settled, so this route sends those events (B5's helper).
+  await notifySettled(row.settled);
   return publicMatch(row);
 }
 
