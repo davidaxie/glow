@@ -1,12 +1,11 @@
 /**
- * TEMPORARY stand-ins for two modules other agents own, so check-in works before they merge.
- * Each has exactly the shape its owner settled on; when the real module lands, this file
- * re-exports it instead and the stub goes.
+ * What check-in needs from other agents' modules, in one place.
  *
- * - `verifyJoinTicket`: B2's join ticket check (`@/server/rooms`, server/src/server/rooms/ticket.ts).
- * - `moderateImage(kind, bytes)`: B8's photo moderation (`@/server/moderation`).
- *
- * Both fail closed: a stub never lets a photo through on a deployed server.
+ * - `moderateImage`, `photoRejected` (B8, `@/server/moderation`) and `rateLimit` (B8,
+ *   `@/server/ratelimit`): the real modules.
+ * - `verifyJoinTicket` (B2, `@/server/rooms`): a TEMPORARY stub with exactly B2's signature,
+ *   until B2's module merges; then this file re-exports B2's and the stub goes. It fails
+ *   closed: only tests and local scripts can make a ticket it accepts.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { JOIN_TICKET_TTL_SECONDS } from '@/contracts';
@@ -60,7 +59,9 @@ export async function verifyJoinTicket(
   }
   let claims: Partial<TicketClaims>;
   try {
-    claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Partial<TicketClaims>;
+    claims = JSON.parse(
+      Buffer.from(payload, 'base64url').toString('utf8'),
+    ) as Partial<TicketClaims>;
   } catch {
     return null;
   }
@@ -102,35 +103,7 @@ export function signJoinTicketForTests(
   return `${payload}.${ticketSignature(payload).toString('base64url')}`;
 }
 
-// ---------------------------------------------------------------------------- moderation
+// ---------------------------------------------------------------------------- B8, real
 
-/** Why a photo was refused (ErrorBody.reason for `photo_rejected`). */
-export type PhotoRejectReason =
-  | 'face_visible'
-  | 'nudity'
-  | 'no_outfit'
-  | 'no_person'
-  | 'possibly_minor'
-  | 'unreadable';
-
-export type ModerationVerdict =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly reason: PhotoRejectReason };
-
-/** Moderation couldn't answer within MODERATION_TIMEOUT. Card photos fail closed (503). */
-export class ModerationUnavailableError extends Error {
-  override readonly name = 'ModerationUnavailableError';
-}
-
-/**
- * STUB for B8's `moderateImage(kind, bytes)`. In local development (the `local` profile, no
- * Anthropic key) it approves everything, like B8's deterministic dev fake. Anywhere else it
- * refuses to answer, so a card photo can never skip moderation on a deployed server.
- */
-export async function moderateImage(
-  _kind: 'card' | 'profile',
-  _bytes: Uint8Array,
-): Promise<ModerationVerdict> {
-  if (getEnv().profile !== 'local') throw new ModerationUnavailableError();
-  return { ok: true };
-}
+export { moderateImage, photoRejected } from '@/server/moderation';
+export { rateLimit } from '@/server/ratelimit';

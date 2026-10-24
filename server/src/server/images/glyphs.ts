@@ -68,7 +68,9 @@ export function textPath(text: string, unit: number, x = 0, y = 0): string {
         }
         let end = c;
         while (end < row.length && row[end] === '#') end += 1;
-        parts.push(`M${left + c * unit} ${y + r * unit}h${(end - c) * unit}v${unit}h${-(end - c) * unit}z`);
+        parts.push(
+          `M${left + c * unit} ${y + r * unit}h${(end - c) * unit}v${unit}h${-(end - c) * unit}z`,
+        );
         c = end;
       }
     });
