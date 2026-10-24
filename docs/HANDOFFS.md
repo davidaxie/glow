@@ -834,7 +834,7 @@ _2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a
 
 _2026-10-24, Integrator mode._
 
-**Merged into main**: A1's skeleton (#1), A2's contracts and database (#2), A3's iPhone skeleton (#3, rebased onto #2, with A3's decisions renumbered from D10–D22 to D33–D45), parallel-agent isolation (#4), the generated registry and stubs (#13), A2's Checkpoint 1 contract fixes with their stubs and spec updates (#14), the app test that accepts per-agent URLs (#28), real SwiftFormat checks in worktrees (#30), local CI (#31), and rate limits in `route()` (#32).
+**Merged into main**: A1's skeleton (#1), A2's contracts and database (#2), A3's iPhone skeleton (#3, rebased onto #2, with A3's decisions renumbered from D10–D22 to D33–D45), parallel-agent isolation (#4), the generated registry and stubs (#13), A2's Checkpoint 1 contract fixes with their stubs and spec updates (#14), the app test that accepts per-agent URLs (#28), real SwiftFormat checks in worktrees (#30), local CI (#31), rate limits in `route()` (#32), and the Simulator and stack caps with union-merged docs (#33).
 
 **Built since Wave 0**
 
