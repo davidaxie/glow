@@ -36,6 +36,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             if let link = UserDefaults.standard.string(forKey: "GlowDebugOpenURL"), let url = URL(string: link) {
                 router.open(url)
             }
+            // `-GlowDebugRoute glow/<matchID>` opens one match's screen (mutual, match, glow or chat)
+            // directly, for Simulator proof of Wave 2 screens before push taps and sign-in are live.
+            // It goes through the same Router.go as a tapped notification, and waits for onboarding.
+            if let value = UserDefaults.standard.string(forKey: "GlowDebugRoute"), let route = DebugRoute.route(for: value) {
+                router.go(route)
+            }
         #endif
         return true
     }
