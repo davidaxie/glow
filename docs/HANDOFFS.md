@@ -30,6 +30,9 @@ Things only David can do. None of these block Wave 0 work locally.
     11. When it's approved: turn on the **public link**, set it as `TESTFLIGHT_URL` in Vercel, and give it to B7 for the posters.
     12. When the domain exists: set `GLOW_WEB_DOMAIN` (via A1) and `APPLE_APP_ID={TEAM_ID}.com.davidxie.glow` in Vercel, then scan a poster QR with the iPhone Camera and check Glow opens.
 12. **GitHub Actions billing** (from B9, 2026-10-24). Since about 18:40 UTC, jobs don't start: "The job was not started because recent account payments have failed or your spending limit needs to be increased" (github.com → Settings → Billing and plans). It hit macOS first (PR #17), then Ubuntu too (PR #5's Release checks, which passed in 13 seconds on an earlier commit). The repo is private, so macOS minutes count ten times; the TestFlight job runs on macOS, so releases need this fixed as well.
+13. **Purge every 5 minutes** (from B8, item 3 above). `server/vercel.json` already schedules `/api/cron/purge` at `*/5 * * * *`. On a Pro plan that's all. On Hobby, Vercel may refuse to deploy a schedule that runs more than once a day: change it to `0 0 * * *` and add an outside schedule instead, for example an Upstash QStash schedule (`*/5 * * * *`) that calls `GET https://{DOMAIN}/api/cron/purge` and forwards `Authorization: Bearer <CRON_SECRET>` (QStash's `Upstash-Forward-Authorization` header). The route is safe to be called by both (B8-D8).
+14. **Moderation** (from B8). With `ANTHROPIC_API_KEY` set, run `pnpm --filter server exec vitest run tests/moderation/live.test.ts` once: it checks p95 latency under 2.5 s and decides every photo in `server/tests/moderation/fixtures/live/` as its name says (`approve-*.jpg`, `reject-face_visible-*.jpg`, `reject-nudity-*.jpg`, `hold-*.jpg`). No such photos are committed, because they need real people who agreed to be fixtures (or freely licensed ones, D44); please add a few, or decide they stay local. Note the synthetic outfit drawings in `ios/fixtures/photos/` are *rejected* by real Claude as "no person", so Simulator check-ins with a key set need real outfit photos.
+15. **Supabase cloud, account deletion** (from B8). After `supabase db push`, check that `select public.purge_auth_audit(interval '7 days')` runs as the service role. It deletes from `auth.audit_log_entries`, which a hosted project may restrict. If it's refused, deletion still works but Auth's audit log keeps emails and IPs: either allow it, or turn off "write auth audit logs to the database" in the project's Auth settings (B8-D4, B8-D5).
 
 ## Requests
 
@@ -70,6 +73,8 @@ _From B8, 2026-10-24._
 1. **Rate limit every route in the helper.** In `route()` (`server/src/server/http/route.ts`), right after `authenticate`, add `await limitRequest(operationId, req, user)` from `@/server/ratelimit`. It picks the policy per operation (`policyForOperation`, a test covers every operation in the contract), keys by person or by client IP, throws your `rateLimited()` 429, and skips `runPurge`. Then no handler has to remember to call it.
 2. ~~**`reason` on errors.**~~ Done in #13. `photoRejected(reason)` is built on `unprocessable`, and `ModerationUnavailableError` passes `reason: 'moderation'`.
 3. **`tests/setup.ts`:** please also delete `ANTHROPIC_API_KEY` before each test, so a key exported in someone's shell never makes the suite call the real API (B8's live test reads the key once at import, before setup runs).
+4. **Review migration `0003_b8_forget_account.sql`** (PR #22, A2 has finished). Functions only, no tables: `forget_account_traces(p_user_id)` deletes Supabase Auth audit entries (and any stored Realtime message on `user:{id}`) for a person whose auth user is already gone, and refuses anyone who still exists; `purge_auth_audit(p_older_than)` deletes audit entries older than that (at least 1 hour). Both security definer, `search_path = ''`, service role only. `server/src/contracts/database.ts` was regenerated from B8's own stack with the same `supabase gen types` command; the only change is the two functions.
+5. **`scripts/codegen.sh` and own stacks** (it's A2's, but A2 has finished). Its `supabase gen types --local` always reads the shared `glow` stack, so an agent with a new migration gets stale types. Please make it pass `--workdir "$GLOW_SUPABASE_WORKDIR"` (to both `supabase status` and `gen types`) when that's set.
 
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
@@ -183,6 +188,8 @@ if (verdict.decision === 'rejected') throw photoRejected(verdict.reason); // 422
 
 It throws `ModerationUnavailableError` (an `HttpError`, 503 `unavailable`, reason `moderation`) on a timeout or outage. Let it propagate and don't store the photo (B8-D2). Held photos (possibly under 18) are never shown until B7 approves them. Rate limits: `addProfilePhoto` and `deleteProfilePhoto` use the `photos` policy, `updateProfile` uses `account`, `testLogin` uses `signIn` (per IP). If A1 wires `limitRequest` into the route helper (For A1 below), you don't call anything; otherwise `await rateLimit(user.id, 'photos')` first thing in the handler.
 
+_From B8, 2026-10-24, PR #22._ (1) The purge cron deletes any `profile-photos` object that has no `profile_photos` row (or whose profile is gone) once it's 2 minutes old, so upload and insert the row together, and delete the object when you delete the row (B8-D5). (2) Settings links: `navigate(.pause)` and `navigate(.deleteAccount)` open B8's screens; deleting signs the person out through `session.signOut()`. (3) Pausing calls your `session.refreshProfile()` afterwards, so `Me.profile.paused` stays current for anyone showing Visible or Paused.
+
 ### For B2
 
 _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/route.ts` exists as a 501 stub for `getRoomState`; it's yours (listed in your `AGENTS.md` row), so replace the stub. 2: done. 3: `server/src/env.ts` has two optional variables, both validated and optional everywhere: `TESTFLIGHT_URL` (must be `https://testflight.apple.com/...`) and `APPLE_APP_ID` (`TEAMID.bundle.id`, like `ABCDE12345.com.davidxie.glow`). Please use `APPLE_APP_ID` for the link file rather than `APNS_TEAM_ID` plus `APNS_BUNDLE_ID`: the APNS variables only exist together with the push key, so a preview without push couldn't serve the link file. Read them with `getEnv()`.
@@ -203,7 +210,19 @@ if (verdict.decision !== 'approved') throw photoRejected(verdict.reason);
 
 Moderate before uploading to storage, so a rejected photo is never stored. In tests, `await moderationFixtureJpeg(['face_visible'])` gives a JPEG the local fake rejects (also `nudity`, `no_outfit`, `no_person`, `possibly_minor`, `slow` for the timeout, `error` for an outage); `moderationFixtureJpeg([])` is approved. Rate limit policy: `checkin` (10 per 10 min) for `createCheckin`, `join` for `joinRoom`, `resolveRoom` and `leaveRoom`.
 
+_From B8, 2026-10-24, PR #22._ The purge cron deletes any `room-cards` object with no `checkins` row once it's 2 minutes old (B8-D5), so call `create_checkin` right after the upload, and delete the object yourself if `create_checkin` fails. With a real `ANTHROPIC_API_KEY`, the synthetic drawings in `ios/fixtures/photos/` are rejected `no_person`; the local fake (no key) approves them.
+
+### For B7
+
+_From B8, 2026-10-24, PR #22._ (1) Reports: `create_report` stores the reported person, room, reason, trimmed details and, for match or chat reports, `evidence` (their last 20 messages). The reporter has already blocked them. Reports are deleted with either account (D23). (2) Capture flags: accounts with 3 or more `abuse_signals` in the last 24 hours (`select user_id, count(*) from abuse_signals where created_at > now() - interval '24 hours' group by user_id having count(*) >= 3`); the server logs `safety.capture_review` when someone reaches 3 (B8-D7). (3) Held profile photos (`moderation_status = 'held'`) are people who may be under 18, from `moderateImage('profile', …)`; they're never served until approved.
+
+### For C1
+
+_From B8, 2026-10-24, PR #22._ From a card, open `navigate(.block(.card(cardID)))` or `navigate(.report(.card(cardID)))`; both sheets are B8's. After a block the card leaves both decks on the next fetch, and the room gets `deck.changed`; drop the card locally at once too. Screenshots and recordings of the deck: `POST /api/abuse/capture` with `{ kind: 'screenshot' | 'recording', roomId }` (always 204, rate limited to 60 an hour).
+
 ### For C4
+
+_From B8, 2026-10-24, PR #22._ (1) From the chat menu, `navigate(.block(.chat(matchID)))` and `navigate(.report(.chat(matchID)))`. After either, B8's sheet sends the person back to the matches list. (2) Please make unmatch send exactly what a block sends: `match.ended` to both people and nothing else about why, so the other person can't tell a block from an unmatch (D18, B8-D6). Unlike a block, an unmatch also makes the pair eligible again, so `deck.changed` to the rooms either person is checked into fits too.
 
 _From B8, 2026-10-24._ Chat moderation never throws and never takes more than MODERATION_TIMEOUT (2.5 s):
 
@@ -296,7 +315,21 @@ _2026-10-24, Wave 1, first PR (tokens and basic components)._ Branch `w1/b6-desi
 
 ### B8 · Safety, moderation and cleanup
 
-_2026-10-24, Wave 1, interfaces._ PR on `w1/b8-safety-interfaces`; the rest of B8 follows on `w1/b8-safety`.
+_2026-10-24, Wave 1._ PR [#12](https://github.com/davidaxie/glow/pull/12) (moderation and rate limit interfaces) and PR [#22](https://github.com/davidaxie/glow/pull/22) on `w1/b8-safety` (everything else).
+
+**Built**
+
+- **Endpoints** (handlers in `server/src/server/safety/routes.ts`): `POST /api/blocks` and `POST /api/reports` (card, match or chat ID; 404 for anything the caller can't act on; `match.ended` to both people and `deck.changed` to their rooms, B8-D6), `POST /api/me/pause` (`deck.changed` only when it changed), `POST /api/abuse/capture` (B8-D7), `DELETE /api/me` (B8-D4) and `GET /api/cron/purge` (B8-D5, B8-D8). Each counts against its rate limit policy.
+- **Purge** (`server/src/server/safety/purge.ts`): `purge_expired`, the returned card photos, an orphan sweep of both buckets, `checkin.expiring`, `glow.ended`, `match.choice` and `deck.changed`, the after-the-fact review of `pending` chat messages, and 7-day retention for Supabase Auth's audit log. `server/vercel.json` runs it every 5 minutes.
+- **Migration** `supabase/migrations/0003_b8_forget_account.sql`: `forget_account_traces` and `purge_auth_audit` (functions only; A1 reviews, For A1 item 4).
+- **FeatureSafety** (iOS): `BlockSheet(context:)`, `ReportSheet(context:)` (reason chips, optional details up to 1,000 characters, "Report and block"), `PauseView()` and `DeleteAccountView()` (confirm, then sign out), on B6's components, with models in `SafetyModels.swift`. Screenshots in `docs/shots/b8-*`.
+- **Moderation and rate limits**: see the tables below.
+
+**Tests**
+
+- `server/tests/safety/safety.live.test.ts` runs against a real local Supabase: an agent's own stack (`eval "$(scripts/agent-env.sh B8 --own-db)"`, or point `server/.env.local` at it), or CI's. Agents on the shared stack skip it. It proves P7 (both decks lose each other within 5 seconds of a block), P8 (pause), report evidence, capture logging, account deletion (every uuid column of every public table, both buckets, the auth user and the audit log, with a positive control first), and P9 (expired card rows and photos deleted, the sweep, one warning per check-in, the cron secret).
+- `server/tests/safety/purge.test.ts`: purge notifications and the 5-minute schedule. `server/tests/moderation/live.test.ts`: real Claude, p95 under 2.5 s and the consented fixtures, only with `ANTHROPIC_API_KEY` (Needs David 14).
+- `ios/Packages/GlowKit/Tests/FeatureSafetyTests`: request bodies (card or match ID only), failures, analytics literals, and snapshots of every screen at default and largest text size.
 
 **Moderation** (`server/src/server/moderation`, import from `@/server/moderation`)
 
@@ -339,7 +372,14 @@ _2026-10-24, Wave 1, interfaces._ PR on `w1/b8-safety-interfaces`; the rest of B
 
 A limited request answers 429 `rate_limited` with `Retry-After`; the app already maps that to `APIError.rateLimited`. Keys are hashed before they reach the store, and limits fail open if Upstash is down (B8-D3).
 
-**Still mocked**: Claude runs only with `ANTHROPIC_API_KEY`; without it, local runs use the fake (B8-D1). Upstash runs only with `UPSTASH_REDIS_REST_*`; locally it's in memory.
+**Still mocked**: Claude runs only with `ANTHROPIC_API_KEY`; without it, local runs use the fake (B8-D1). Upstash runs only with `UPSTASH_REDIS_REST_*`; locally it's in memory. Notifications go through `server/src/server/safety/dependencies.ts`, a stand-in with B5's `notify`/`notifyRoom` signatures that only logs, until B5's #15 merges (then that one file switches to `@/server/notify`).
+
+**Next wave needs**
+
+- **C1**: the block and report sheets from a card, and capture logging (For C1).
+- **C4**: moderation, the chat's block and report entries, and unmatch matching a block (For C4).
+- **D1**: the end-to-end block path is `navigate(.block(.chat(id)))` → "Block" → "Close" (back to Matches); the other person's app gets `match.ended`. Expiry: set a check-in's `expires_at` in the past and call the purge route with the cron secret.
+- **D2**: things to try to break: blocking or reporting a card the deck never showed you, or a match you're not in (404); a capture with someone else's room (stored without the room); the purge route without the secret (401); deleting an account and then finding anything about it (`rowsMentioning` in the live test is a start).
 
 ### A2 · Contracts and database
 

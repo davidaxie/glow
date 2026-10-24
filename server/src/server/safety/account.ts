@@ -68,7 +68,12 @@ export async function deleteAccountFor(userId: string): Promise<void> {
   }
 
   // Supabase Auth's audit log still names them (email, IP), including the deletion itself.
-  const traces = await rpc('forget_account_traces', { p_user_id: userId });
+  // The account is already gone, so a failure here is logged, not returned: the purge cron's
+  // audit retention (AUTH_AUDIT_RETENTION) removes those entries within days regardless.
+  const traces = await rpc('forget_account_traces', { p_user_id: userId }).catch(() => {
+    logger.error('safety.forget_traces_failed', {});
+    return null;
+  });
 
   logger.info('safety.delete_account', {
     cards: cardPaths.length,

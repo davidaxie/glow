@@ -129,7 +129,7 @@ public final class BlockModel {
         phase = .working
         let body = Components.Schemas.BlockRequest(context: context.apiContext, contextId: context.apiID)
         do {
-            let output = try await api.perform { try await $0.createBlock(body: .json(body)) }
+            let output = try await api.perform { @Sendable client in try await client.createBlock(body: .json(body)) }
             guard case .noContent = output else {
                 phase = .failed(.unexpected)
                 return
@@ -182,7 +182,7 @@ public final class ReportModel {
             details: trimmed.isEmpty ? nil : trimmed,
         )
         do {
-            let output = try await api.perform { try await $0.createReport(body: .json(body)) }
+            let output = try await api.perform { @Sendable client in try await client.createReport(body: .json(body)) }
             guard case .noContent = output else {
                 phase = .failed(.unexpected)
                 return
@@ -203,33 +203,43 @@ public final class ReportModel {
 @MainActor
 @Observable
 public final class PauseModel {
-    /// What the server last said. Nil until the profile has loaded.
-    public private(set) var paused: Bool?
+    /// What the server last said. Only meaningful once `isLoaded`.
+    public private(set) var paused = false
+    /// False until the profile has loaded; the toggle stays off and disabled until then.
+    public private(set) var isLoaded = false
     public internal(set) var phase: SafetyPhase = .ready
     private let api: GlowAPI
     private let session: any SessionService
     private let analytics: any Analytics
 
-    public init(api: GlowAPI, session: any SessionService, analytics: any Analytics, paused: Bool? = nil) {
+    /// Starts unloaded; call `load()`.
+    public init(api: GlowAPI, session: any SessionService, analytics: any Analytics) {
         self.api = api
         self.session = session
         self.analytics = analytics
+    }
+
+    /// Starts from a known state, for previews and tests.
+    public convenience init(api: GlowAPI, session: any SessionService, analytics: any Analytics, paused: Bool) {
+        self.init(api: api, session: session, analytics: analytics)
         self.paused = paused
+        isLoaded = true
     }
 
     /// Reads the current state from the signed-in profile.
     public func load() async {
         if let me = await session.currentProfile() {
             paused = me.profile.paused
+            isLoaded = true
         }
     }
 
     public func setPaused(_ newValue: Bool) async {
-        guard !phase.isWorking, newValue != paused else { return }
+        guard isLoaded, !phase.isWorking, newValue != paused else { return }
         phase = .working
         do {
-            let output = try await api.perform {
-                try await $0.setPaused(body: .json(.init(paused: newValue)))
+            let output = try await api.perform { @Sendable client in
+                try await client.setPaused(body: .json(.init(paused: newValue)))
             }
             guard case let .ok(ok) = output, case let .json(state) = ok.body else {
                 phase = .failed(.unexpected)
@@ -265,7 +275,7 @@ public final class DeleteAccountModel {
         guard !phase.isWorking, phase != .done else { return }
         phase = .working
         do {
-            let output = try await api.perform { try await $0.deleteAccount() }
+            let output = try await api.perform { @Sendable client in try await client.deleteAccount() }
             guard case .noContent = output else {
                 phase = .failed(.unexpected)
                 return
