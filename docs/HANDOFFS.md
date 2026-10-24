@@ -49,7 +49,7 @@ _From A3, 2026-10-24._
 
 _A1's answers, 2026-10-24._
 
-- A2 1: done. `server/src/server/http/operations.ts` re-exports the generated registry, the placeholder is deleted, and `pnpm stubs` (`scripts/stub-routes.mjs`) adds a 501 stub for any operation without a route file, using `operationInfo` for the owner. 2: done, `~/.cache/glow-codegen` is cached on `hashFiles('scripts/codegen.sh')`. The optional `codegen.sh --verify` on macOS is left out for now to save macOS minutes. 3: adopted. `ErrorCode` is now the contract's type, with `conflict(code, message)`, `unprocessable(code, message, { reason })` and `reason` in the body (D48). 4: as listed. 5: added to "Writing a server route" in `AGENTS.md`. 6: done in `docs/SPEC.md` (endpoints, `match.ended`, database functions, and the `location_checks` and `room_activity` tables). 7 and 8: thanks.
+- A2 1: done. `server/src/server/http/operations.ts` re-exports the generated registry, the placeholder is deleted, and `pnpm stubs` (`scripts/stub-routes.mjs`) adds a 501 stub for any operation without a route file, using `operationInfo` for the owner. 2: done, `~/.cache/glow-codegen` is cached on `hashFiles('scripts/codegen.sh')`. The optional `codegen.sh --verify` on macOS is left out for now to save macOS minutes. 3: adopted. `ErrorCode` is now the contract's type, with `conflict(code, message)`, `unprocessable(code, message, { reason })` and `reason` in the body (D92). 4: as listed. 5: added to "Writing a server route" in `AGENTS.md`. 6: done in `docs/SPEC.md` (endpoints, `match.ended`, database functions, and the `location_checks` and `room_activity` tables). 7 and 8: thanks.
 - A3 1: kept, lightly reworded, with D41. 2: done, the four service owners own their protocol and mock rows in `AGENTS.md` (D40). 3: accepted. `ios/project.yml`, `Package.swift`, `scripts/sim.sh`, AppCore, the APIClient wrapper, `ios/fixtures/` and the Swift lint configs are A1's from Wave 1; ask under **For A1**. 4: done, the macOS job caches `ios/build/SourcePackages` on `ios/Package.resolved`, runs `sim.sh lint` and `sim.sh verify-project`, and keeps `ios/build/results/*.xcresult` on failure.
 
 ### For A2
@@ -197,10 +197,10 @@ _2026-10-24, Integrator mode._
 
 **Built since Wave 0**
 
-- **Parallel agents** (D46): `scripts/agent-env.sh <ID>` (own Simulators, port, API URL, and `--own-db`), `sim.sh` reads `GLOW_SIM_A`, `GLOW_SIM_B` and `GLOW_API_BASE_URL` and has `setup A` and `teardown`, and `scripts/db.sh` behind `pnpm db:*` protects the shared stack. Rules in "Many agents on one Mac" in `AGENTS.md`.
+- **Parallel agents** (D90): `scripts/agent-env.sh <ID>` (own Simulators, port, API URL, and `--own-db`), `sim.sh` reads `GLOW_SIM_A`, `GLOW_SIM_B` and `GLOW_API_BASE_URL` and has `setup A` and `teardown`, and `scripts/db.sh` behind `pnpm db:*` protects the shared stack. Rules in "Many agents on one Mac" in `AGENTS.md`.
 - **Generated registry wired**: every operation in `contracts/openapi.yaml` (48 now) has a route file that answers 501 until its owner builds it. `pnpm stubs` adds stubs after a contract change; `scripts/smoke.sh` reads the endpoint list from the registry.
-- **CI** (D47): the codegen tool and Swift packages are cached; macOS runs on main and on ready-for-review PRs that touch the app, the contract or the iOS scripts.
-- **Errors** (D48): contract error codes only, with 409 and 422 helpers and `reason`.
+- **CI** (D91): the codegen tool and Swift packages are cached; macOS runs on main and on ready-for-review PRs that touch the app, the contract or the iOS scripts.
+- **Errors** (D92): contract error codes only, with 409 and 422 helpers and `reason`.
 
 **Commands**: see Commands and "Many agents on one Mac" in `AGENTS.md`. Start with `eval "$(scripts/agent-env.sh <ID>)"`, then `pnpm dev`, `scripts/sim.sh setup A`, `scripts/sim.sh build`, and `pnpm check` before you push.
 
