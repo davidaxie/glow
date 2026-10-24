@@ -583,7 +583,7 @@ The split C2 assumes: **`startGlow` sends every event `start_glow`'s result impl
 
 ### C2 · Mutual moment and reveal
 
-_2026-10-24, Wave 2, in progress._ Branch `w2/c2-match`. Draft PR to follow on this line.
+_2026-10-24, Wave 2, in progress._ Draft PR [#26](https://github.com/davidaxie/glow/pull/26) on `w2/c2-match`.
 
 **Routes into glow and chat (for C3 and C4).** FeatureMatch only ever passes a `MatchID`. Refetch everything else (`getGlow`, `listMessages`).
 
