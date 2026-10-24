@@ -2,7 +2,7 @@
 
 When the spec is unclear, agents pick the option that protects privacy more and record it here. One entry per decision, newest at the bottom.
 
-Format: `## D{n} · {agent} · {short title}`, then the question, the choice, and why.
+Format, up to D56: `## D{n} · {agent} · {short title}`. From Wave 1, decision IDs carry the agent, so parallel PRs never collide: each agent has one `## {agent} · {name}` section, with `### {agent}-D{n} · {short title}` entries numbered inside it (`### B2-D1`, `### B2-D2`, ...). Each entry gives the question, the choice, and why.
 
 ## D1 · A1 · Which server variables are required where
 
@@ -762,3 +762,26 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 ### B5-D10 · Integration tests use the CLI's demo keys
 
 **Choice.** `server/tests/notify/*` integration tests (Realtime channels, the device store) talk to the local stack with the Supabase CLI's public demo keys, the ones in `server/.env.example`, unless `GLOW_IT_SUPABASE_*` say otherwise. They refuse any non-local URL, create throwaway `@glow.test` people, delete them afterwards, and skip when no local stack answers. CI's Ubuntu job starts Supabase before Vitest, so they run there.
+## A1 · Integrator and repo
+
+### A1-D1 · Parallel agents share one Mac without sharing state
+
+**Question.** Nine Wave 1 agents build and test on the same Mac at once. Simulators are global to the Mac, port 3000 can only be taken once, and `supabase db reset` on the one local stack would wipe everyone's data.
+
+**Choice.** `scripts/agent-env.sh <ID>` gives each agent its own Simulator names (`Glow A (B1)`), server port (3090 plus a fixed index: B1 3101 to B9 3109, C1 3111 to C4 3114, D1 3121 to D5 3125) and API URL, which `sim.sh` bakes into the Debug app. Everyone shares the `glow` Supabase stack through the API; anyone who changes the schema or needs a reset takes their own stack with `--own-db` (a copy of their worktree's `supabase/`, project `glow-<id>`, ports 55000 plus 10 times the index). `pnpm db:reset` and `pnpm db:stop` refuse on the shared stack when `GLOW_AGENT_ID` is set, and `sim.sh teardown` won't delete the shared default Simulators without `--yes`.
+
+### A1-D2 · macOS CI runs where it pays
+
+**Question.** macOS minutes cost ten times Linux minutes on a private repo, and nine agents pushing drafts would run the iOS job hundreds of times.
+
+**Choice.** The macOS job runs on every push to main, and on a PR only once it's ready for review and changes `ios/`, `contracts/`, `scripts/sim.sh`, `scripts/codegen.sh`, the Swift lint configs or the CI workflow. While a PR is a draft, its owner proves iOS work locally with `scripts/sim.sh`. Main stays fully covered, so anything that slips through is caught on merge and reverted. The codegen tool and Swift packages are cached.
+
+### A1-D3 · Error codes come only from the contract
+
+**Choice.** `HttpError` takes only codes from the contract's `ErrorCode` enum (a type error otherwise), with `conflict(code, message)` for 409, `unprocessable(code, message, { reason })` for 422, and the contract's optional `reason` in every error body. The app can rely on every code it might see being in `openapi.yaml`.
+
+### A1-D4 · Local CI is the merge gate while GitHub Actions is down
+
+**Question.** Actions stopped starting jobs (billing), and nine agents still need a way to prove a PR before it merges.
+
+**Choice.** `scripts/ci-local.sh <ID>` runs both CI jobs in the agent's own slot (its port, Simulator and own Supabase stack, reset to the branch's migrations) and prints one summary with the head SHA and whether it's rebased on main. A PR is mergeable when its author posts a passing summary for the current head SHA, rebased on main. `--server-only` skips the iOS job only when nothing under `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh` changed.
