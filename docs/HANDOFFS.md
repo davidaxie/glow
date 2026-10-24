@@ -42,6 +42,12 @@ Things only David can do. None of these block Wave 0 work locally.
 18. **Print the posters on the day** (from B7). The poster PDF is US Letter, black on white. Print it at 100% (no "fit to page" shrink) so the QR code stays at least 4 inches wide. Posters only let people in while "Printed posters" is on for that room.
 16. **Point `xcode-select` at Xcode** (from B3). The Claude Code iOS Simulator tool refuses to run while `xcode-select` points at the Command Line Tools, so agents can't tap through the app with it. Run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` once. Until then agents drive screens with XCUITest and `scripts/sim.sh shot`, which works but is slower.
 19. **A real sandbox push** (from B5). The `xcode-select` items above (from B6 and B3) also let agents tap notifications in the Simulator. Once the APNs key from item 11.3 exists, run `server/tests/notify/apns-live.test.ts` once with `APNS_*` and `APNS_TEST_DEVICE_TOKEN` set, to check a real push through Apple's sandbox.
+20. **Cloud Auth settings for D2-F1, no password sign-in** (from D2, 2026-10-24; details in [`docs/SECURITY_REVIEW.md`](SECURITY_REVIEW.md#d2-f1)). Migration `0005_d2_no_passwords.sql` refuses every password session. In the Supabase cloud project, under Authentication:
+    - **Confirm email must be on** (Providers → Email; it's on by default). With it off, Supabase signs a brand-new email-code person in with a password session, the migration refuses it, and nobody new can sign up.
+    - **Secure email change** on. **Email OTP expiration** 600 seconds (it's 3600 by default). **Anonymous sign-ins**, **phone** and **manual identity linking** stay off.
+    - Optional: CAPTCHA protection on the Auth endpoints. It makes it harder to check in bulk whether an address has an account (D2-F2).
+    - After `supabase db push`, check the trigger exists: `select tgname from pg_trigger where tgname = 'glow_refuse_password_sessions';`. If `db push` stops with "permission denied" on `auth.mfa_amr_claims`, tell D2 or A1. Don't skip the migration.
+    - Never run `seed.sql` there. It's the only thing that turns on `allow_test_passwords`.
 
 ## Checkpoint 1 · Contracts (after Wave 0)
 

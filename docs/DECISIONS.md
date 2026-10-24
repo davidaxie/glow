@@ -933,3 +933,13 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** FeatureChat doesn't branch on event types: any Realtime event whose match ID is this chat's (message.created, match.ended, glow.ended, match.choice) refetches the newest page, and a 404 closes the thread. Bursts fold into at most one extra request. It also refetches when the app comes back to the foreground, because events sent while it was suspended never arrive.
 
 **Why.** Events carry only a type and a match ID anyway (P1), and one code path that asks the server is harder to get wrong than one per event.
+
+## D2 · Security and privacy red team
+
+### D2-D1 · No password sessions, ever (outside local test people)
+
+**Question.** Supabase Auth accepts email + password from anyone with the anon key, which made a pre-account takeover possible (D2-F1 in `docs/SECURITY_REVIEW.md`). Supabase has no setting that turns passwords off while keeping email codes. Refusing passwords on `auth.users` doesn't work either: Supabase gives every new user a random password of its own, email-code and admin sign-ups included.
+
+**Choice.** `0005_d2_no_passwords.sql` refuses the one thing a password is for: a session made with one. Supabase records how each session was made in `auth.mfa_amr_claims`, in the same transaction that issues its tokens, and a trigger refuses `password`. Email codes, magic links, Apple, recovery links and refresh tokens are untouched. "Confirm email" must stay on (now also in local `config.toml`): with it off, Supabase signs a new email-code person in with a password session, so sign-up would fail closed. Local stacks keep password sign-in for `@glow.test` people only, behind `private.settings.allow_test_passwords = 'on'`, which only `seed.sql` sets. The cloud project never loads the seed, so there no password ever works.
+
+**Why.** It closes takeover and persistence in the database, on any Supabase plan, without changing the app or the contract. The other ways to do this are a Password Verification Attempt Auth Hook, which is plan-gated as far as D2 knows, or proxying all sign-in through the API, which doesn't help because the anon key is public.

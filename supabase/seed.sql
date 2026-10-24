@@ -98,3 +98,9 @@ update public.profiles p
  where p.id = v.id;
 
 insert into public.admins (user_id) values ('7e570000-0000-4000-8000-000000000005');
+
+-- Local stacks only: @glow.test people may sign in with a password, for scripts/dev-token.sh and the
+-- server's live tests (0005_d2_no_passwords.sql). Never set on the cloud project, which
+-- doesn't load this file, so there every password sign-in is refused.
+insert into private.settings (name, value) values ('allow_test_passwords', 'on')
+on conflict (name) do update set value = excluded.value;
