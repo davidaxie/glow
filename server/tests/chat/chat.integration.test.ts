@@ -20,11 +20,12 @@ const notifySpy = vi.hoisted(() =>
     push: null,
   })),
 );
+const roomSpy = vi.hoisted(() =>
+  vi.fn(async (_roomId: string, _event: unknown) => ({ realtime: 'sent' as const, push: null })),
+);
 
-vi.mock('@/server/chat/dependencies', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/server/chat/dependencies')>();
-  return { ...actual, notify: notifySpy };
-});
+// B5's notify itself, so chat and B8's safety routes are both seen through the same spy.
+vi.mock('@/server/notify', () => ({ notify: notifySpy, notifyRoom: roomSpy }));
 
 const FLAG = '[glow-test:flag]';
 const SLOW = '[glow-test:slow]';
@@ -76,6 +77,7 @@ describe.runIf(IT)('chat routes (integration)', { timeout: 120_000 }, () => {
       to: [...(typeof ids === 'string' ? [ids] : ids)].sort(),
       event,
     }));
+  const roomEvents = () => roomSpy.mock.calls.map(([roomId, event]) => ({ roomId, event }));
 
   beforeAll(async () => {
     world = new World(IT!);
@@ -91,6 +93,7 @@ describe.runIf(IT)('chat routes (integration)', { timeout: 120_000 }, () => {
     useRealSupabase(IT!);
     setRateLimitStoreForTests(undefined);
     notifySpy.mockClear();
+    roomSpy.mockClear();
   });
   afterAll(() => world?.cleanup());
 
@@ -301,5 +304,51 @@ describe.runIf(IT)('chat routes (integration)', { timeout: 120_000 }, () => {
       expect((await send(p, thread, 'still there?')).status).toBe(404);
       expect((await world.unmatch(p, thread)).status).toBe(404);
     }
+  });
+
+  it('an unmatch sends exactly what a block sends, so nobody can tell them apart', async () => {
+    const hall = await world.room();
+    const [dee, eve, fay, gus] = [
+      await world.person('Dee'),
+      await world.person('Eve'),
+      await world.person('Fay'),
+      await world.person('Gus'),
+    ];
+    for (const p of [dee, eve, fay, gus]) await world.checkIn(p, hall);
+    const unmatched = await world.match(hall, dee, eve);
+    const blocked = await world.match(hall, fay, gus);
+
+    /** What the other person's phone and the room saw, with the people and IDs as roles. */
+    const seen = (one: Person, two: Person, matchId: string) => {
+      const role = (id: string) => (id === one.id ? 'one' : id === two.id ? 'two' : id);
+      return {
+        people: events().map((e) => ({
+          to: e.to.map(role).sort(),
+          event: {
+            ...(e.event as object),
+            matchId: (e.event as { matchId: string }).matchId === matchId ? 'match' : 'other',
+          },
+        })),
+        rooms: roomEvents().map((e) => ({
+          room: e.roomId === hall ? 'hall' : e.roomId,
+          event: e.event,
+        })),
+      };
+    };
+
+    expect((await world.unmatch(dee, unmatched)).status).toBe(204);
+    const afterUnmatch = seen(dee, eve, unmatched);
+    notifySpy.mockClear();
+    roomSpy.mockClear();
+
+    const { blockFor } = await import('@/server/safety/block');
+    await blockFor(fay.id, { context: 'chat', contextId: blocked });
+    const afterBlock = seen(fay, gus, blocked);
+
+    expect(afterUnmatch).toEqual({
+      people: [{ to: ['one', 'two'], event: { type: 'match.ended', matchId: 'match' } }],
+      rooms: [{ room: 'hall', event: { type: 'deck.changed', roomId: hall } }],
+    });
+    expect(afterBlock).toEqual(afterUnmatch);
   });
 });

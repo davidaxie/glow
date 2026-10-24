@@ -12,7 +12,8 @@
  */
 import { after } from 'next/server';
 import { logger } from '@/server/log';
-import { notify } from './dependencies';
+import { serviceDb } from './db';
+import { notify, notifyRoom } from './dependencies';
 
 /**
  * Runs `task` after the response is sent. Outside a request (tests, scripts) there is no
@@ -37,9 +38,36 @@ export function announceMessage(recipientId: string, matchId: string): Promise<v
   return afterResponse(() => notify([recipientId], { type: 'message.created', matchId }));
 }
 
-/** match.ended, to both people. It never says why, so it looks like a block (D18). */
+/**
+ * After an unmatch, exactly what a block sends (B8's `announceEnded`, B8-D6): match.ended to
+ * both people, and deck.changed to every room where either has an open check-in. So the other
+ * person's phone sees the same events either way and can't tell an unmatch from a block (D18),
+ * and the decks there refetch, because the two are eligible for each other again (D16).
+ */
 export function announceEnded(userIds: readonly string[], matchId: string): Promise<void> {
-  return afterResponse(() => notify(userIds, { type: 'match.ended', matchId }));
+  return afterResponse(async () => {
+    const rooms = await openRoomsOf(userIds);
+    await Promise.all([
+      notify(userIds, { type: 'match.ended', matchId }),
+      ...rooms.map((roomId) => notifyRoom(roomId, { type: 'deck.changed', roomId })),
+    ]);
+  });
+}
+
+/** Rooms where any of these people has an open check-in: the same rule `block_user` uses. */
+export async function openRoomsOf(userIds: readonly string[]): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const { data, error } = await serviceDb()
+    .from('checkins')
+    .select('room_id')
+    .in('user_id', [...userIds])
+    .is('left_at', null)
+    .gt('expires_at', new Date().toISOString());
+  if (error || !data) {
+    logger.error('chat.rooms_lookup_failed', {});
+    return [];
+  }
+  return [...new Set(data.map((c) => c.room_id))];
 }
 
 /**

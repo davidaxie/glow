@@ -3,8 +3,9 @@
  *
  * `unmatch` ends the match for both people and deletes the whole thread in one transaction,
  * so neither can read or send from then on (every chat route answers 404, the same as for a
- * match that never existed, P11). Both people get match.ended, which says nothing about who
- * ended it or why, so it looks exactly like a block (D18).
+ * match that never existed, P11). Then exactly what a block sends goes out: match.ended to both
+ * people and deck.changed to the rooms either is checked into, so neither phone can tell an
+ * unmatch from a block (D18, B8-D6).
  *
  * Anyone not in the match, or a match that already ended, gets 404: unmatching twice is not
  * a way to learn whether the other person got there first.

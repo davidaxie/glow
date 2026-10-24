@@ -16,7 +16,7 @@
  *
  * Everything a test makes is named `c4it-…` and removed in `cleanup()`.
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -181,6 +181,30 @@ export class World {
       .single();
     if (error || !data) throw new Error(`match: ${error?.message}`);
     return data.id;
+  }
+
+  /**
+   * Checks someone in the way B2 and B3 do: a passed join location check (pass or fail only,
+   * never coordinates), then `create_checkin`. No photo is uploaded; chat never reads it.
+   */
+  async checkIn(person: Person, roomId: string): Promise<void> {
+    const check = await this.admin.from('location_checks').insert({
+      user_id: person.id,
+      room_id: roomId,
+      purpose: 'join',
+      result: 'pass',
+      accuracy_bucket: 'under_20m',
+    });
+    if (check.error) throw new Error(`location check: ${check.error.message}`);
+    const cardId = randomUUID();
+    const { error } = await this.admin.rpc('create_checkin', {
+      p_user_id: person.id,
+      p_room_id: roomId,
+      p_checkin_id: cardId,
+      p_card_path: `${roomId}/${cardId}.jpg`,
+      p_tags: { topColor: 'blue', extras: [] },
+    });
+    if (error) throw new Error(`create_checkin: ${error.message}`);
   }
 
   private async loadRoutes(): Promise<Routes> {

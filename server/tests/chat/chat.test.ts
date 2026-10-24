@@ -9,21 +9,30 @@ import { HttpError, notFound } from '@/server/http';
 const rpc = vi.hoisted(() => vi.fn());
 const update = vi.hoisted(() => vi.fn());
 const notify = vi.hoisted(() => vi.fn(async () => ({ realtime: 'sent', push: null })));
+const notifyRoom = vi.hoisted(() => vi.fn(async () => ({ realtime: 'sent', push: null })));
 const moderateText = vi.hoisted(() => vi.fn());
+/** Rows the open check-ins query answers with. */
+const checkins = vi.hoisted(() => ({ rows: [] as { room_id: string }[] }));
 
 vi.mock('@/server/chat/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/chat/db')>();
   const chain = { eq: () => chain, then: (resolve: (v: unknown) => void) => resolve(update()) };
+  const select = {
+    in: () => select,
+    is: () => select,
+    gt: () => select,
+    then: (resolve: (v: unknown) => void) => resolve({ data: checkins.rows, error: null }),
+  };
   return {
     ...actual,
     rpc,
-    serviceDb: () => ({ from: () => ({ update: () => chain }) }),
+    serviceDb: () => ({ from: () => ({ update: () => chain, select: () => select }) }),
   };
 });
 
 vi.mock('@/server/chat/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/chat/dependencies')>();
-  return { ...actual, notify, moderateText, rateLimit: vi.fn(async () => undefined) };
+  return { ...actual, notify, notifyRoom, moderateText };
 });
 
 const { pageOf, sendMessageFor, toMessage } = await import('@/server/chat/messages');
@@ -213,16 +222,29 @@ describe('sendMessageFor', () => {
 });
 
 describe('unmatchFor', () => {
-  it('tells both people match.ended, and nothing else', async () => {
-    rpc.mockReset().mockResolvedValueOnce({ matchId: MATCH, roomId: 'r', userIds: [ME, THEM] });
+  const ROOM = '44444444-0000-4000-8000-000000000001';
+
+  it('sends what a block sends: match.ended to both, deck.changed to their rooms', async () => {
+    rpc.mockReset().mockResolvedValueOnce({ matchId: MATCH, roomId: ROOM, userIds: [ME, THEM] });
+    checkins.rows = [{ room_id: ROOM }, { room_id: ROOM }];
     await unmatchFor(ME, MATCH);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith([ME, THEM], { type: 'match.ended', matchId: MATCH });
+    expect(notifyRoom.mock.calls).toEqual([[ROOM, { type: 'deck.changed', roomId: ROOM }]]);
+  });
+
+  it('sends no room event when neither is checked in anywhere', async () => {
+    rpc.mockReset().mockResolvedValueOnce({ matchId: MATCH, roomId: ROOM, userIds: [ME, THEM] });
+    checkins.rows = [];
+    await unmatchFor(ME, MATCH);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notifyRoom).not.toHaveBeenCalled();
   });
 
   it('is 404 when the match is not theirs or already ended, and tells nobody', async () => {
     rpc.mockReset().mockRejectedValueOnce(notFound());
     await expect(unmatchFor(ME, MATCH)).rejects.toMatchObject({ status: 404 });
     expect(notify).not.toHaveBeenCalled();
+    expect(notifyRoom).not.toHaveBeenCalled();
   });
 });

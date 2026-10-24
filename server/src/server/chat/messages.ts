@@ -6,7 +6,7 @@
  * hidden from the recipient; its sender still sees what they wrote.
  *
  * Sending, in this order, so each check costs as little as it can and reveals nothing:
- *   1. the per-person rate limit (B8's `messages` policy, 429)
+ *   1. the per-person rate limit (B8's `messages` policy, 429), counted by A1's `route()`
  *   2. a blank body is 400
  *   3. the thread must be open to this person (`get_match`: 404 if it isn't theirs, they were
  *      blocked or it ended; 409 `chat_not_open` while choosing). Only then does the text go
@@ -27,7 +27,7 @@ import { badRequest, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
 import { announceMessage } from './announce';
 import { DatabaseError, rpc, serviceDb, tableError } from './db';
-import { messageRejected, moderateText, rateLimit } from './dependencies';
+import { messageRejected, moderateText } from './dependencies';
 import { openThread } from './thread';
 
 type MessageRow = {
@@ -124,7 +124,6 @@ export async function sendMessageFor(
   matchId: string,
   request: NewMessage,
 ): Promise<Message> {
-  await rateLimit(senderId, 'messages');
   if (request.body.trim().length === 0) throw badRequest('The message is empty.');
   await openThread(senderId, matchId);
 

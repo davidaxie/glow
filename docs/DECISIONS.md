@@ -922,11 +922,11 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 
 **Why.** A link preview would make the phone fetch whatever URL the other person sent, which tells that server the reader's IP address and that they opened the chat. Markdown would let a message disguise a link. Suggestions would put words in people's mouths (brief: no AI in chat).
 
-### C4-D6 · Unmatch tells both people, and nobody else
+### C4-D6 · An unmatch sends exactly what a block sends
 
-**Choice.** Unmatch sends `match.ended` to both people and nothing to the room: no `deck.changed`. The app of the person who unmatched goes to the Matches tab. The other person's open chat refetches on the event, gets 404 and shows "This chat has ended." with no reason, the same as after a block (D18).
+**Choice.** Unmatch sends `match.ended` to both people and `deck.changed` to every room where either has an open check-in: the same events, to the same people and rooms, as B8's block (B8-D6). A test runs an unmatch and a block side by side and checks that what goes out is identical. The app of the person who unmatched goes to the Matches tab. The other person's open chat refetches on the event, gets 404 and shows "This chat has ended." with no reason (D18).
 
-**Why.** A room-wide event at the moment of an unmatch is a small signal to everyone in the room that something happened between two people. The two decks catch up the next time they load.
+**Why.** If a block sent `deck.changed` and an unmatch didn't, the other person's phone could tell which one happened from whether a room event arrived at the same moment. And the room's decks really did change: after an unmatch the two are eligible for each other again (D16). (C4 first chose no room event, then matched B8 at B8's request.)
 
 ### C4-D7 · The open chat refetches on any event about its match
 
