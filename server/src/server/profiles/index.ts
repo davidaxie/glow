@@ -14,5 +14,5 @@ export { isAdult, latestAdultBirthdate } from './age';
 export { getMe, loadMe } from './me';
 export { updateProfile } from './profile';
 export { addProfilePhoto, deleteProfilePhoto, getMyPhoto } from './photos';
-export { finishOnboarding } from './finish';
+export { completeOnboarding, finishOnboarding } from './finish';
 export { testLogin } from './test-login';

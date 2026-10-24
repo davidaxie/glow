@@ -10,6 +10,7 @@ import { PUT as putProfile } from '../../app/api/me/profile/route';
 import { POST as postPhoto } from '../../app/api/me/photos/route';
 import { DELETE as deletePhoto, GET as getPhoto } from '../../app/api/me/photos/[id]/route';
 import { POST as testLogin } from '../../app/api/dev/test-login/route';
+import { POST as complete } from '../../app/api/me/onboarding/complete/route';
 import { moderationFixtureJpeg, type ImageFixtureFlag } from '@/server/moderation';
 import { assertOnboardingComplete, finishOnboarding } from '@/server/profiles';
 import { serviceDb } from '@/server/profiles/db';
@@ -48,6 +49,9 @@ async function person(): Promise<TestPerson> {
 }
 
 const me = async (p: TestPerson) => (await call(getMe, { path: '/api/me', token: p.token })).json();
+
+const finish = (p: TestPerson) =>
+  call(complete, { method: 'POST', path: '/api/me/onboarding/complete', token: p.token });
 
 const saveProfile = (p: TestPerson, body: unknown = ADULT) =>
   call(putProfile, { method: 'PUT', path: '/api/me/profile', token: p.token, json: body });
@@ -157,10 +161,9 @@ describe.skipIf(!supabaseUp)('B1 routes on a live local Supabase', () => {
     });
 
     // Finishing early is refused.
-    await expect(finishOnboarding(serviceDb(), p.id)).rejects.toMatchObject({
-      status: 409,
-      code: 'onboarding_incomplete',
-    });
+    const early = await finish(p);
+    expect(early.status).toBe(409);
+    expect((await early.json()).error.code).toBe('onboarding_incomplete');
 
     const added = await upload(p, 0);
     expect(added.status).toBe(201);
@@ -172,11 +175,15 @@ describe.skipIf(!supabaseUp)('B1 routes on a live local Supabase', () => {
     });
     expect((await me(p)).onboardingStep).toBe('notifications');
 
-    const finished = await finishOnboarding(serviceDb(), p.id);
-    expect(finished.onboardingStep).toBe('complete');
+    // Finishing doesn't depend on notifications: the app calls it whether or not push was allowed.
+    const finished = await finish(p);
+    expect(finished.status).toBe(200);
+    const done = await finished.json();
+    expect(done.onboardingStep).toBe('complete');
+    expect(uuidsIn(done)).toEqual([p.id, photo.id, photo.id]);
     await expect(assertOnboardingComplete(p.id, serviceDb())).resolves.toBeUndefined();
     // Idempotent.
-    expect((await finishOnboarding(serviceDb(), p.id)).onboardingStep).toBe('complete');
+    expect((await (await finish(p)).json()).onboardingStep).toBe('complete');
   });
 
   it('serves my own photo without metadata and never caches it', async () => {
