@@ -8,6 +8,7 @@ import type {
   AdminRepo,
   CardRecord,
   NewRoom,
+  PhotoRecord,
   ReportRecord,
   RoomPatch,
   RoomRecord,
@@ -66,6 +67,21 @@ export function card(overrides: Partial<CardRecord> = {}): CardRecord {
   };
 }
 
+export function photo(overrides: Partial<PhotoRecord> = {}): PhotoRecord {
+  const id = overrides.id ?? randomUUID();
+  const userId = overrides.userId ?? PERSON_ID;
+  return {
+    id,
+    userId,
+    path: `${userId}/${id}.jpg`,
+    position: 0,
+    moderationStatus: 'held',
+    createdAt: '2026-10-24T18:10:00.000Z',
+    viewerCode: 'YTVFCREQ',
+    ...overrides,
+  };
+}
+
 export function report(overrides: Partial<ReportRecord> = {}): ReportRecord {
   return {
     id: randomUUID(),
@@ -95,6 +111,9 @@ export class FakeRepo implements AdminRepo {
   rooms = new Map<string, RoomRecord>([[ROOM_ID, room()]]);
   cards = new Map<string, CardRecord>();
   reports = new Map<string, ReportRecord>();
+  profilePhotos = new Map<string, PhotoRecord>();
+  profileImages = new Map<string, Uint8Array>();
+  deletedProfileImages: string[] = [];
   photos = new Map<string, Uint8Array>();
   deletedPhotos: string[] = [];
   matches = new Map<string, { roomId: string; userIds: [string, string]; ended: boolean }>();
@@ -261,6 +280,28 @@ export class FakeRepo implements AdminRepo {
     return [...this.reports.values()]
       .filter((r) => r.reportedId === userId && r.status === 'open')
       .map((r) => r.id);
+  }
+  async listPhotos(status: PhotoRecord['moderationStatus']) {
+    return [...this.profilePhotos.values()]
+      .filter((p) => p.moderationStatus === status)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+  async findPhoto(id: string) {
+    return this.profilePhotos.get(id) ?? null;
+  }
+  async profilePhoto(path: string) {
+    return this.profileImages.get(path) ?? null;
+  }
+  async approvePhoto(id: string) {
+    this.calls.push('approvePhoto');
+    const p = this.profilePhotos.get(id);
+    if (p) this.profilePhotos.set(id, { ...p, moderationStatus: 'approved' });
+  }
+  async deletePhoto(photo: PhotoRecord) {
+    this.calls.push('deletePhoto');
+    this.profileImages.delete(photo.path);
+    this.deletedProfileImages.push(photo.path);
+    this.profilePhotos.delete(photo.id);
   }
   async markBanned(userId: string) {
     this.calls.push('markBanned');

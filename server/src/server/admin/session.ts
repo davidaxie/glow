@@ -6,13 +6,14 @@
  *
  * Only server components, server actions and route handlers import this file.
  */
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { getEnv } from '@/env';
 import { requireUser, unverifiedClaims } from '@/server/auth';
 import { HttpError } from '@/server/http';
 import { logger } from '@/server/log';
+import { rateLimit } from '@/server/ratelimit';
 import { isAdmin } from './access';
 import { anonAuth, serviceDb } from './db';
 
@@ -107,10 +108,22 @@ async function establish(session: Session, since: number): Promise<boolean> {
 export type SendCodeResult = 'sent' | 'rate_limited';
 
 /**
+ * B8's `signIn` limit, per client address and per email address, on every sign-in step, so
+ * nobody can guess codes or flood an inbox from here. Throws 429.
+ */
+async function limitSignIn(email: string): Promise<void> {
+  const forwarded = (await headers()).get('x-forwarded-for') ?? '';
+  const ip = forwarded.split(',')[0]?.trim() || 'local';
+  await rateLimit(`admin-sign-in:ip:${ip}`, 'signIn');
+  await rateLimit(`admin-sign-in:email:${email}`, 'signIn');
+}
+
+/**
  * Sends a sign-in code. Never creates an account, and answers the same whether or not the
  * address has one, so the form can't be used to find out who uses Glow.
  */
 export async function sendCode(email: string): Promise<SendCodeResult> {
+  await limitSignIn(email);
   const { error } = await anonAuth().signInWithOtp({
     email,
     options: { shouldCreateUser: false },
@@ -126,6 +139,7 @@ export type VerifyResult = 'ok' | 'invalid';
 
 /** Checks a code. A right code for someone who isn't an admin reads as a wrong one. */
 export async function verifyCode(email: string, code: string): Promise<VerifyResult> {
+  await limitSignIn(email);
   const { data, error } = await anonAuth().verifyOtp({ email, token: code, type: 'email' });
   if (error || !data.session) return 'invalid';
   return (await establish(data.session, Date.now())) ? 'ok' : 'invalid';
@@ -139,6 +153,7 @@ export function testSignInAllowed(): boolean {
 
 export async function testSignIn(email: string): Promise<VerifyResult> {
   if (!testSignInAllowed() || !TEST_EMAIL.test(email)) return 'invalid';
+  await limitSignIn(email);
   // A one-time link made on the server and used at once: no email is sent.
   const { data, error } = await serviceDb().auth.admin.generateLink({ type: 'magiclink', email });
   const tokenHash = data?.properties?.hashed_token;

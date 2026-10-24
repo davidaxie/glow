@@ -1,15 +1,14 @@
 // Owner: B7. One room: QR codes, controls, meeting spots and details.
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { demoSkipsToday } from '@/server/admin/metrics';
 import { getRoom } from '@/server/admin/rooms';
-import { adminPage, idOrNotFound, orNotFound } from '@/server/admin/web';
+import { adminPage, adminTitle, idOrNotFound, orNotFound } from '@/server/admin/web';
 import { formatTime, statusLabel } from '../../../_components/format';
 import { RoomControls } from '../../../_components/RoomControls';
 import { RoomForm } from '../../../_components/RoomForm';
 import { SpotsEditor } from '../../../_components/SpotsEditor';
 
-export const metadata: Metadata = { title: 'Room' };
+export const generateMetadata = adminTitle('Room');
 
 export default async function RoomPage({ params }: { params: Promise<{ id: string }> }) {
   await adminPage();

@@ -2,6 +2,7 @@
 // Owner: B7. Server actions for the admin web. Each is a public POST endpoint, so each one
 // checks the admin session first (anyone else gets 404) and validates its input.
 import { redirect } from 'next/navigation';
+import { HttpError } from '@/server/http';
 import { z } from 'zod';
 import {
   zAdminRemoveCard,
@@ -12,6 +13,7 @@ import {
   type AdminRoom,
 } from '@/contracts';
 import { cardImage, removeCard } from '@/server/admin/cards';
+import { photoImage, reviewPhoto } from '@/server/admin/photos';
 import { posterPdf } from '@/server/admin/poster';
 import { qrSvg, type QrSvg } from '@/server/admin/qr-code';
 import { resolveReport } from '@/server/admin/reports';
@@ -54,8 +56,10 @@ export async function sendCodeAction(_: SignInState, form: FormData): Promise<Si
   let result: SendCodeResult;
   try {
     result = await sendCode(email.data);
-  } catch {
-    return { step: 'email', message: 'Sign-in is briefly unavailable. Try again in a moment.' };
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 429) result = 'rate_limited';
+    else
+      return { step: 'email', message: 'Sign-in is briefly unavailable. Try again in a moment.' };
   }
   if (result === 'rate_limited') {
     return { step: 'email', message: 'Too many codes were sent. Wait a minute and try again.' };
@@ -68,7 +72,17 @@ export async function verifyCodeAction(_: SignInState, form: FormData): Promise<
   const code = zCode.safeParse(String(form.get('code') ?? '').replace(/\s/g, ''));
   if (!email.success) return { step: 'email' };
   if (!code.success) return { step: 'code', email: email.data, message: 'Enter the 6 digits.' };
-  if ((await verifyCode(email.data, code.data)) !== 'ok') {
+  let verified: 'ok' | 'invalid' | 'rate_limited';
+  try {
+    verified = await verifyCode(email.data, code.data);
+  } catch (error) {
+    if (!(error instanceof HttpError && error.status === 429)) throw error;
+    verified = 'rate_limited';
+  }
+  if (verified === 'rate_limited') {
+    return { step: 'code', email: email.data, message: 'Too many tries. Wait a few minutes.' };
+  }
+  if (verified !== 'ok') {
     return {
       step: 'code',
       email: email.data,
@@ -84,7 +98,8 @@ export async function testSignInAction(_: SignInState, form: FormData): Promise<
       .trim()
       .toLowerCase(),
   );
-  if (!email.success || (await testSignIn(email.data)) !== 'ok') {
+  const ok = email.success && (await testSignIn(email.data).catch(() => 'invalid')) === 'ok';
+  if (!ok) {
     return { step: 'email', message: 'Test sign-in only works for admin @glow.test addresses.' };
   }
   redirect('/admin');
@@ -108,7 +123,9 @@ export async function refreshSessionAction(): Promise<boolean> {
 
 export async function createRoomAction(input: unknown): Promise<ActionResult<AdminRoom>> {
   const admin = await adminAction();
-  return attempt('createRoom', () => createRoom(parseInput(zAdminRoomCreate, input), admin.userId));
+  return attempt('createRoom', admin, () =>
+    createRoom(parseInput(zAdminRoomCreate, input), admin.userId),
+  );
 }
 
 export async function updateRoomAction(
@@ -116,7 +133,7 @@ export async function updateRoomAction(
   input: unknown,
 ): Promise<ActionResult<AdminRoom>> {
   const admin = await adminAction();
-  return attempt('updateRoom', () =>
+  return attempt('updateRoom', admin, () =>
     updateRoom(parseInput(zId, roomId), parseInput(zAdminRoomUpdate, input), admin.userId),
   );
 }
@@ -126,7 +143,7 @@ export async function replaceSpotsAction(
   spots: unknown,
 ): Promise<ActionResult<AdminRoom>> {
   const admin = await adminAction();
-  return attempt('replaceSpots', () =>
+  return attempt('replaceSpots', admin, () =>
     replaceSpots(
       parseInput(zId, roomId),
       parseInput(zMeetingSpotsReplace, { spots }).spots,
@@ -137,7 +154,7 @@ export async function replaceSpotsAction(
 
 export async function rotateStaticTokenAction(roomId: string): Promise<ActionResult<AdminRoom>> {
   const admin = await adminAction();
-  return attempt('rotateStaticToken', () =>
+  return attempt('rotateStaticToken', admin, () =>
     rotateStaticToken(parseInput(zId, roomId), admin.userId),
   );
 }
@@ -145,8 +162,8 @@ export async function rotateStaticTokenAction(roomId: string): Promise<ActionRes
 export type PosterFile = { readonly base64: string; readonly filename: string };
 
 export async function posterAction(roomId: string): Promise<ActionResult<PosterFile>> {
-  await adminAction();
-  return attempt('poster', async () => {
+  const admin = await adminAction();
+  return attempt('poster', admin, async () => {
     const room = await getRoomRecord(parseInput(zId, roomId));
     const pdf = await posterPdf(room);
     return {
@@ -170,8 +187,8 @@ export type DisplayFrame = {
 };
 
 export async function displayFrameAction(roomId: string): Promise<ActionResult<DisplayFrame>> {
-  await adminAction();
-  return attempt('displayFrame', async () => {
+  const admin = await adminAction();
+  return attempt('displayFrame', admin, async () => {
     const now = deps().now();
     const room = await getRoomRecord(parseInput(zId, roomId));
     const state =
@@ -200,7 +217,7 @@ export async function displayFrameAction(roomId: string): Promise<ActionResult<D
 
 export async function cardPhotoAction(cardId: string): Promise<ActionResult<string>> {
   const admin = await adminAction();
-  return attempt('cardPhoto', async () => {
+  return attempt('cardPhoto', admin, async () => {
     const jpeg = await cardImage(parseInput(zId, cardId), admin.userId);
     return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
   });
@@ -208,7 +225,7 @@ export async function cardPhotoAction(cardId: string): Promise<ActionResult<stri
 
 export async function removeCardAction(cardId: string, scope: unknown): Promise<ActionResult> {
   const admin = await adminAction();
-  return attempt('removeCard', async () => {
+  return attempt('removeCard', admin, async () => {
     const body = parseInput(zAdminRemoveCard, { scope });
     await removeCard(parseInput(zId, cardId), body.scope, admin.userId);
     return null;
@@ -222,9 +239,30 @@ export async function resolveReportAction(
   action: unknown,
 ): Promise<ActionResult> {
   const admin = await adminAction();
-  return attempt('resolveReport', async () => {
+  return attempt('resolveReport', admin, async () => {
     const body = parseInput(zReportResolution, { action });
     await resolveReport(parseInput(zId, reportId), body.action, admin.userId);
+    return null;
+  });
+}
+
+// ---------------------------------------------------------------- held profile photos
+
+const zPhotoDecision = z.object({ decision: z.enum(['approve', 'reject', 'ban']) });
+
+export async function photoImageAction(photoId: string): Promise<ActionResult<string>> {
+  const admin = await adminAction();
+  return attempt('photoImage', admin, async () => {
+    const jpeg = await photoImage(parseInput(zId, photoId), admin.userId);
+    return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+  });
+}
+
+export async function reviewPhotoAction(photoId: string, decision: unknown): Promise<ActionResult> {
+  const admin = await adminAction();
+  return attempt('reviewPhoto', admin, async () => {
+    const body = parseInput(zPhotoDecision, { decision });
+    await reviewPhoto(parseInput(zId, photoId), body.decision, admin.userId);
     return null;
   });
 }

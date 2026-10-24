@@ -11,6 +11,7 @@ import {
   type AdminRepo,
   type CardRecord,
   type NewRoom,
+  type PhotoRecord,
   type ReportRecord,
   type RoomPatch,
   type RoomRecord,
@@ -25,6 +26,26 @@ type ReportRow = Tables['reports']['Row'];
 const iso = (value: string) => new Date(value).toISOString();
 const PAGE = 1000;
 const CARDS_BUCKET = 'room-cards';
+const PHOTOS_BUCKET = 'profile-photos';
+const PHOTO_COLUMNS =
+  'id, user_id, path, position, moderation_status, created_at, profiles (viewer_code)';
+
+type PhotoRow = Pick<
+  Tables['profile_photos']['Row'],
+  'id' | 'user_id' | 'path' | 'position' | 'moderation_status' | 'created_at'
+> & { profiles: { viewer_code: string } | null };
+
+function toPhoto(row: PhotoRow): PhotoRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    path: row.path,
+    position: row.position,
+    moderationStatus: row.moderation_status,
+    createdAt: iso(row.created_at),
+    viewerCode: row.profiles?.viewer_code ?? '',
+  };
+}
 
 const ROOM_COLUMNS =
   'id, slug, name, code, lat, lng, radius_m, timezone, qr_secret, static_qr_token, allow_static_qr, demo_mode, status, starts_at, ends_at, created_at, meeting_spots (id, name, sort)';
@@ -469,6 +490,50 @@ export function supabaseRepo(db: Db = serviceDb()): AdminRepo {
         .eq('status', 'open');
       check('reports.open_about', error);
       return (data ?? []).map((r) => r.id);
+    },
+
+    async listPhotos(status) {
+      const { data, error } = await db
+        .from('profile_photos')
+        .select(PHOTO_COLUMNS)
+        .eq('moderation_status', status)
+        .order('created_at', { ascending: true })
+        .limit(200)
+        .returns<PhotoRow[]>();
+      check('profile_photos.list', error);
+      return (data ?? []).map(toPhoto);
+    },
+
+    async findPhoto(id) {
+      const { data, error } = await db
+        .from('profile_photos')
+        .select(PHOTO_COLUMNS)
+        .eq('id', id)
+        .maybeSingle<PhotoRow>();
+      check('profile_photos.find', error);
+      return data ? toPhoto(data) : null;
+    },
+
+    async profilePhoto(path) {
+      const { data, error } = await db.storage.from(PHOTOS_BUCKET).download(path);
+      if (error || !data) return null;
+      return new Uint8Array(await data.arrayBuffer());
+    },
+
+    async approvePhoto(id) {
+      const { error } = await db
+        .from('profile_photos')
+        .update({ moderation_status: 'approved' })
+        .eq('id', id);
+      check('profile_photos.approve', error);
+    },
+
+    async deletePhoto(photo) {
+      // The image first: if the row went first and this failed, nothing would point at it.
+      const { error: storageError } = await db.storage.from(PHOTOS_BUCKET).remove([photo.path]);
+      if (storageError) throw new Error(`storage.remove failed (${storageError.name})`);
+      const { error } = await db.from('profile_photos').delete().eq('id', photo.id);
+      check('profile_photos.delete', error);
     },
 
     async markBanned(userId) {

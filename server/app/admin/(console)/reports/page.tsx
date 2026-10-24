@@ -1,14 +1,13 @@
 // Owner: B7. The reports queue, oldest first. People appear only as watermark codes.
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { zReportStatus, type ReportStatus } from '@/contracts';
 import { listReports } from '@/server/admin/reports';
 import { listRooms } from '@/server/admin/rooms';
-import { adminPage } from '@/server/admin/web';
+import { adminPage, adminTitle } from '@/server/admin/web';
 import { formatTime } from '../../_components/format';
 import { ReportActions } from '../../_components/ReportActions';
 
-export const metadata: Metadata = { title: 'Reports' };
+export const generateMetadata = adminTitle('Reports');
 
 const REASONS: Record<string, string> = {
   harassment: 'Harassment',

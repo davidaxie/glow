@@ -1,10 +1,9 @@
 // Owner: B7. Make a room.
-import type { Metadata } from 'next';
 import Link from 'next/link';
-import { adminPage } from '@/server/admin/web';
+import { adminPage, adminTitle } from '@/server/admin/web';
 import { RoomForm } from '../../../_components/RoomForm';
 
-export const metadata: Metadata = { title: 'New room' };
+export const generateMetadata = adminTitle('New room');
 
 export default async function NewRoomPage() {
   await adminPage();

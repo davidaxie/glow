@@ -7,16 +7,26 @@
  *   runs its work through `attempt()`, which turns the module's HttpErrors into a message the
  *   page can show. Nothing about the error beyond its plain message reaches the browser.
  */
+import type { Metadata } from 'next';
 import { notFound, unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
 import { HttpError } from '@/server/http';
 import { logger } from '@/server/log';
+import { rateLimit } from '@/server/ratelimit';
 import { currentAdmin, type AdminSession } from './session';
 
 export async function adminPage(): Promise<AdminSession> {
   const admin = await currentAdmin();
   if (!admin) notFound();
   return admin;
+}
+
+/**
+ * A page's `generateMetadata`: its title only for a signed-in admin. Anyone else's 404 page
+ * keeps the plain "Glow admin" title, so not even the kind of page shows.
+ */
+export function adminTitle(title: string): () => Promise<Metadata> {
+  return async () => ((await currentAdmin()) ? { title } : {});
 }
 
 /** For server actions: the same rule as pages. */
@@ -42,13 +52,20 @@ export async function orNotFound<T>(work: () => Promise<T>): Promise<T> {
 export type ActionResult<T = null> =
   { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string };
 
-export async function attempt<T>(name: string, work: () => Promise<T>): Promise<ActionResult<T>> {
+/** Runs an action's work for `admin`, within B8's `admin` rate limit. */
+export async function attempt<T>(
+  name: string,
+  admin: AdminSession,
+  work: () => Promise<T>,
+): Promise<ActionResult<T>> {
   try {
+    await rateLimit(admin.userId, 'admin');
     return { ok: true, value: await work() };
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof HttpError) {
       if (error.status === 404) return { ok: false, message: "That's gone. Refresh the page." };
+      if (error.status === 429) return { ok: false, message: 'Slow down a little and try again.' };
       if (error.status < 500) return { ok: false, message: error.message };
     }
     logger.error('admin.action_failed', {

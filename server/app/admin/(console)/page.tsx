@@ -1,11 +1,10 @@
 // Owner: B7. Rooms, newest first.
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listRooms } from '@/server/admin/rooms';
-import { adminPage } from '@/server/admin/web';
+import { adminPage, adminTitle } from '@/server/admin/web';
 import { formatTime, statusLabel } from '../_components/format';
 
-export const metadata: Metadata = { title: 'Rooms' };
+export const generateMetadata = adminTitle('Rooms');
 
 export default async function RoomsPage() {
   // Every page checks too: on client navigation the layout above doesn't run again.

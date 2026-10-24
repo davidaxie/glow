@@ -1,12 +1,11 @@
 // Owner: B7. Cards in a room right now, for moderation.
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listCards } from '@/server/admin/cards';
 import { getRoom } from '@/server/admin/rooms';
-import { adminPage, idOrNotFound, orNotFound } from '@/server/admin/web';
+import { adminPage, adminTitle, idOrNotFound, orNotFound } from '@/server/admin/web';
 import { CardTile } from '../../../../_components/CardTile';
 
-export const metadata: Metadata = { title: 'Cards' };
+export const generateMetadata = adminTitle('Cards');
 
 export default async function CardsPage({ params }: { params: Promise<{ id: string }> }) {
   await adminPage();

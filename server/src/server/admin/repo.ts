@@ -87,6 +87,18 @@ export type ReportRecord = {
   readonly reportedViewerCode: string;
 };
 
+/** A profile photo, for review. */
+export type PhotoRecord = {
+  readonly id: string;
+  readonly userId: string;
+  readonly path: string;
+  readonly position: number;
+  readonly moderationStatus: 'pending' | 'approved' | 'held' | 'rejected';
+  readonly createdAt: string;
+  /** The owner's watermark code. */
+  readonly viewerCode: string;
+};
+
 /** Counts from room_activity, by kind, since a time. */
 export type ActivityTotals = {
   readonly checkin: number;
@@ -147,6 +159,15 @@ export interface AdminRepo {
   findReport(id: string): Promise<ReportRecord | null>;
   setReportStatus(ids: readonly string[], status: ReportStatus, adminId: string): Promise<void>;
   openReportIdsAbout(userId: string): Promise<string[]>;
+
+  // Profile photos waiting for review
+  /** Photos with this status, oldest first. */
+  listPhotos(status: PhotoRecord['moderationStatus']): Promise<PhotoRecord[]>;
+  findPhoto(id: string): Promise<PhotoRecord | null>;
+  profilePhoto(path: string): Promise<Uint8Array | null>;
+  approvePhoto(id: string): Promise<void>;
+  /** Deletes the stored image and the row. */
+  deletePhoto(photo: PhotoRecord): Promise<void>;
 
   // Bans
   /** Sets profiles.banned_at (once). False if there's no such person. */

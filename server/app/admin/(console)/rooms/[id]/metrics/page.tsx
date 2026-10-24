@@ -1,14 +1,13 @@
 // Owner: B7. Live numbers for a room, from anonymous counters. There is deliberately no tap
 // count (P5, D52): watching it tick up could tell an admin in the room who just tapped.
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { roomMetrics } from '@/server/admin/metrics';
 import { getRoom } from '@/server/admin/rooms';
-import { adminPage, idOrNotFound, orNotFound } from '@/server/admin/web';
+import { adminPage, adminTitle, idOrNotFound, orNotFound } from '@/server/admin/web';
 import { AutoRefresh } from '../../../../_components/AutoRefresh';
 import { formatTime } from '../../../../_components/format';
 
-export const metadata: Metadata = { title: 'Live numbers' };
+export const generateMetadata = adminTitle('Live numbers');
 
 export default async function MetricsPage({ params }: { params: Promise<{ id: string }> }) {
   await adminPage();
