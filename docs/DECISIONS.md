@@ -943,3 +943,50 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** `0005_d2_no_passwords.sql` refuses the one thing a password is for: a session made with one. Supabase records how each session was made in `auth.mfa_amr_claims`, in the same transaction that issues its tokens, and a trigger refuses `password`. Email codes, magic links, Apple, recovery links and refresh tokens are untouched. "Confirm email" must stay on (now also in local `config.toml`): with it off, Supabase signs a new email-code person in with a password session, so sign-up would fail closed. Local stacks keep password sign-in for `@glow.test` people only, behind `private.settings.allow_test_passwords = 'on'`, which only `seed.sql` sets. The cloud project never loads the seed, so there no password ever works.
 
 **Why.** It closes takeover and persistence in the database, on any Supabase plan, without changing the app or the contract. The other ways to do this are a Password Verification Attempt Auth Hook, which is plan-gated as far as D2 knows, or proxying all sign-in through the API, which doesn't help because the anon key is public.
+## C2 · Mutual moment and reveal
+
+### C2-D1 · Find looks at the fix only while the choice can still matter
+
+**Question.** `setChoice` with Find carries a location fix. If choosing is already over (the other person chose Just chat, the glow started) or the 10-minute window has run out, `set_choice` will answer `already_decided` or `timeout` whatever the fix says. Should the server still check and record it?
+
+**Choice.** No. The route first checks the match is the caller's and not ended (404 otherwise, P11). Then, if the match isn't `choosing` or its `choice_deadline` has passed, it calls `set_choice` without ever reading the fix or writing a `location_checks` row. Only a Find that can still lead to a glow gets a check, and the check stores only pass or fail and a rough bucket (P2).
+
+**Why.** The more private option: no location is processed, and no "this person was here" row is written, when it can't change anything.
+
+### C2-D2 · The match screen never says whether the other person has chosen
+
+**Question.** `MatchDetail.otherHasChosen` is in the contract. Showing "They've chosen" before I choose would hint at their choice (a Just chat ends choosing at once, so "chosen but still choosing" means Find), and pushes me to decide.
+
+**Choice.** FeatureMatch doesn't show it, before or after I choose. While I wait on Find, it says "Waiting for Blake to choose", and the screen moves on by itself when they do.
+
+**Why.** Each person picks Find or Just chat on their own terms, and the voice is "warm, calm, never pushy".
+
+### C2-D3 · No free code word answers `next: chat` with `reason: both_find`
+
+**Question.** `start_glow` can open the chat because no code word is free in the room (`no_code_word`). `ChoiceReason` has no value for that, and a contract change for one rare case would touch both clients.
+
+**Choice.** `setChoice` answers `next: chat, reason: both_find`: both did choose Find, and the chat opened instead. `not_checked_in` keeps its own reason, and `already_decided` stays `already_decided`.
+
+### C2-D4 · Who hears what after a choice
+
+**Choice.** `setChoice` sends only what `set_choice` implies: `match.choice` to the other person when I chose Find and they haven't chosen; `match.recheck` to `recheckUserIds` when their check went stale; `match.choice` to both when choosing ended without a glow (`chose_chat`, `not_checked_in`); and the events for every `settled` entry. C3's `startGlow` sends what `start_glow` implies (`glow.started`, `match.choice` on `chat`, `match.recheck` to `staleUserIds`, its `settled`). Each person gets each event once per request, even when two rules name it. Every event is only `{ type, matchId }`; the people come from the database's `userIds`, never from the request.
+
+### C2-D5 · Find uses the join rate limit
+
+**Choice.** A Find runs the same location check as joining a room, so it gets B8's `join` policy (20 per 10 minutes), not `api`, so the check can't be used to probe where the room's edge is. Just chat stays on `api`. Requested under For B8 in `docs/HANDOFFS.md`.
+
+### C2-D6 · Waiting on Find can switch to chat, and rechecks are automatic
+
+**Choice.** While waiting on Find, a quiet "Just chat instead" sends Chat (`set_choice` accepts a change while choosing). When `match.recheck` arrives while I'm waiting on Find, the app gets a fresh fix and sends Find again by itself; it never sends Find for someone who hasn't chosen it. If the fresh fix fails (outside the room, or location off), it shows a calm note with both choices again.
+
+### C2-D7 · Match photos are loaded only on the match screen, through B3's loader
+
+**Choice.** Photos come from B3's `PrivateImageView(.matchPhoto(matchID, index:))`: a checked, watermarked, never-cached request (P4). FeatureMatch only builds those sources after `GET /api/matches/{id}` has answered (so only for a match that exists, P1), only below `photoCount`, and none once the match is gone. The matches list shows each person's initial, not their photo. Someone whose photos are all held for review shows as their initial.
+
+### C2-D8 · The takeover opens from the app root, and can be closed
+
+**Choice.** `match.created` reaches the person who didn't make the second tap on whatever screen they're on, so FeatureMatch exports `.opensMutualMoments()` for the app root (requested from A1) rather than listening only on the Matches tab. The takeover has a Close button; the match stays in Matches under "Now" until the window closes.
+
+### C2-D9 · Debug fixtures for the Simulator
+
+**Choice.** A Debug build launched with `-GlowMatchFixtures reveal | reveal-chat | waiting | list | empty` drives FeatureMatch's real screens from made-up matches (faceless gradient "photos", names Blake, Robin, Sam, Jordan), with the other person played by the fixture. The launch argument is read only in Debug builds (`#if DEBUG`) and only when the app's environment is Debug. Release builds always use the API.

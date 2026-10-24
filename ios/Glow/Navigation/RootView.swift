@@ -14,6 +14,7 @@ struct RootView: View {
     var body: some View {
         content
             .preferredColorScheme(.dark)
+            .opensMutualMoments() // FeatureMatch (C2): match.created opens the takeover from anywhere
             .fullScreenCover(item: $router.cover) { route in
                 RouteDestination(route: route)
                     .sheet(item: $router.sheet) { RouteDestination(route: $0) }
