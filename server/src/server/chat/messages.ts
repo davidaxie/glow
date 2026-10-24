@@ -147,7 +147,11 @@ export async function sendMessageFor(
   // send_message stores every message as pending. Record a pass, but only for the text that
   // was actually checked: a retry with an old clientId returns the first message, whose body
   // may differ, and that one keeps whatever it had.
-  if (verdict.decision === 'passed' && sent.moderation === 'pending' && sent.body === request.body) {
+  if (
+    verdict.decision === 'passed' &&
+    sent.moderation === 'pending' &&
+    sent.body === request.body
+  ) {
     const { error } = await serviceDb()
       .from('messages')
       .update({ moderation: 'passed' })
@@ -157,7 +161,10 @@ export async function sendMessageFor(
     if (error) logger.warn('chat.mark_passed_failed', { code: error.code ?? 'unknown' });
   }
 
-  logger.info('chat.message_sent', { moderation: verdict.decision, retry: sent.body !== request.body });
+  logger.info('chat.message_sent', {
+    moderation: verdict.decision,
+    retry: sent.body !== request.body,
+  });
   await announceMessage(sent.recipientId, matchId);
 
   return {
