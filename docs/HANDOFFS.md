@@ -6,6 +6,8 @@ What each agent built, what's still mocked, and what the next wave needs. Reques
 
 Things only David can do. None of these block Wave 0 work locally.
 
+**First (from D5, 2026-10-24): confirm the Cal Hacks venue, meeting spots and table location.** The demo room is still a placeholder at the Palace of Fine Arts, San Francisco (37.8029, -122.4484). Send D5 (or edit yourself) the hall's center, a radius that covers it, 3 to 5 meeting spots everyone will recognize, and where the Glow table goes. It's one edit: `VENUE` at the top of `scripts/seed-demo.ts`, then copy the two lines from `scripts/seed-demo.ts --print-venue` into `ios/fixtures/demo-room.env` (D5-D4). D5's other items for David, in order: (a) ask the organizers whether Glow may put up posters, post once in the Discord and have a table; (b) the Apple account and TestFlight (item 11 below), because without the public link attendees can't install Glow; (c) make both stage accounts admins with real profile photos; (d) run the two dry runs on real phones on the venue Wi-Fi from the checklist in [`docs/DEMO.md`](DEMO.md#dry-runs-on-real-phones); (e) check the Lovegety facts in the pitch, and fill in the Devpost draft's brackets (team description, numbers on the day). Nothing has been posted anywhere.
+
 1. **Link Vercel.** Create a Vercel project from `davidaxie/glow` with Root Directory `server` (framework Next.js, Node 24). Then add three GitHub repository secrets: `VERCEL_TOKEN` (a Vercel access token), `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` (both in the project's `.vercel/project.json` after `vercel link`, or in Project Settings). From then on, every PR gets a preview URL posted on it and main deploys to production. You don't need to connect Vercel's Git integration: `server/vercel.json` turns its auto-deploys off, and the workflow deploys instead.
 2. **Add the Vercel env vars**, per D1 in `docs/DECISIONS.md`. Preview and production both need `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (from the Supabase cloud project), `JOIN_TICKET_SECRET`, `CARD_URL_SECRET`, `CRON_SECRET` (each from `openssl rand -base64 32`, all different, different per environment), `ANTHROPIC_API_KEY`, `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Production also needs `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` and `APNS_BUNDLE_ID` (B9 makes the .p8 key). `SENTRY_DSN` and `POSTHOG_KEY` are optional. Never set `ALLOW_TEST_LOGIN` on Vercel; the server refuses to start if you do.
 3. **Vercel plan for the purge cron.** P9 needs `GET /api/cron/purge` every 5 minutes. Vercel's Hobby plan only runs crons once a day, so the project needs Pro (or B8 needs an outside scheduler that sends `Authorization: Bearer $CRON_SECRET`).
@@ -65,6 +67,7 @@ _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27).
 
 1. **End finished glows' Live Activities at launch and on foreground.** In `ios/Glow/AppDelegate.swift` (or wherever the app sees `scenePhase` become `.active`), call `Task { await ActivityKitGlowLiveActivities.endFinishedGlows() }` from `FeatureGlow`. It ends only glows whose time has run out or that already show an ending, so a glow that ended while the app slept never lingers on the lock screen (C3-D4). Glows that are still on are left alone.
 2. **A Debug-only way to open a match screen in the Simulator**, for proof before push taps and sign-in are live: a `GlowDebugRoute` launch argument next to `GlowDebugOpenURL`, taking `glow/<matchID>` (and `mutual/`, `match/`, `chat/`). C3 sent it as a tiny `cross-owner` PR (linked in C3's status); C2 and C4 can use it too.
+_From D5, 2026-10-24, PR #42._ (1) When David confirms the venue, `ios/fixtures/demo-room.env` needs the two lines `scripts/seed-demo.ts --print-venue` prints (`GLOW_DEMO_LAT`, `GLOW_DEMO_LNG`), so `sim.sh at venue` lands in the seeded room; `server/tests/seed-demo` fails until they match. (2) Optional: a root script `"seed:demo": "scripts/seed-demo.ts"` in `package.json`. The file runs directly (its shebang passes `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON`, because the root package has no `"type": "module"`). (3) `server/tests/seed-demo/` is D5's (tests for D5's script, per "Owners put tests in `server/tests/{module}/`").
 
 _From B6, 2026-10-24._
 
@@ -461,6 +464,31 @@ _2026-10-24, Wave 2._ PR [#27](https://github.com/davidaxie/glow/pull/27) on `w2
 - **D3, on real iPhones**: (1) Brightness: the glow screen goes to full brightness, and the person's own level comes back after We met, End glow, Switch to chat, time running out, Hide glow, going home, Control Center and a phone call. Try auto-brightness on and off. (2) Haptics: three soft beats when the glow starts, and again when they tap We met; nothing harsh. (3) In a bright, loud hall: can two people 10 to 20 m apart spot each other's color and read the word? Check all eight colors, especially Pearl and Sun under white lights, and the lock screen Live Activity at arm's length. (4) The screen never locks during a 15-minute glow, and does lock normally after it. (5) The pulse with Reduce Motion on and off: no flashing.
 - **D4, strings**: "Your code word", "{Color} glow", "Meet at {spot}", "Hold your phone up. They're looking for this color too.", "We met", "Waiting for them", "Waiting for them to tap We met too.", "They tapped We met. Tap it when you've found each other.", "Couldn't reach Glow. Try again.", "Switch to chat", "End glow", "End the glow for both of you?", "Keep glowing", "You can still talk in the chat.", "Hide glow", "The glow keeps going. Find it again in Matches.", "Time left", "Getting your glow ready", "You found each other.", "The chat stays open.", "The glow has ended.", "Time's up.", "No rush. The chat is still open.", "This glow has ended.", "Your matches are where you left them.", "Can't reach Glow right now.", "Check your connection and try again.", "Something went wrong.", "Try again in a moment.", "Open chat", "Back to matches", "Try again". Live Activity: "Find each other", "Waiting for them to tap We met", "They tapped We met", "You found each other", "The glow has ended", "Time's up", "The chat is still open.", "Meet at {spot}", "Look for this color", "Code word: {word}".
 - **D1**: `GlowView(matchID:)` refetches by ID. For end to end, start the glow via C2's `setChoice`, then drive We met or End glow with the API as person B.
+### D5 · Demo and launch kit
+
+_2026-10-24, Wave 3._ PR [#42](https://github.com/davidaxie/glow/pull/42) on `w3/d5-demo`. Everything is in [`docs/DEMO.md`](DEMO.md): the 3-minute script with timings, the fallback plan, the two rooms, stage setup, the dry-run checklist, the backup video's shot list, the first-50 plan with a Discord draft, pitch points and the Devpost draft.
+
+**Built**
+
+- `scripts/seed-demo.ts`: seeds a realistic room (default `demo`) on a local Supabase, or any with `--remote`: the room at `VENUE` with its meeting spots, 12 test people (`{slug}-{name}@glow.test`, "Test …" names, `test_data` metadata, adults, no profile photos, no taps), and a card each from the public-domain `outfit-real-*` crops, varied with sharp and stripped of metadata. Idempotent; `--refresh`, `--remove`, `--demo-mode`, `--slug`, `--print-venue`. Refuses non-local URLs without `--remote`, and any room not named "(test data)" (D5-D1).
+- `server/tests/seed-demo/`: 14 unit tests (where it may run, options, the people are test data and adults, valid tags, cards for every gender and show me, fixed IDs, the venue fits the contract and matches `demo-room.env`, cards are small metadata-free JPEGs) and 6 integration tests on a local Supabase (`GLOW_INTEGRATION=1`, and CI).
+- Decisions D5-D1 to D5-D9, including running the stage demo in its own test-data room (D5-D2).
+
+**Proof** (D5's own stack, port 55351): both test files pass, 20 of 20 with integration on; `pnpm typecheck` and ESLint pass. A second seed run made 0 people and 0 cards. Through the real API on port 3125, the deck for Test Rowan and Test Quinn returned 5 cards each with only `id`, `image`, `tags`, `tappedByMe` (no names, emails or user IDs, P1), and `GET /api/admin/rooms/{demo}/metrics` answered `activeCheckins: 12`.
+
+**Done when**
+
+- [ ] Two full dry runs on real phones, on venue Wi-Fi. **Blocked**: needs the Apple Developer account, a TestFlight build, the cloud project and the venue. David's checklist: [`docs/DEMO.md`](DEMO.md#dry-runs-on-real-phones).
+- [ ] The backup video is recorded. **Blocked**: needs the full loop on `main` (B1 #6, B3 #7, C1 #25, C2 #26, C3 #27, C4 #23). Shot list and commands in DEMO.md; D5 asks main before taking two Simulator slots.
+- [x] The Devpost draft is ready (in DEMO.md, with what's real and what's simulated; not posted).
+
+**Still mocked**: nothing. Card images in the seeded deck answer 501 until B3's #7 merges; the seed already stores them where B3's route reads them (`room-cards/{roomId}/{cardId}.jpg`).
+
+**Next wave needs**
+
+- **D1:** `scripts/seed-demo.ts --slug <yours>` gives an end-to-end run a crowd in a few seconds; `--remove` cleans it up.
+- **D2:** the seed's guards are worth a look: non-local URLs, rooms not marked test data, `--remove` only deleting users with the seeded email and `test_data`.
+- **Whoever records the backup video or runs the stage:** read "Rules on stage" and "Between runs" in DEMO.md (unmatch after each run; a fresh stage room slug per run, so the 3-tap cap can't bite).
 
 ### B9 · Release and TestFlight
 
