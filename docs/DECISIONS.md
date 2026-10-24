@@ -715,3 +715,50 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** Check-in runs: rate limit, join ticket, base64 and size checks, then moderation, then storage, then `create_checkin`. If `create_checkin` fails, the photo just stored is deleted before the error goes back, and the photos of replaced check-ins are deleted at once rather than at the next purge.
 
 **Why.** An expired ticket shouldn't cost a moderation call, and no photo should outlive the check-in it belonged to.
+### B5-D3 · A token that moves to another person gets a new device ID
+
+**Question.** The contract says registering an existing token moves it to the signed-in person. Should the device keep its ID?
+
+**Choice.** If the token belonged to someone else, the server deletes that row and inserts a fresh one, so the new person gets a new device ID and the old person's ID stops working (404). The same person registering again keeps their ID.
+
+**Why.** Two accounts used on one phone shouldn't be linkable through a shared ID, and the first account can't remove or probe the second one's device.
+
+### B5-D4 · Sign-out removes the push token first
+
+**Question.** After sign-out the app has no session, so it can't tell the server to stop pushing to this phone. Lock screen text never has names, but "New message" on a phone that's been handed to someone else still says something happened.
+
+**Choice.** `PushService.unregister()` deletes this phone's device row; Session (B1) calls it before signing out. Signing in as someone else also moves the token (B5-D3), and `DELETE /api/me` (B8) deletes every device with the account.
+
+**Why.** The person signing out is the only one who can authorize the delete, and only while signed in.
+
+### B5-D5 · Sandbox or production comes from the build configuration
+
+**Choice.** Debug builds (Xcode, `aps-environment` development) register their token as `sandbox`; Release builds (TestFlight, production) as `production`. The server picks the APNs host from each device row, and prunes a token Apple rejects (a wrong environment shows up as `BadDeviceToken`), which the app re-registers on its next launch.
+
+### B5-D6 · Events never navigate by themselves
+
+**Question.** Should a Realtime event (say `match.created`) open a screen on its own?
+
+**Choice.** No. `RealtimeEvent.destination` names each event's screen, but only a tapped notification uses it (`PushService.route(for:)`). Features subscribe to the events they care about and decide; the app root can choose takeovers (the mutual moment, the glow) from the same stream.
+
+**Why.** An event is a hint to refetch. Yanking someone to another screen from a background event would surprise them, and a stale or forged event could steer the app.
+
+### B5-D7 · How long Apple keeps trying a push
+
+**Choice.** `apns-expiration` is the push's usefulness: `glow.started` lasts `GLOW_TTL`, `checkin.expiring` lasts `CHECKIN_EXPIRY_WARNING`, `match.recheck` lasts `CHOICE_WINDOW`, and `match.created` and `message.created` an hour. `apns-collapse-id` comes from `events.json`, so a phone that was offline gets one notification per match, not a pile.
+
+**Why.** A "Time to find each other" that arrives after the glow ended is worse than none.
+
+### B5-D8 · Which push failures delete a token
+
+**Choice.** Only Apple's dead-token answers delete a device: 410 (`Unregistered`, `ExpiredToken`), `BadDeviceToken` and `DeviceTokenNotForTopic`. 429 and 5xx are retried once; an expired provider token is re-signed once; everything else is logged (event type, status and reason only) and the device kept. A provider token is reused for 50 minutes.
+
+### B5-D9 · Events are never replayed
+
+**Choice.** The app's event stream only carries events sent after a screen subscribed; a screen that opens later never sees an old one. When the app comes back to the foreground, the service refreshes its token, rejoins any channel that dropped, and reports `.connected` again, so screens refetch whatever they missed.
+
+**Why.** Replaying an old `match.created` could show a mutual moment twice; refetching from the API is always right.
+
+### B5-D10 · Integration tests use the CLI's demo keys
+
+**Choice.** `server/tests/notify/*` integration tests (Realtime channels, the device store) talk to the local stack with the Supabase CLI's public demo keys, the ones in `server/.env.example`, unless `GLOW_IT_SUPABASE_*` say otherwise. They refuse any non-local URL, create throwaway `@glow.test` people, delete them afterwards, and skip when no local stack answers. CI's Ubuntu job starts Supabase before Vitest, so they run there.

@@ -39,6 +39,7 @@ Things only David can do. None of these block Wave 0 work locally.
 17. **Email for admin sign-in codes** (from B7, shared with B1). Admins sign in to the admin web with a 6-digit email code from Supabase Auth. Supabase's built-in email sender is limited to a few emails an hour, which won't survive an event: in the cloud project, set up custom SMTP (Auth, then SMTP settings) with any provider, and make sure the email template includes `{{ .Token }}`.
 18. **Print the posters on the day** (from B7). The poster PDF is US Letter, black on white. Print it at 100% (no "fit to page" shrink) so the QR code stays at least 4 inches wide. Posters only let people in while "Printed posters" is on for that room.
 16. **Point `xcode-select` at Xcode** (from B3). The Claude Code iOS Simulator tool refuses to run while `xcode-select` points at the Command Line Tools, so agents can't tap through the app with it. Run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` once. Until then agents drive screens with XCUITest and `scripts/sim.sh shot`, which works but is slower.
+19. **A real sandbox push** (from B5). The `xcode-select` items above (from B6 and B3) also let agents tap notifications in the Simulator. Once the APNs key from item 11.3 exists, run `server/tests/notify/apns-live.test.ts` once with `APNS_*` and `APNS_TEST_DEVICE_TOKEN` set, to check a real push through Apple's sandbox.
 
 ## Requests
 
@@ -212,6 +213,8 @@ _Answered by A3, 2026-10-24, in PR #3._ 1: done. `setup`, `build` and `test` run
 
 ### For B1
 
+_From B5, 2026-10-24._ (1) Call `await dependencies.push.unregister()` before signing out, while the session can still reach the API, so this phone stops getting the person's pushes (B5-D4). (2) In the notifications onboarding step, call `try await dependencies.push.requestAuthorization()`; it shows the prompt and registers for a token if allowed. (3) `LiveRealtimeService` joins `user:{currentUserID()}` with `currentAccessToken()`, so it connects once your live Session returns both.
+
 _From A1, 2026-10-24._ `HttpError` and `errorBody` now carry the contract's optional `reason`: `throw unprocessable('photo_rejected', 'Try another photo.', { reason: 'face_visible' })` sends 422 `{ error: { code, message, reason } }`. `conflict(code, message)` covers 409s like `onboarding_incomplete`. The route helper now validates against the generated contract, so `addProfilePhoto` takes A2's base64 JSON body, not multipart.
 
 _From B8, 2026-10-24._ Profile photo moderation, in `@/server/moderation` (exact exports under B8 in Status):
@@ -344,6 +347,8 @@ if (verdict.decision === 'flagged') throw messageRejected(); // 422 message_reje
 
 ### For B5
 
+_Answered by B5, 2026-10-24._ B9: done, Debug registers `sandbox` and Release `production` (`PushModule.apnsEnvironment`, B5-D5). A3: done in #15, one fixture per event from `contracts/events.json`.
+
 _From B9, 2026-10-24._ Every TestFlight build is the **Release** configuration, signed for the App Store, so its entitlement is `aps-environment = production` (B9-D1); Debug builds from Xcode are `development`. So register `production` in Release builds and `sandbox` in Debug (a compile-time `#if DEBUG` is enough; there's no development-signed Release build in the pipeline). On the server, the one `.p8` key in `APNS_*` covers both environments; send to `api.push.apple.com` for `production` rows and `api.sandbox.push.apple.com` for `sandbox` ones. B9's Done-when box "Push works on a TestFlight build, through production" is checked with your sender, two iPhones and a mutual tap (docs/RELEASE.md, step 9).
 
 _From B7, 2026-10-24._ Done: since #15, the admin module sends `deck.changed` (`notifyRoom`) when a room is paused, resumed, ended or its times change, a card is removed or someone is banned, and `match.ended` (`notify`) to both people when a ban ends their match.
@@ -363,6 +368,10 @@ _Answered by B9, 2026-10-24, in PRs #5 and #17._ The team stays in `DEVELOPMENT_
 _From B2, 2026-10-24._ Two server variables, both optional and read with `getEnv()`: `APPLE_APP_ID` (`{TEAM_ID}.com.davidxie.glow`, once the Apple team exists) makes `/.well-known/apple-app-site-association` name the app, so QR links open Glow; until it's set the file lists no app (B2-D3). `TESTFLIGHT_URL` (the public `https://testflight.apple.com/join/...` link) puts the "Get Glow on TestFlight" button on the `/r/{slug}` page (B2-D4). Set both on Vercel preview and production when they exist, and keep `GLOW_WEB_DOMAIN` in the app the same host the server is on.
 
 _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVELOPMENT_TEAM` is empty, `CODE_SIGN_STYLE = Automatic`), so set the team there. `GLOW_WEB_DOMAIN` (same file) is {DOMAIN}. Release `SUPABASE_URL` and `SUPABASE_ANON_KEY` are empty in `Release.xcconfig`: pass them, and `POSTHOG_KEY` (and `SENTRY_DSN` once Sentry is back, D36), as xcodebuild settings from CI. `aps-environment` is `development` in Debug and `production` in Release. App Privacy answers should match `ios/Glow/PrivacyInfo.xcprivacy` (D43).
+
+### For D1
+
+_From B5, 2026-10-24._ A UI test that taps a notification would let `scripts/sim.sh push A <event>` check every event's screen headlessly: send each `ios/fixtures/push/*.apns` (`xcrun simctl push`), tap the banner through `XCUIApplication(bundleIdentifier: "com.apple.springboard")`, and assert the screen (`RealtimeEvent.destination` lists them). Today only `match_created` was tapped by hand.
 
 ## Status
 
@@ -604,52 +613,58 @@ A limited request answers 429 `rate_limited` with `Retry-After`; the app already
 
 ### B5 · Push, realtime and events
 
-_2026-10-24, Wave 1, interfaces._ Branch `w1/b5-push-interfaces`: just the shapes everyone calls, so B4, B8 and C1 to C4 can code against them today. The full sender, device routes and live iOS services follow on `w1/b5-push`.
+_2026-10-24, Wave 1, full._ PR on `w1/b5-push` (after the interfaces in [#15](https://github.com/davidaxie/glow/pull/15)). Decisions B5-D1 to B5-D10 in `docs/DECISIONS.md`.
 
-**Server: `notify`** (`server/src/server/notify`)
+**Built**
+
+- **Server sender** (`server/src/server/notify`): `notify`, `notifyRoom` and `notifySettled`, a Realtime REST broadcast to private channels plus Apple push. APNs is HTTP/2 (`node:http2`, one connection per host, closed when idle) with an ES256 provider token signed by jose and reused for 50 minutes. Collapse IDs, thread IDs, `interruption-level` and `apns-expiration` come from the catalog and B5-D7; `glow.started` and `match.recheck` are time sensitive. Dead tokens (410, `BadDeviceToken`, `DeviceTokenNotForTopic`) are pruned; 429 and 5xx are retried once (B5-D8). Without `APNS_*`, push is skipped and Realtime still goes out.
+- **`POST /api/devices` and `DELETE /api/devices/{id}`**: register (moving a token to a new person gives a new ID, B5-D3) and remove (someone else's device is the same 404 as a missing one).
+- **iOS `Push`**: `LivePushService` registers the four categories at launch, asks Apple for a token whenever permission allows (every launch, as Apple recommends), uploads it once per person and token (sandbox in Debug, production in Release, B5-D5), retries when the app is next active, and maps taps to Routes. `PushService.unregister()` deletes the token on the server.
+- **iOS `GlowRealtime`**: `LiveRealtimeService` on supabase-swift's `RealtimeClientV2`: joins `user:{id}` (lowercase) by itself when someone signs in, `join(room:)` / `leaveRoom()` for one room at a time, leaves everything on sign-out, drops any broadcast that isn't exactly a contract event, never replays old events (B5-D9), and on foreground refreshes the token, rejoins what dropped and reports `.connected`.
+- **Fixtures**: `ios/fixtures/push/*.apns`, one per event, kept identical to the server's payloads by `server/tests/notify/fixtures.test.ts` (rewrite with `GLOW_WRITE_PUSH_FIXTURES=1`).
+
+**Tests**: `server/tests/notify/` (Vitest): APNs against a local HTTP/2 server with a throwaway P-256 key (JWT verified, headers, retries, pruning, timeouts); P6 snapshots of every push exactly as sent over the wire (`__snapshots__/push-payloads.test.ts.snap`), with name and ID checks; the device store and Realtime channels against the local Supabase (one person can't join another's channel, uppercase topics and rooms without a check-in are refused, apps can't send, `notify` reaches only the right person); routes through the real helper. iOS: `PushTests` (17) and `GlowRealtimeTests` (14), including every fixture's Route.
+
+**Proof**: [`match_created` banner](shots/b5-push-banner-match-created-A.png), [tapped, it opens the mutual moment](shots/b5-tap-match-created-A.png), and the banners for [`match_recheck`](shots/b5-push-banner-match-recheck-A.png), [`glow_started`](shots/b5-push-banner-glow-started-A.png) (Time Sensitive), [`message_created`](shots/b5-push-banner-message-created-A.png) and [`checkin_expiring`](shots/b5-push-banner-checkin-expiring-A.png). No names anywhere. Taps for the other events are covered by `PushRoutingTests` (every fixture through `route(for:)`); the native Simulator tool couldn't run (Needs David, the `xcode-select` item).
+
+**How to notify from a route** (B4, B8, C2, C3, C4)
 
 ```ts
 import { after } from 'next/server';
-import { notify, notifyRoom } from '@/server/notify';
+import { notify, notifyRoom, notifySettled } from '@/server/notify';
 
-// One person or several (both people in a match), from a database function's userIds.
-after(() => notify(result.userIds, { type: 'match.created', matchId: result.matchId }));
-// Everyone checked into a room. Never a push.
+const result = await rpc('record_tap', { … });            // the database call succeeded
+if (result.matchId) after(() => notify(result.userIds, { type: 'match.created', matchId: result.matchId }));
+after(() => notifySettled(result.settled));                // choice_timeout → match.choice, glow_expired → glow.ended
 after(() => notifyRoom(roomId, { type: 'deck.changed', roomId }));
 ```
 
-- `notify(userIds, event)` takes a user ID or a list, and only `user:{id}` events (`UserEvent`); `notifyRoom(roomId, event)` takes only `deck.changed` (`RoomEvent`). Both types come from `contracts/events.json`, so TypeScript stops a wrong pairing.
-- The payload is rebuilt from the contract (`{ type, matchId }` or `{ type, roomId }`). Anything else you pass is dropped before it leaves the server (P1, P6).
-- It never throws and never fails your request. It resolves to `{ realtime: 'sent' | 'failed' | 'skipped', push: { sent, failed, pruned } | null }` if you want to log it.
-- In your tests: `vi.mock('@/server/notify', () => ({ notify: vi.fn(), notifyRoom: vi.fn() }))`, then assert the calls.
-- Realtime goes out now. Push is skipped until the sender lands on `w1/b5-push` (same function, nothing to change on your side).
+- Schedule `after()` only once the database call succeeded: Next runs it even when the handler throws.
+- `notify` takes one user ID or a list, `user:{id}` events only; `notifyRoom` takes `deck.changed` only. Extra fields are dropped (B5-D1). Neither throws.
+- In tests: `vi.mock('@/server/notify', () => ({ notify: vi.fn(), notifyRoom: vi.fn(), notifySettled: vi.fn() }))`.
 
-**iOS: `PushService` and `RealtimeService`** (`AppCore/Services/`, mocks in `AppCore/Mocks/`)
+**How to subscribe in a feature** (C1 to C4)
 
-- `RealtimeEventKind` is now the generated `GlowEvents.EventType`, so it includes `.matchEnded` and can't drift from the contract. `RealtimeEvent(eventJSON:)` and `PushNotification.event` decode payloads strictly.
-- Subscribe in a feature, filtered by kind, match or room:
+```swift
+@Environment(\.dependencies) private var dependencies
 
-  ```swift
-  @Environment(\.dependencies) private var dependencies
+.task {
+    for await event in dependencies.realtime.events(.messageCreated, .matchEnded) {
+        await model.refresh()                     // events only say what changed; refetch from the API
+    }
+}
+.task {
+    for await state in dependencies.realtime.connectionStates() where state == .connected {
+        await model.refresh()                     // after a reconnect, anything sent while away is gone
+    }
+}
+```
 
-  .task {
-      for await event in dependencies.realtime.events(.messageCreated, .matchEnded) {
-          await model.refresh()                 // the event only says what changed; refetch
-      }
-  }
-  .task {
-      for await state in dependencies.realtime.connectionStates() where state == .connected {
-          await model.refresh()                 // events sent while away are gone after a reconnect
-      }
-  }
-  ```
+Also `events(for: matchID)` and `events(for: roomID)`. The room channel needs `try await dependencies.realtime.join(room: roomID)` after a check-in (and when the room home reappears), and `await dependencies.realtime.leaveRoom()` on leaving. In previews and tests, `PreviewRealtimeService().emit(RealtimeEvent(kind: .matchCreated, matchID: id))`. `RealtimeEvent.destination` gives each event's screen; events never navigate by themselves (B5-D6).
 
-  Also `events(for: matchID)` and `events(for: roomID)`. In previews and tests, `PreviewRealtimeService().emit(RealtimeEvent(kind: .matchCreated, matchID: id))`.
-- `RealtimeEvent.destination` is the screen for an event (match.created → `.mutual`, glow.started → `.glow`, message.created and glow.ended → `.chat`, match.choice and match.recheck → `.match`, match.ended → `.matches`, checkin.expiring → `.roomHome`, deck.changed → `.deck`). Tapped notifications use it. Realtime events never navigate by themselves.
-- `PushService.unregister()` is new: it deletes this phone's token on the server. **B1:** please call `await dependencies.push.unregister()` before signing out, and `try await dependencies.push.requestAuthorization()` in the notifications onboarding step.
-- `ios/fixtures/push/` has one `.apns` per event (`scripts/sim.sh push A glow_started`). The ones with a push are byte for byte what the server sends (a Vitest test checks); the ones without are marked Simulator-only stand-ins (B5-D2).
+**Still mocked**: nothing in B5's paths. The real APNs path is untested against Apple until the `.p8` exists: `server/tests/notify/apns-live.test.ts` sends a real sandbox push and skips until `APNS_*` and `APNS_TEST_DEVICE_TOKEN` are set. Realtime in the Debug app joins with the session's access token, so it only connects once B1's live Session is in.
 
-**Still mocked**: `PushModule.live` and `RealtimeModule.live` still return the AppCore mocks; push sending is skipped.
+**Next wave needs**: B1 calls `push.unregister()` before sign-out and `push.requestAuthorization()` in the notifications step; B8 swaps its `safety/stubs/notify.ts` for `@/server/notify`; routes that get `settled` call `notifySettled`; C1 joins the room channel; C2's mutual takeover can follow `realtime.events(.matchCreated)` while the app is open (the app root would need a listener, ask A1).
 
 ### B4 · Deck and matching engine
 

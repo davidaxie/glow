@@ -9,6 +9,9 @@
  *   // After someone paused, left or blocked: everyone checked into the room.
  *   await notifyRoom(roomId, { type: 'deck.changed', roomId });
  *
+ *   // After any function that returns `settled` timeouts (get_match, set_choice, …).
+ *   await notifySettled(result.settled);
+ *
  * Each event goes over Realtime to the person's private `user:{id}` channel, and as an
  * Apple push when contracts/events.json gives it lock screen text. Payloads are built
  * only from the contract: `{ type, matchId }` or `{ type, roomId }`. Anything else on
@@ -21,6 +24,7 @@
  *   import { after } from 'next/server';
  *   after(() => notify(userIds, event));
  */
+import { z } from 'zod';
 import { roomTopic, userTopic } from '@/contracts';
 import { logger } from '@/server/log';
 import { channelOf, contractEvent, type RoomEvent, type UserEvent } from './events';
@@ -93,6 +97,48 @@ export async function notifyRoom(roomId: string, event: RoomEvent): Promise<Noti
   const realtime = await safeBroadcast([{ topic: roomTopic(roomId), event: parsed }], parsed.type);
   logger.info('notify.sent', { type: parsed.type, realtime });
   return { realtime, push: null };
+}
+
+/** One entry of a database function's `settled` list (docs/CONTRACTS.md, "Settled timeouts"). */
+const zSettled = z.object({
+  matchId: z.uuid(),
+  kind: z.string(),
+  userIds: z.array(z.uuid()),
+});
+
+/** Which event each settled timeout sends to both people. */
+export const SETTLED_EVENTS: Readonly<Record<string, UserEvent['type']>> = {
+  choice_timeout: 'match.choice',
+  glow_expired: 'glow.ended',
+};
+
+/**
+ * Sends the events for a database function's `settled` timeouts: `match.choice` for
+ * `choice_timeout` and `glow.ended` for `glow_expired`, to both people in `userIds`.
+ * Pass the raw field from the function's result; missing means nothing settled.
+ *
+ *   const result = await rpc('get_match', …);
+ *   after(() => notifySettled(result.settled));
+ *
+ * Malformed entries and unknown kinds are logged and skipped, never sent. Never throws.
+ */
+export async function notifySettled(settled: unknown): Promise<NotifyOutcome[]> {
+  if (settled === undefined || settled === null) return [];
+  if (!Array.isArray(settled)) {
+    logger.error('notify.settled_invalid');
+    return [];
+  }
+  const sends: Promise<NotifyOutcome>[] = [];
+  for (const raw of settled) {
+    const entry = zSettled.safeParse(raw);
+    const type = entry.success ? SETTLED_EVENTS[entry.data.kind] : undefined;
+    if (!entry.success || !type) {
+      logger.error('notify.settled_invalid');
+      continue;
+    }
+    sends.push(notify(entry.data.userIds, { type, matchId: entry.data.matchId } as UserEvent));
+  }
+  return Promise.all(sends);
 }
 
 async function safeBroadcast(
