@@ -1987,6 +1987,9 @@ revoke all on all tables    in schema private from public, anon, authenticated;
 revoke all on all sequences in schema private from public, anon, authenticated;
 revoke all on all functions in schema private from public, anon, authenticated;
 
+-- New functions are executable by PUBLIC through a global default (per-schema defaults can only
+-- add to it), so that default is revoked globally for the role that runs migrations.
+alter default privileges revoke execute on functions from public;
 alter default privileges in schema public  revoke all on tables    from anon, authenticated;
 alter default privileges in schema public  revoke all on sequences from anon, authenticated;
 alter default privileges in schema public  revoke all on functions from public, anon, authenticated;
