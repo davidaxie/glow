@@ -18,7 +18,6 @@ import {
 } from '@/server/http';
 import { logger } from '@/server/log';
 import { moderateImage, photoRejected } from '@/server/moderation';
-import { rateLimit } from '@/server/ratelimit';
 import { PROFILE_PHOTOS_BUCKET, serviceDb, type Db } from './db';
 import { InvalidJpegError, stripJpegMetadata } from './jpeg';
 import { readPhotos, readProfile, toMyPhoto, type PhotoRow } from './me';
@@ -82,7 +81,6 @@ async function removeObject(db: Db, path: string, why: string): Promise<void> {
 }
 
 export const addProfilePhoto: RouteHandler<'addProfilePhoto'> = async ({ user, body }) => {
-  await rateLimit(user.id, 'photos');
   const uploaded = decodeUpload(body.photo);
   const stored = cleanUpload(uploaded);
 
@@ -197,7 +195,6 @@ export const lastPhoto = () =>
   conflict('last_photo', 'Add another photo before removing this one.');
 
 export const deleteProfilePhoto: RouteHandler<'deleteProfilePhoto'> = async ({ user, params }) => {
-  await rateLimit(user.id, 'photos');
   const db = serviceDb();
   const [photo, profile, photos] = await Promise.all([
     findMine(db, user.id, params.id),

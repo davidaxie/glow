@@ -11,7 +11,7 @@
  * the routes keep a finished profile finished instead (`last_photo`).
  *
  * Only approved photos count. A held photo (B8 holds possibly-under-18 photos for a person to
- * review) never lets anyone finish onboarding (P10, D-B1 in docs/DECISIONS.md).
+ * review) never lets anyone finish onboarding (P10, B1-D1 in docs/DECISIONS.md).
  */
 import { PROFILE_PHOTOS_MIN, type ModerationStatus, type OnboardingStep } from '@/contracts';
 import { HttpError, unavailable } from '@/server/http';

@@ -10,7 +10,6 @@
 import type { Me } from '@/contracts';
 import { notFound, unavailable, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
-import { rateLimit } from '@/server/ratelimit';
 import { serviceDb, type Db } from './db';
 import { loadMe } from './me';
 import { onboardingIncomplete } from './onboarding';
@@ -32,6 +31,5 @@ export async function finishOnboarding(db: Db, userId: string): Promise<Me> {
 }
 
 export const completeOnboarding: RouteHandler<'completeOnboarding'> = async ({ user }) => {
-  await rateLimit(user.id, 'account');
   return { status: 200, body: await finishOnboarding(serviceDb(), user.id) };
 };
