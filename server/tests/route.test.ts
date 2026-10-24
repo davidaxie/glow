@@ -344,9 +344,10 @@ describe('route helper', () => {
     const keys: string[] = [];
     setRateLimitStoreForTests({
       name: 'test',
-      hit: async (key) => {
+      // Use the limiter's own `now`, so Retry-After is exactly 30 however long the call takes.
+      hit: async (key, _name, _policy, now = Date.now()) => {
         keys.push(key);
-        return { allowed: false, remaining: 0, resetAt: Date.now() + 30_000 };
+        return { allowed: false, remaining: 0, resetAt: now + 30_000 };
       },
     });
     const handler = vi.fn();
