@@ -22,7 +22,7 @@ import {
 import { badRequest, type RouteHandler } from '@/server/http';
 import type { ErrorIssue } from '@/server/http/errors';
 import { rpc } from './db';
-import { signCardImage } from './dependencies';
+import { cardImageLink } from './dependencies';
 
 /** What `get_deck` returns (docs/CONTRACTS.md). `cardPath` is storage-internal and never sent. */
 type DbCard = {
@@ -86,7 +86,7 @@ function toTags(tags: DbCard['tags']): CardTags {
 export function toDeck(raw: DbDeck, viewerId: string, now = Date.now()): Deck {
   const cards: Card[] = raw.cards.map((card) => ({
     id: card.id,
-    image: signCardImage(card.id, viewerId, now),
+    image: cardImageLink(card.id, viewerId, now),
     tags: toTags(card.tags),
     tappedByMe: card.tappedByMe === true,
   }));
