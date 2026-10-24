@@ -76,6 +76,7 @@ _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27).
 1. **End finished glows' Live Activities at launch and on foreground.** In `ios/Glow/AppDelegate.swift` (or wherever the app sees `scenePhase` become `.active`), call `Task { await ActivityKitGlowLiveActivities.endFinishedGlows() }` from `FeatureGlow`. It ends only glows whose time has run out or that already show an ending, so a glow that ended while the app slept never lingers on the lock screen (C3-D4). Glows that are still on are left alone.
 2. **A Debug-only way to open a match screen in the Simulator**, for proof before push taps and sign-in are live: a `GlowDebugRoute` launch argument next to `GlowDebugOpenURL`, taking `glow/<matchID>` (and `mutual/`, `match/`, `chat/`). C3 sent it as a tiny `cross-owner` PR (linked in C3's status); C2 and C4 can use it too.
 _From D5, 2026-10-24, PR #42._ (1) When David confirms the venue, `ios/fixtures/demo-room.env` needs the two lines `scripts/seed-demo.ts --print-venue` prints (`GLOW_DEMO_LAT`, `GLOW_DEMO_LNG`), so `sim.sh at venue` lands in the seeded room; `server/tests/seed-demo` fails until they match. (2) Optional: a root script `"seed:demo": "scripts/seed-demo.ts"` in `package.json`. The file runs directly (its shebang passes `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON`, because the root package has no `"type": "module"`). (3) `server/tests/seed-demo/` is D5's (tests for D5's script, per "Owners put tests in `server/tests/{module}/`").
+_From C1, 2026-10-24._ `cross-owner` PR [#39](https://github.com/davidaxie/glow/pull/39), stacked on #25 (merge #25 first): `ios/Glow/Navigation/DebugLaunchRoute.swift` plus two lines in `AppDelegate`, so a Debug launch with `-GlowDebugRoute deck:<room id>` (also `room:`, `mutual:`, `match:`, `glow:`, `chat:`) opens that screen through `Router.go`. Tests in `ios/GlowTests/DebugLaunchRouteTests.swift`. C1's P12 and find UI tests need it, and C2 to C4 can use it for screenshots.
 
 _From B6, 2026-10-24._
 
@@ -304,6 +305,7 @@ _Answered by B2, 2026-10-24._ All three done in PR [#10](https://github.com/davi
 ### For B3
 
 _From D2, 2026-10-25._ **D2-F6, low:** wrap the `GlowDebugCheckInPhoto` block in `FeatureCheckIn/CaptureStep.swift` (lines 52 to 61) in `#if DEBUG`, then delete its entry under `KNOWN` in `server/tests/security/release-surface.test.ts`.
+_From C1, 2026-10-24._ FeatureDeck loads card photos through a stand-in (`FeatureDeck/Images/CardImageLoading.swift`, your loader's rules) until #7 merges. Nothing needed from you: C1 switches `DeckCardImage` to `PrivateImageView(.card(signedURL:))` and deletes the stand-in once it's on main. If `PrivateImageView` keeps the old photo on screen while a refreshed link loads (FeatureDeck refetches links every minute or so), tiles won't flash.
 
 _From B2, 2026-10-24._ The join ticket, for `POST /api/rooms/{id}/checkin`. Branch `w1/b2-rooms`, file `server/src/server/rooms/ticket.ts`.
 
@@ -456,6 +458,11 @@ _From B5, 2026-10-24._ A UI test that taps a notification would let `scripts/sim
 ### For C2
 
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). **`startGlow`: agreed, exactly your signature.** `import { startGlow, type StartGlowOutcome } from '@/server/glow'`, then `await startGlow(db, matchId)`. It calls `start_glow` with the 300 words in `server/src/server/glow/words.ts` and sends every event the result implies: `glow.started` to both on `started`, `match.choice` to both on `chat`, `match.recheck` to each of `staleUserIds` on `waiting` with `location_stale`, and the `settled` entries (`glow.ended` for `glow_expired`, including other pairs' glows in the room, `match.choice` for `choice_timeout`). Events go out after the response (Next's `after()`), and notifying never throws. It throws only `notFound()` (the match ended or doesn't exist) and 503 when the database can't be reached. Swap your stand-in for it when #27 merges.
+_From C1, 2026-10-24._ `ios/GlowUITests/DeckUITests.swift` is in your folder through `cross-owner` PR [#39](https://github.com/davidaxie/glow/pull/39): the P12 test (fake recording, the deck is covered, no card on screen), its control, and the timed find in a room of 200. They run on FeatureDeck's fixture rooms (`-GlowDebugDeckFixture`), so they need no server. Fold them into your suite as you like; the identifiers are in C1's status below.
+
+### For C2
+
+_From C1, 2026-10-24._ A mutual tap closes the enlarged card and sends `navigate(.mutual(matchID))`, as the brief asks. If FeatureMatch also opens the takeover on `match.created`, both land on the same full-screen cover, so nothing doubles up.
 
 ## Status
 
@@ -789,7 +796,7 @@ _2026-10-24, Wave 1._ PR [#16](https://github.com/davidaxie/glow/pull/16) on `w1
 **Decisions**: B7-D1 to B7-D11.
 ### C1 · Deck experience
 
-_2026-10-24, Wave 2._ PR [#25](https://github.com/davidaxie/glow/pull/25) on `w2/c1-deck` (FeatureDeck only). The Debug launch route and the deck UI tests are in a small `cross-owner` PR for A1 and D1 (see For A1).
+_2026-10-24, Wave 2._ PR [#25](https://github.com/davidaxie/glow/pull/25) on `w2/c1-deck` (FeatureDeck only). The Debug launch route and the deck UI tests are in a small `cross-owner` PR for A1 and D1, [#39](https://github.com/davidaxie/glow/pull/39) (see For A1 and For D1).
 
 **Built** (`ios/Packages/GlowKit/Sources/FeatureDeck`)
 
@@ -808,7 +815,7 @@ _2026-10-24, Wave 2._ PR [#25](https://github.com/davidaxie/glow/pull/25) on `w2
 
 - **Traffic check (P1)**: a seeded room of 200 made-up `@glow.test` people on the local Supabase, then every call the deck screens make (room state, deck pages with and without filters, a one-sided tap, a mutual tap, a capture report) against the real local server (B2's and B4's routes): 18 responses, 37 KB, scanned for all 201 user IDs, first names, emails and the fields `userId`, `email`, `firstName`, `cardPath`: **0 leaks**. The target filters (green, short, blonde, glasses) returned exactly 1 card: the target.
 - **P8 on the real server**: with the viewer on the room's private channel, `deck.changed` arrived 33 ms after someone left, 20 ms after someone paused and 32 ms after someone blocked the viewer, and each was gone from the viewer's next deck within 54 ms. FeatureDeck refetches on the first event at once.
-- **The find test** (UI test in the cross-owner PR): in the 200-person fixture room, pick green, short, blonde and glasses, apply, open the target and tap That's them. See the PR for the time.
+- **The find test** (UI test in #39): in the 200-person fixture room, pick green, short, blonde and glasses, apply, open the target and tap That's them. See the PR for the time.
 - **P12 UI test** (same PR): with `-GlowDebugFakeScreenCapture YES` the cover shows and no card is on screen; without it, cards show.
 - Screenshots and a recording: see the PR.
 
@@ -819,7 +826,7 @@ _2026-10-24, Wave 2._ PR [#25](https://github.com/davidaxie/glow/pull/25) on `w2
 
 **Next wave needs**
 
-- **D1**: launch arguments (Debug only) `-GlowDebugDeckFixture 200` (or `quiet`, `checkinEnded`, `paused`, `viewLimitReached`), `-GlowDebugFakeScreenCapture YES`, and `-GlowDebugRoute deck:<room>` / `room:<room>` (cross-owner PR). Identifiers: `screen.FeatureDeck.roomHome`, `room.status`, `room.visible`, `room.seeLooks`, `room.leave`, `room.leave.confirm`, `room.checkInAgain`, `room.tapsLeft`; `screen.FeatureDeck.deck`, `deck.notice` (the sheet), `deck.notice.who|top|hairLength|hairColor|extras` (chips inside by name), `deck.notice.apply`, `deck.notice.clear`, `deck.skip`, `deck.notice.open`, `deck.grid`, `deck.card.<card id>`, `deck.viewsLeft`, `deck.detail`, `deck.detail.thatsThem`, `deck.detail.more`, `deck.detail.close`, `deck.confirm`, `deck.confirm.tap`, `deck.confirm.cancel`, `deck.confirm.tapsLeft`, `deck.empty.<reason>`, `deck.empty.checkInAgain`, `deck.empty.beVisible`, `deck.hidden`. The fixture room's target card is `aaaaaaaa-0000-4000-8000-000000000079`.
+- **D1**: launch arguments (Debug only) `-GlowDebugDeckFixture 200` (or `quiet`, `checkinEnded`, `paused`, `viewLimitReached`), `-GlowDebugFakeScreenCapture YES`, and `-GlowDebugRoute deck:<room>` / `room:<room>` (#39). Identifiers: `screen.FeatureDeck.roomHome`, `room.status`, `room.visible`, `room.seeLooks`, `room.leave`, `room.leave.confirm`, `room.checkInAgain`, `room.tapsLeft`; `screen.FeatureDeck.deck`, `deck.notice` (the sheet), `deck.notice.who|top|hairLength|hairColor|extras` (chips inside by name), `deck.notice.apply`, `deck.notice.clear`, `deck.skip`, `deck.notice.open`, `deck.grid`, `deck.card.<card id>`, `deck.viewsLeft`, `deck.detail`, `deck.detail.thatsThem`, `deck.detail.more`, `deck.detail.close`, `deck.confirm`, `deck.confirm.tap`, `deck.confirm.cancel`, `deck.confirm.tapsLeft`, `deck.empty.<reason>`, `deck.empty.checkInAgain`, `deck.empty.beVisible`, `deck.hidden`. The fixture room's target card is `aaaaaaaa-0000-4000-8000-000000000079`.
 - **D2**: the capture cover is C1-D2 and C1-D4; capture reports carry only kind and room. The traffic check script is attached to PR #25 for `scripts/e2e/`.
 - **C2**: a mutual tap sends `navigate(.mutual(matchID))` after closing the enlarged card. If FeatureMatch also opens the takeover on `match.created`, both land on the same cover.
 - **D4**: every string FeatureDeck shows is in `Copy/DeckCopy.swift`, grouped by screen (room home, What did you notice, deck, enlarged card and tapping, empty states, privacy, tag names, VoiceOver descriptions). Card descriptions for VoiceOver are built from tags only ("Green top, short blonde hair, glasses, headphones"). Plurals are hand-made (`tapsLeft`, `viewsLeft`, `timeLeft`) and want a string catalog with plural variants. `GlowCardTile`'s "Noticed" badge is B6's string.
