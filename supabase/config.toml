@@ -257,6 +257,16 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Sign-in emails carry a 6-digit code and no link (B1, docs/DECISIONS.md). New and returning
+# people both get a code, so both templates say the same thing.
+[auth.email.template.magic_link]
+subject = "Your Glow code"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirmation]
+subject = "Your Glow code"
+content_path = "./supabase/templates/confirmation.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
