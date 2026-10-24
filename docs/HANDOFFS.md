@@ -346,7 +346,7 @@ _2026-10-24, Wave 1._ PR [#10](https://github.com/davidaxie/glow/pull/10) on `w1
 
 **Still mocked**
 
-- `server/src/server/rooms/stand-ins.ts`: `sendDeckChanged` broadcasts straight to Realtime (B5's `notifyRoom` replaces it when #15 merges) and `signedCardImage` signs per CONTRACTS.md (B3's signer replaces it). Rate limits are real: resolve, join and leave call B8's `rateLimit(user.id, 'join')`.
+- `server/src/server/rooms/stand-ins.ts`: `sendDeckChanged` broadcasts straight to Realtime (B5's `notifyRoom` replaces it when #15 merges) and `signedCardImage` signs per CONTRACTS.md (B3's signer replaces it). Rate limits are real: A1's route helper limits resolve, join and leave with B8's `join` policy.
 - `DebugAccessTokenFallback` in `FeatureRooms/Joining/RoomsServices.swift`, Debug only, until B1's Supabase session exists. B2 deletes it then.
 
 **Next wave needs**

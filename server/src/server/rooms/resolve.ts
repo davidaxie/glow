@@ -3,16 +3,14 @@
  *
  * A room code, or a slug plus QR token, returns the room's name and times. This only
  * gets someone to the location check; it never gets them into a room by itself.
+ * The route helper rate limits it with B8's `join` policy, so codes can't be guessed in bulk.
  */
 import { notFound, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
-import { rateLimit } from '@/server/ratelimit';
 import { serviceDb } from './db';
 import { requireOnboarded, roomForAccess, roomSummary } from './rooms';
 
 export const resolveRoom: RouteHandler<'resolveRoom'> = async ({ user, body }) => {
-  // Room codes are guessable in principle: B8's `join` policy caps tries per person.
-  await rateLimit(user.id, 'join');
   const db = serviceDb();
   await requireOnboarded(db, user.id);
 

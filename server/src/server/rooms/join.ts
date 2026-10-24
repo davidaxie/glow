@@ -11,11 +11,13 @@
  * a rough accuracy bucket are stored (`location_checks`), and nothing about the fix is
  * logged. In a demo mode room, admins skip the check; the skip is stored as
  * `demo_skip` and logged.
+ *
+ * The route helper rate limits it with B8's `join` policy, which also keeps the check from
+ * working as a location oracle (many fixes against one room).
  */
 import { checkFix, recordLocationCheck } from '@/server/geo';
 import { notFound, unprocessable, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
-import { rateLimit } from '@/server/ratelimit';
 import { serviceDb } from './db';
 import { accessOpensRoom, isAdmin, isOpen, requireOnboarded, roomById, roomNotLive } from './rooms';
 import { issueJoinTicket } from './ticket';
@@ -26,8 +28,6 @@ export const locationInaccurate = () =>
   unprocessable('location_inaccurate', 'The location fix is too rough. Try again.');
 
 export const joinRoom: RouteHandler<'joinRoom'> = async ({ user, params, body }) => {
-  // Also keeps the check from being a location oracle (many fixes, one room).
-  await rateLimit(user.id, 'join');
   const db = serviceDb();
   await requireOnboarded(db, user.id);
 
