@@ -1,25 +1,30 @@
+import DesignSystem
 import PhotosUI
 import SwiftUI
 import UIKit
 
-// MARK: - Capture
-
+/// Step 1: today's outfit, from the neck down. The camera on a phone; the photo picker in Debug
+/// Simulator builds, which have no camera.
 struct CaptureStep: View {
     let onPhoto: (Data) -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Take a quick photo of today's outfit, from the neck down. Faces are blurred on your phone before anything is sent.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-            #if DEBUG && targetEnvironment(simulator)
-                LibraryPicker(onPhoto: onPhoto)
-            #else
-                CameraStep(onPhoto: onPhoto)
-            #endif
+        ScrollView {
+            VStack(spacing: GlowSpacing.lg) {
+                GlowStepHeader(
+                    step: 1,
+                    of: 3,
+                    title: "Today's look",
+                    subtitle: "A quick photo of your outfit, from the neck down. Faces are blurred on your phone before anything is sent.",
+                )
+                #if DEBUG && targetEnvironment(simulator)
+                    LibraryPicker(onPhoto: onPhoto)
+                #else
+                    CameraStep(onPhoto: onPhoto)
+                #endif
+            }
+            .padding(.horizontal, GlowSpacing.screenMargin)
+            .padding(.vertical, GlowSpacing.md)
         }
     }
 }
@@ -30,22 +35,19 @@ private struct LibraryPicker: View {
     @State private var item: PhotosPickerItem?
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: GlowSpacing.lg) {
             ZStack {
-                RoundedRectangle(cornerRadius: 20).fill(.quaternary)
-                FramingGuide().padding(24)
+                RoundedRectangle(cornerRadius: GlowRadius.card).fill(Color.glowSurface)
+                FramingGuide().padding(GlowSpacing.lg)
             }
             .aspectRatio(3 / 4, contentMode: .fit)
-            .padding(.horizontal, 32)
+            .frame(maxWidth: 360)
 
             PhotosPicker(selection: $item, matching: .images, photoLibrary: .shared()) {
                 Label("Choose a photo", systemImage: "photo.on.rectangle")
-                    .frame(maxWidth: .infinity, minHeight: 44)
             }
-            .buttonStyle(.borderedProminent)
-            .padding(.horizontal, 24)
+            .buttonStyle(.glowPrimary)
             .accessibilityIdentifier("checkin.choosePhoto")
-            Spacer(minLength: 0)
         }
         .onChange(of: item) { _, newItem in
             guard let newItem else { return }
@@ -67,18 +69,20 @@ private struct CameraStep: View {
     @State private var capturing = false
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: GlowSpacing.lg) {
             ZStack {
                 if failure == nil {
                     CameraPreview(session: camera.session)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                    FramingGuide().padding(24)
+                        .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card))
+                    FramingGuide().padding(GlowSpacing.lg)
                 } else {
-                    RoundedRectangle(cornerRadius: 20).fill(.quaternary)
-                    VStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: GlowRadius.card).fill(Color.glowSurface)
+                    VStack(spacing: GlowSpacing.sm) {
                         Text(failure == .denied
                             ? "Glow needs the camera for your outfit photo. Nothing is saved to your library."
                             : "The camera isn't available right now.")
+                            .glowFont(.body)
+                            .foregroundStyle(Color.glowTextPrimary)
                             .multilineTextAlignment(.center)
                         if failure == .denied {
                             Button("Open Settings") {
@@ -86,41 +90,42 @@ private struct CameraStep: View {
                                     UIApplication.shared.open(url)
                                 }
                             }
+                            .buttonStyle(.glow(.secondary, size: .compact))
                         }
                     }
-                    .padding(24)
+                    .padding(GlowSpacing.lg)
                 }
             }
             .aspectRatio(3 / 4, contentMode: .fit)
-            .padding(.horizontal, 24)
+            .frame(maxWidth: 360)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text("Camera. Frame your outfit from the neck down."))
 
-            HStack(spacing: 40) {
+            HStack(spacing: GlowSpacing.xl) {
                 Button {
                     camera.flip()
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera")
-                        .font(.title2)
-                        .frame(width: 44, height: 44)
+                        .glowFont(.headline)
+                        .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
                 }
+                .foregroundStyle(Color.glowTextPrimary)
                 .accessibilityLabel(Text("Switch camera"))
 
                 Button {
                     Task { await shoot() }
                 } label: {
                     Circle()
-                        .strokeBorder(.primary, lineWidth: 4)
+                        .strokeBorder(Color.glowTextPrimary, lineWidth: 4)
                         .frame(width: 72, height: 72)
-                        .overlay(Circle().fill(.primary).padding(8))
+                        .overlay(Circle().fill(Color.glowTextPrimary).padding(GlowSpacing.xs))
                 }
                 .disabled(capturing || failure != nil)
                 .accessibilityLabel(Text("Take photo"))
                 .accessibilityIdentifier("checkin.shutter")
 
-                Color.clear.frame(width: 44, height: 44)
+                Spacer().frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
             }
-            Spacer(minLength: 0)
         }
         .task {
             do {

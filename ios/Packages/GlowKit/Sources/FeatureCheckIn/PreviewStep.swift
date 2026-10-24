@@ -1,8 +1,8 @@
+import DesignSystem
 import SwiftUI
 import UIKit
 
-// MARK: - Preview
-
+/// Step 2: "This is what others will see." The blurred photo, exactly as it will be uploaded.
 struct PreviewStep: View {
     let image: UIImage?
     let facesBlurred: Int
@@ -11,42 +11,38 @@ struct PreviewStep: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                Text("This is what others will see")
-                    .font(.title2.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
+            VStack(spacing: GlowSpacing.lg) {
+                GlowStepHeader(
+                    step: 2,
+                    of: 3,
+                    title: "This is what others will see",
+                    subtitle: facesBlurred > 0
+                        ? "Faces are blurred. Your original photo never leaves your phone."
+                        : "Your original photo never leaves your phone.",
+                )
                 if let image {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                        .frame(maxHeight: 460)
+                        .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card))
+                        .frame(maxWidth: 360, maxHeight: 480)
                         .accessibilityLabel(Text(facesBlurred > 0
                                 ? "Your outfit photo, with faces blurred"
                                 : "Your outfit photo"))
                         .accessibilityIgnoresInvertColors()
+                        .accessibilityIdentifier("checkin.preview")
                 }
-                Text(facesBlurred > 0
-                    ? "Faces are blurred. Your original photo never leaves your phone."
-                    : "No faces found. Your original photo never leaves your phone.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                VStack(spacing: 12) {
-                    Button(action: onConfirm) {
-                        Text("Use this photo").frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("checkin.usePhoto")
-                    Button(action: onRetake) {
-                        Text("Retake").frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("checkin.retake")
+                VStack(spacing: GlowSpacing.sm) {
+                    Button("Use this photo", action: onConfirm)
+                        .buttonStyle(.glowPrimary)
+                        .accessibilityIdentifier("checkin.usePhoto")
+                    Button("Retake", action: onRetake)
+                        .buttonStyle(.glowSecondary)
+                        .accessibilityIdentifier("checkin.retake")
                 }
             }
-            .padding(24)
+            .padding(.horizontal, GlowSpacing.screenMargin)
+            .padding(.vertical, GlowSpacing.md)
         }
     }
 }

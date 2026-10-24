@@ -1,4 +1,5 @@
 import AVFoundation
+import DesignSystem
 import os
 import SwiftUI
 import UIKit
@@ -147,20 +148,20 @@ struct FramingGuide: View {
                     path.addLine(to: CGPoint(x: size.width * 0.92, y: neckY))
                 }
                 .stroke(style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(Color.glowTextPrimary.opacity(0.85))
 
                 RoundedRectangle(cornerRadius: 28)
                     .stroke(style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.glowTextPrimary.opacity(0.6))
                     .frame(width: size.width * 0.7, height: size.height * 0.78)
                     .offset(y: neckY + size.height * 0.04)
 
                 Text("Neck here")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .glowFont(.caption)
+                    .foregroundStyle(Color.glowTextPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(.black.opacity(0.45), in: Capsule())
+                    .background(Color.glowBackground.opacity(0.6), in: Capsule())
                     .offset(y: max(0, neckY - 30))
             }
             .frame(width: size.width, height: size.height, alignment: .top)

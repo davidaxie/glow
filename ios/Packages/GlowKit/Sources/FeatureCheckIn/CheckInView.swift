@@ -1,5 +1,6 @@
 import APIClient
 import AppCore
+import DesignSystem
 import SwiftUI
 
 /// Outfit photo, blur preview and tags, then upload with the join ticket. The app shows this for
@@ -40,9 +41,10 @@ struct CheckInScreen: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationTitle("Today's look")
+        .background(Color.glowBackground)
+        .navigationTitle("Check in")
         .navigationBarTitleDisplayMode(.inline)
-        .animation(.easeOut(duration: 0.2), value: model.step)
+        .animation(GlowMotion.ui, value: model.step)
         .onChange(of: model.step) { _, step in
             if case .done = step {
                 navigate(.roomHome(model.roomID))
@@ -79,24 +81,26 @@ private struct NoticeBanner: View {
     let onRejoin: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: GlowSpacing.xs) {
             Label {
                 Text(CheckInCopy.message(for: notice))
+                    .foregroundStyle(Color.glowTextPrimary)
             } icon: {
                 Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(Color.glowAccent)
             }
-            .font(.callout)
+            .glowFont(.callout)
             if notice == .roomCheckExpired {
                 Button("Back to rooms", action: onRejoin)
-                    .font(.callout.weight(.semibold))
+                    .buttonStyle(.glow(.quiet, size: .compact))
                     .accessibilityIdentifier("checkin.rejoin")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(GlowSpacing.md)
+        .background(Color.glowSurfaceRaised, in: RoundedRectangle(cornerRadius: GlowRadius.control))
+        .padding(.horizontal, GlowSpacing.screenMargin)
+        .padding(.top, GlowSpacing.xs)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("checkin.notice")
     }
@@ -108,9 +112,12 @@ struct ProgressStep: View {
     let label: LocalizedStringKey
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: GlowSpacing.md) {
             ProgressView()
-            Text(label).font(.callout).foregroundStyle(.secondary)
+                .tint(Color.glowAccent)
+            Text(label)
+                .glowFont(.callout)
+                .foregroundStyle(Color.glowTextSecondary)
         }
         .accessibilityElement(children: .combine)
     }

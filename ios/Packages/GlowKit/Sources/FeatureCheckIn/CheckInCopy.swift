@@ -1,4 +1,5 @@
 import APIClient
+import DesignSystem
 import SwiftUI
 
 /// Every word the check-in flow shows. Warm, calm, never pushy (spec: Voice).
@@ -87,22 +88,14 @@ enum CheckInCopy {
         case .backpack: "Backpack"
         }
     }
-}
 
-/// What each top color chip shows. These are clothing colors (content), not theme colors.
-enum TopColorSwatch {
-    static func color(_ top: Components.Schemas.TopColor) -> Color {
-        switch top {
-        case .black: Color(red: 0.07, green: 0.07, blue: 0.08)
-        case .white: Color(red: 0.96, green: 0.96, blue: 0.95)
-        case .gray: Color(red: 0.55, green: 0.56, blue: 0.58)
-        case .red: Color(red: 0.86, green: 0.16, blue: 0.18)
-        case .pink: Color(red: 0.98, green: 0.55, blue: 0.72)
-        case .orange: Color(red: 0.98, green: 0.52, blue: 0.13)
-        case .yellow: Color(red: 0.99, green: 0.84, blue: 0.22)
-        case .green: Color(red: 0.18, green: 0.62, blue: 0.33)
-        case .blue: Color(red: 0.16, green: 0.42, blue: 0.86)
-        case .purple: Color(red: 0.52, green: 0.30, blue: 0.82)
-        }
+    /// The swatch dot for a top color chip.
+    static func swatch(_ color: Components.Schemas.TopColor) -> GlowSwatch {
+        GlowSwatch(rawValue: color.rawValue) ?? .gray
+    }
+
+    /// The swatch dot for a hair color chip.
+    static func swatch(_ color: Components.Schemas.HairColor) -> GlowSwatch {
+        GlowSwatch(rawValue: color.rawValue) ?? .gray
     }
 }
