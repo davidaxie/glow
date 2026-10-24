@@ -489,6 +489,9 @@ _2026-10-24, Wave 3._ PR [#42](https://github.com/davidaxie/glow/pull/42) on `w3
 - **D1:** `scripts/seed-demo.ts --slug <yours>` gives an end-to-end run a crowd in a few seconds; `--remove` cleans it up.
 - **D2:** the seed's guards are worth a look: non-local URLs, rooms not marked test data, `--remove` only deleting users with the seeded email and `test_data`.
 - **Whoever records the backup video or runs the stage:** read "Rules on stage" and "Between runs" in DEMO.md (unmatch after each run; a fresh stage room slug per run, so the 3-tap cap can't bite).
+### C4 · Chat
+
+_2026-10-24, Wave 2, in progress._ Draft PR on `w2/c4-chat`. Building `GET` and `POST /api/matches/{id}/messages`, `POST /api/matches/{id}/unmatch` (`server/src/server/chat`) and FeatureChat (thread, composer, report, block and unmatch). Full notes follow when it's ready.
 
 ### B9 · Release and TestFlight
 
