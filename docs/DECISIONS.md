@@ -990,3 +990,52 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 ### C2-D9 · Debug fixtures for the Simulator
 
 **Choice.** A Debug build launched with `-GlowMatchFixtures reveal | reveal-chat | waiting | list | empty` drives FeatureMatch's real screens from made-up matches (faceless gradient "photos", names Blake, Robin, Sam, Jordan), with the other person played by the fixture. The launch argument is read only in Debug builds (`#if DEBUG`) and only when the app's environment is Debug. Release builds always use the API.
+## B1 · Sign in and onboarding
+
+### B1-D1 · Only approved photos finish onboarding, and a finished profile keeps one
+
+**Question.** The contract says photos can be `approved`, `held` or `pending`, and B8 holds profile photos that may show someone under 18. Which ones count towards the 1-photo minimum, and what does "removing the last photo" mean once someone is finished?
+
+**Choice.** Only `approved` photos count (`deriveStep` on the server, `PhotoSlots.isEnough` in the app, and A2's `complete_onboarding` agrees). A held or pending photo is stored, shown to nobody and marked "Being checked" in the app; the person stays on the photos step until a photo is approved. Once onboarding is complete, removing a photo that would leave fewer than `PROFILE_PHOTOS_MIN` approved photos is 409 `last_photo`, and replacing a photo (uploading to its position) is the way to change it. `GET /api/me` works the step out again every time, so when B7 approves a held photo the person moves on by themselves.
+
+**Why.** A held photo is held because the person might be under 18, so letting it finish onboarding would undercut P10. And a match should never open onto a profile with no photo to show.
+
+### B1-D2 · Under 18 is refused on the phone first, and the step stays closed there
+
+**Question.** "Under 18 gets a kind message and can't continue." Should the birthday reach the server at all, and what stops someone from simply trying an older date?
+
+**Choice.** The app checks the birthday with the same UTC-12 rule as the server and the database (D24), so an under-18 birthday is never sent. It shows the kind message ("Glow is for adults… Your birthday wasn't saved or sent anywhere.") with only a Sign out button, and remembers a yes-or-no flag on this phone (`AgeGateLock`, UserDefaults), so the profile step stays closed after signing out and back in. Deleting the app clears it, so an adult who mistyped can start over. The server answers 422 `under_18` and stores nothing, as the contract says: no record of the attempt anywhere. The birthday picker starts at today, which is nobody's 18+ birthday, and Continue stays off until a date is picked, so nobody is nudged towards an answer. Debug builds can reopen the step with `-GlowResetAgeGate YES`.
+
+**Why.** Not sending a minor's birthday at all is the most private choice, and a device-only yes or no is the least we can keep while still making "can't continue" true.
+
+### B1-D3 · Sign in with Apple asks for no name and no email
+
+**Question.** Apple can share a name and an email (or a relay address). Glow asks for a first name itself and never emails anyone who signed in with Apple.
+
+**Choice.** `requestedScopes = []`. The ID token then carries only Apple's opaque user ID, so the Supabase Apple provider needs "Allow users without an email" (`email_optional = true`) when it's switched on (Needs David). The nonce is 32 random bytes; Apple gets its SHA-256 and Supabase the raw value.
+
+**Why.** Nothing Glow doesn't need ever reaches the server.
+
+### B1-D4 · The email sign-in sends a code and no link
+
+**Choice.** The magic link and confirmation templates (`supabase/templates/`, cross-owner PR #11) contain the 6-digit `{{ .Token }}` and no link. The app verifies it with `verifyOTP(type: .email)`; there's no redirect URL and no PKCE verifier to keep.
+
+**Why.** The spec's sign-in is a code. A link can be forwarded as a working sign-in, and the app has no handler for one anyway.
+
+### B1-D5 · The session lives in this phone's Keychain only, and deleting the app signs you out
+
+**Choice.** The Supabase session is stored with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (never synced, never restored onto another phone from a backup), not supabase-swift's default, which allows backup migration. The first launch after an install removes any session an earlier install left in the Keychain. Signing out uses the `local` scope (this phone only). Nothing else about the person is stored on the phone: the profile lives in memory, and only the last onboarding step is remembered so an offline launch resumes in the right place.
+
+**Why.** A reinstalled or restored phone should never come back signed in as someone, and a session shouldn't outlive the app that made it.
+
+### B1-D6 · The server strips photo metadata too, and checks the shape
+
+**Choice.** The app crops to 4:5, sizes down to `PHOTO_MAX_DIMENSION`, converts to sRGB and re-encodes with no metadata. The server then walks the JPEG's segments and drops every APPn (except plain JFIF and Adobe headers), every comment and anything after the end marker before storing (`server/src/server/profiles/jpeg.ts`, no re-encoding). It refuses anything that isn't a complete JPEG (422 `photo_rejected`, `unreadable`), bigger than 1920 px, or not 4:5 (400). Moderation sees the upload exactly as sent (B8's fake reads its test markers from it; the real model only gets B8's own downscaled copy).
+
+**Why.** A match would otherwise receive a GPS position or the uncropped thumbnail inside an old or hand-made upload. Two independent strips cost almost nothing.
+
+### B1-D7 · Test sign-in mints sessions without passwords or emails
+
+**Choice.** `POST /api/dev/test-login` asks the admin API for a one-time token for the `@glow.test` address (creating the person if needed) and redeems it with `verifyOtp(token_hash, type: email)`, returning a normal session. It answers 404 unless the profile is local and `ALLOW_TEST_LOGIN` is on (checked in the handler as well as `proxy.ts` and `env.ts`). The app's call is hand-written and inside `#if DEBUG`, so a Release binary can't form it; Debug builds also accept `-GlowTestSignIn new@glow.test` at launch for automation.
+
+**Why.** No test passwords to leak, nothing in Mailpit to scrape, and the same session shape as a real sign-in.

@@ -1,4 +1,5 @@
-// Owner: B1. Replace `notImplemented` with a handler that lives in `server/src/server/profiles`.
-import { notImplemented, route } from '@/server/http';
+// Owner: B1. The handler lives in `server/src/server/profiles`.
+import { route } from '@/server/http';
+import { addProfilePhoto } from '@/server/profiles/photos';
 
-export const POST = route('addProfilePhoto', notImplemented);
+export const POST = route('addProfilePhoto', addProfilePhoto);

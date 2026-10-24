@@ -133,7 +133,11 @@ describe('sign-in on every route', () => {
 
 describe('stubs answer 501 to a valid request', () => {
   const stubs = entries.filter(([, op]) => isStub(op));
-  it.each(stubs)('%s', async (_id, op) => {
+  // Once every endpoint is built there are no stubs left, and an empty `it.each` is an error.
+  it.runIf(stubs.length === 0)('every endpoint in the contract is built', () => {
+    expect(stubs).toEqual([]);
+  });
+  it.skipIf(stubs.length === 0).each(stubs)('%s', async (_id, op) => {
     await mockVerify();
     const auth =
       op.auth === 'user'

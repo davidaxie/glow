@@ -449,6 +449,27 @@ _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). **`s
 
 ## Status
 
+### B1 · Sign in and onboarding (server)
+
+_2026-10-24, Wave 1._ The server half, split out so everything that needs a signed-in person can start (the iOS half stays on draft [#6](https://github.com/davidaxie/glow/pull/6)).
+
+**Built** (`server/src/server/profiles`, routes under `server/app/api/me/**` and `dev/test-login`): `GET /api/me`, `PUT /api/me/profile` (18+ checked before anything is written: 422 `under_18`, and the database trigger refuses it too), `POST /api/me/photos` (base64 JPEG, metadata stripped at segment level, 4:5 and at most 1920 px, B8's `moderateImage('profile')`: rejected is 422 `photo_rejected` + reason, held is stored but shown to nobody, an outage is 503 and nothing is stored), `GET` and `DELETE /api/me/photos/{id}` (404 for anything not mine, 409 `last_photo` once finished), `POST /api/me/onboarding/complete` (A2's `complete_onboarding`, with or without push), and `POST /api/dev/test-login` (local only, `@glow.test` only, no passwords: B1-D7). The state machine is `deriveStep` in `onboarding.ts`; `GET /api/me` reconciles it every time (B1-D1). Decisions B1-D1 to B1-D7 are in `docs/DECISIONS.md`.
+
+**Test sign-in, for D1 and the Simulator.** With `ALLOW_TEST_LOGIN=1` in `server/.env.local` (`pnpm env:setup --test-login`):
+
+```
+curl -s -X POST $GLOW_API/api/dev/test-login -H 'content-type: application/json' -d '{"email":"alex@glow.test"}'
+# -> { accessToken, refreshToken, expiresIn, userId }   (404 unless the server is local with ALLOW_TEST_LOGIN)
+```
+
+Seeded people (`alex`, `blake`, `casey`, `drew`, `admin`) come back onboarded; `new@glow.test` starts at the profile step. They have no profile photos: add one with `POST /api/me/photos` (a 4:5 JPEG, base64) if a match needs something to show. Any other `something@glow.test` address is created on first use.
+
+**For other routes**: `assertOnboardingComplete(user.id)` from `@/server/profiles` throws 409 `onboarding_incomplete`.
+
+**Tests**: `server/tests/profiles/` (age rule, state machine, metadata stripping, and every route against a live local Supabase). They skip without a reachable Supabase and use `GLOW_SUPABASE_URL` for an own stack.
+
+**Still mocked**: nothing in B1's server paths.
+
 ### B3 · Check-in and private images
 
 _2026-10-24, Wave 1._ PR [#7](https://github.com/davidaxie/glow/pull/7) on `w1/b3-checkin`, plus the fixtures in PR [#18](https://github.com/davidaxie/glow/pull/18) (merged). Decisions B3-D1 to B3-D9.
