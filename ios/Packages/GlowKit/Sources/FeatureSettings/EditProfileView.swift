@@ -58,7 +58,9 @@ struct EditProfileForm: View {
             VStack(alignment: .leading, spacing: GlowSpacing.lg) {
                 SettingsProfileFields(form: form)
                 if form.phase == .underAge {
-                    SettingsMessage(text: Text("Glow is only for people 18 and older, so that birthday can't be saved. Nothing was changed."))
+                    SettingsMessage(
+                        text: Text("Glow is only for people 18 and older, so that birthday can't be saved. Nothing was changed."),
+                    )
                 } else if let error = form.error {
                     SettingsMessage(text: Text(error.settingsMessage))
                 } else if saved {
@@ -129,14 +131,18 @@ struct SettingsProfileFields: View {
                 .accessibilityIdentifier("editProfile.birthday")
             }
             SettingsField(title: "I am") {
-                SettingsGenderChips(options: SettingsGenderCopy.selfOptions, isSelected: { form.gender == $0 }) {
-                    form.gender = $0
-                }
+                SettingsGenderChips(
+                    options: SettingsGenderCopy.selfOptions,
+                    isSelected: { form.gender == $0 },
+                    toggle: { form.gender = $0 },
+                )
             }
             SettingsField(title: "Show me") {
-                SettingsGenderChips(options: SettingsGenderCopy.showMeOptions, isSelected: { form.showMe.contains($0) }) {
-                    form.toggleShowMe($0)
-                }
+                SettingsGenderChips(
+                    options: SettingsGenderCopy.showMeOptions,
+                    isSelected: { form.showMe.contains($0) },
+                    toggle: { form.toggleShowMe($0) },
+                )
             }
         }
     }

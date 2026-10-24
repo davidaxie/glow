@@ -154,7 +154,8 @@ public struct ProfileClient: Sendable {
         }
     }
 
-    static func error(from error: APIError) -> ProfileError {
+    /// The profile error for an API failure.
+    public static func error(from error: APIError) -> ProfileError {
         switch error {
         case .notFound: .notFound
         case .unauthorized: .signedOut
@@ -166,17 +167,20 @@ public struct ProfileClient: Sendable {
 
     static func error(from body: Components.Schemas._Error?) -> ProfileError {
         guard let error = body?.error else { return .unexpected }
-        switch error.code {
-        case .under18: return .under18
-        case .photoRejected: return .photoRejected(error.reason.flatMap(PhotoRejection.init(rawValue:)) ?? .other)
-        case .lastPhoto: return .lastPhoto
-        case .onboardingIncomplete: return .onboardingIncomplete
-        case .conflict: return .conflict
-        case .badRequest: return .invalid
-        case .payloadTooLarge: return .photoTooLarge
-        case .unavailable: return .moderationUnavailable
-        case .rateLimited: return .rateLimited
-        default: return .unexpected
+        if error.code == .photoRejected {
+            return .photoRejected(error.reason.flatMap(PhotoRejection.init(rawValue:)) ?? .other)
         }
+        return codes[error.code] ?? .unexpected
     }
+
+    private static let codes: [Components.Schemas.ErrorCode: ProfileError] = [
+        .under18: .under18,
+        .lastPhoto: .lastPhoto,
+        .onboardingIncomplete: .onboardingIncomplete,
+        .conflict: .conflict,
+        .badRequest: .invalid,
+        .payloadTooLarge: .photoTooLarge,
+        .unavailable: .moderationUnavailable,
+        .rateLimited: .rateLimited,
+    ]
 }

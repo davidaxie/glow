@@ -72,7 +72,7 @@ struct PhotosStepContent: View {
             PhotoGrid(slots: slots, add: add, remove: remove)
             if slots.hasHeld {
                 InlineMessage(
-                    text: Text("A person at Glow will look at the photo marked \"Being checked\". Until then nobody sees it, and it doesn't count yet."),
+                    text: Text("A person at Glow will look at any photo marked \"Being checked\". Until then nobody sees it."),
                     isError: false,
                 )
             }
@@ -113,16 +113,20 @@ struct PhotoTile: View {
     let remove: (Int) async -> Void
 
     @State private var pick: PhotosPickerItem?
+    @State private var isPicking = false
 
     private var number: Int {
         slot.position + 1
     }
 
     var body: some View {
-        PhotosPicker(selection: $pick, matching: .images, preferredItemEncoding: .compatible) {
+        Button {
+            isPicking = true
+        } label: {
             tile
         }
         .buttonStyle(.plain)
+        .photosPicker(isPresented: $isPicking, selection: $pick, matching: .images, preferredItemEncoding: .compatible)
         .disabled(slot.status == .uploading)
         .overlay(alignment: .topTrailing) {
             if slot.photoID != nil, slot.status != .uploading {
@@ -186,7 +190,6 @@ struct PhotoTile: View {
             .accessibilityElement()
             .accessibilityLabel(label)
             .accessibilityHint(slot.photoID == nil ? Text("Opens your photos") : Text("Choose a photo to replace it"))
-            .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier("photos.slot.\(slot.position)")
     }
 

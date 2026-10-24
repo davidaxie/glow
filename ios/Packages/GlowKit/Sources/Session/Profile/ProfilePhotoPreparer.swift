@@ -36,10 +36,8 @@ public enum ProfilePhotoPreparer {
             kCGImageSourceThumbnailMaxPixelSize: decodeLimit,
             kCGImageSourceShouldCacheImmediately: true,
         ]
-        guard let upright = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
-            throw .unreadable
-        }
-        guard let pixels = render(upright) else { throw .unreadable }
+        guard let upright = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary),
+              let pixels = render(upright) else { throw .unreadable }
 
         for quality in [Double(GlowConstants.photoJPEGQualityPercent) / 100, 0.7, 0.6, 0.5] {
             if let jpeg = encode(pixels, quality: quality), jpeg.count <= GlowConstants.photoMaxBytes {
@@ -51,14 +49,14 @@ public enum ProfilePhotoPreparer {
 
     /// The 4:5 crop rectangle, centered, in pixel coordinates.
     static func cropRect(width: Int, height: Int) -> CGRect {
-        let w = Double(width)
-        let h = Double(height)
-        if w / h > aspect {
-            let cropWidth = (h * aspect).rounded(.down)
-            return CGRect(x: ((w - cropWidth) / 2).rounded(.down), y: 0, width: cropWidth, height: h)
+        let fullWidth = Double(width)
+        let fullHeight = Double(height)
+        if fullWidth / fullHeight > aspect {
+            let cropWidth = (fullHeight * aspect).rounded(.down)
+            return CGRect(x: ((fullWidth - cropWidth) / 2).rounded(.down), y: 0, width: cropWidth, height: fullHeight)
         }
-        let cropHeight = (w / aspect).rounded(.down)
-        return CGRect(x: 0, y: ((h - cropHeight) / 2).rounded(.down), width: w, height: cropHeight)
+        let cropHeight = (fullWidth / aspect).rounded(.down)
+        return CGRect(x: 0, y: ((fullHeight - cropHeight) / 2).rounded(.down), width: fullWidth, height: cropHeight)
     }
 
     /// The output size: the crop, scaled down so the long side (the height) fits.

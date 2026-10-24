@@ -29,16 +29,18 @@ struct EmailEntryView: View {
     }
 
     private func send() {
-        Task {
-            error = nil
-            isSending = true
-            defer { isSending = false }
-            do {
-                try await dependencies.session.sendEmailCode(to: email)
-                codeSent(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
-            } catch {
-                self.error = error
-            }
+        Task { await sendCode() }
+    }
+
+    private func sendCode() async {
+        error = nil
+        isSending = true
+        defer { isSending = false }
+        do {
+            try await dependencies.session.sendEmailCode(to: email)
+            codeSent(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        } catch {
+            self.error = error
         }
     }
 }
@@ -124,31 +126,35 @@ struct CodeEntryView: View {
 
     private func verify() {
         guard !isWorking else { return }
-        Task {
-            error = nil
-            isWorking = true
-            defer { isWorking = false }
-            do {
-                try await dependencies.session.verifyEmailCode(code, email: email)
-            } catch {
-                self.error = error
-                code = ""
-            }
+        Task { await verifyCode() }
+    }
+
+    private func verifyCode() async {
+        error = nil
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await dependencies.session.verifyEmailCode(code, email: email)
+        } catch {
+            self.error = error
+            code = ""
         }
     }
 
     private func resend() {
-        Task {
-            error = nil
-            resent = false
-            isWorking = true
-            defer { isWorking = false }
-            do {
-                try await dependencies.session.sendEmailCode(to: email)
-                resent = true
-            } catch {
-                self.error = error
-            }
+        Task { await resendCode() }
+    }
+
+    private func resendCode() async {
+        error = nil
+        resent = false
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await dependencies.session.sendEmailCode(to: email)
+            resent = true
+        } catch {
+            self.error = error
         }
     }
 }

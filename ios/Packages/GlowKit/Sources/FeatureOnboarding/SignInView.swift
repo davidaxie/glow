@@ -139,15 +139,7 @@ extension SessionError {
                         .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.control))
                         .accessibilityIdentifier("signIn.test.email")
                     Button("Sign in") {
-                        Task {
-                            isSigningIn = true
-                            defer { isSigningIn = false }
-                            do {
-                                try await dependencies.session.signInForTesting(email: email)
-                            } catch {
-                                self.error = error
-                            }
-                        }
+                        Task { await signIn() }
                     }
                     .buttonStyle(.glow(.secondary, size: .compact))
                     .glowLoading(isSigningIn)
@@ -158,6 +150,17 @@ extension SessionError {
                 }
             }
             .padding(.top, GlowSpacing.sm)
+        }
+
+        private func signIn() async {
+            error = nil
+            isSigningIn = true
+            defer { isSigningIn = false }
+            do {
+                try await dependencies.session.signInForTesting(email: email)
+            } catch {
+                self.error = error
+            }
         }
     }
 #endif

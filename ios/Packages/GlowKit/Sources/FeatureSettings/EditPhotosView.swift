@@ -82,67 +82,23 @@ struct SettingsPhotoTile: View {
     let remove: (Int) async -> Void
 
     @State private var pick: PhotosPickerItem?
+    @State private var isPicking = false
 
     private var number: Int {
         slot.position + 1
     }
 
     var body: some View {
-        PhotosPicker(selection: $pick, matching: .images, preferredItemEncoding: .compatible) {
-            RoundedRectangle(cornerRadius: GlowRadius.card)
-                .fill(.glowSurface)
-                .overlay {
-                    if let data = slot.image, let image = UIImage(data: data) {
-                        Image(uiImage: image).resizable().scaledToFill().accessibilityHidden(true)
-                    } else {
-                        Image(systemName: "plus")
-                            .glowFont(.title)
-                            .foregroundStyle(.glowAccent)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .overlay(alignment: .bottomLeading) {
-                    if slot.status == .held {
-                        Text("Being checked")
-                            .glowFont(.caption)
-                            .foregroundStyle(.glowTextPrimary)
-                            .padding(.horizontal, GlowSpacing.xs)
-                            .padding(.vertical, GlowSpacing.xxs)
-                            .background(.glowSurfaceRaised, in: Capsule())
-                            .padding(GlowSpacing.xs)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .overlay {
-                    if slot.status == .uploading {
-                        ProgressView().tint(.glowTextPrimary).accessibilityHidden(true)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card))
-                .overlay(RoundedRectangle(cornerRadius: GlowRadius.card).strokeBorder(.glowLine))
-                .aspectRatio(4.0 / 5.0, contentMode: .fit)
-                .frame(maxWidth: .infinity)
-                .contentShape(RoundedRectangle(cornerRadius: GlowRadius.card))
-                .accessibilityElement()
-                .accessibilityLabel(label)
-                .accessibilityAddTraits(.isButton)
+        Button {
+            isPicking = true
+        } label: {
+            tile
         }
         .buttonStyle(.plain)
+        .photosPicker(isPresented: $isPicking, selection: $pick, matching: .images, preferredItemEncoding: .compatible)
         .disabled(slot.status == .uploading)
         .overlay(alignment: .topTrailing) {
-            if slot.photoID != nil, slot.status != .uploading {
-                Button {
-                    Task { await remove(slot.position) }
-                } label: {
-                    Image(systemName: "xmark")
-                        .glowFont(.caption)
-                        .foregroundStyle(.glowTextPrimary)
-                        .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
-                        .background(Color.glowSurfaceRaised.opacity(0.9), in: Circle().inset(by: 8))
-                }
-                .accessibilityLabel(Text("Remove photo \(number)"))
-                .accessibilityIdentifier("editPhotos.remove.\(slot.position)")
-            }
+            removeButton
         }
         .onChange(of: pick) { _, item in
             guard let item else { return }
@@ -154,6 +110,61 @@ struct SettingsPhotoTile: View {
             }
         }
         .accessibilityIdentifier("editPhotos.slot.\(slot.position)")
+    }
+
+    private var tile: some View {
+        RoundedRectangle(cornerRadius: GlowRadius.card)
+            .fill(.glowSurface)
+            .overlay {
+                if let data = slot.image, let image = UIImage(data: data) {
+                    Image(uiImage: image).resizable().scaledToFill().accessibilityHidden(true)
+                } else {
+                    Image(systemName: "plus")
+                        .glowFont(.title)
+                        .foregroundStyle(.glowAccent)
+                        .accessibilityHidden(true)
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                if slot.status == .held {
+                    Text("Being checked")
+                        .glowFont(.caption)
+                        .foregroundStyle(.glowTextPrimary)
+                        .padding(.horizontal, GlowSpacing.xs)
+                        .padding(.vertical, GlowSpacing.xxs)
+                        .background(.glowSurfaceRaised, in: Capsule())
+                        .padding(GlowSpacing.xs)
+                        .accessibilityHidden(true)
+                }
+            }
+            .overlay {
+                if slot.status == .uploading {
+                    ProgressView().tint(.glowTextPrimary).accessibilityHidden(true)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: GlowRadius.card))
+            .overlay(RoundedRectangle(cornerRadius: GlowRadius.card).strokeBorder(.glowLine))
+            .aspectRatio(4.0 / 5.0, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .contentShape(RoundedRectangle(cornerRadius: GlowRadius.card))
+            .accessibilityElement()
+            .accessibilityLabel(label)
+    }
+
+    @ViewBuilder private var removeButton: some View {
+        if slot.photoID != nil, slot.status != .uploading {
+            Button {
+                Task { await remove(slot.position) }
+            } label: {
+                Image(systemName: "xmark")
+                    .glowFont(.caption)
+                    .foregroundStyle(.glowTextPrimary)
+                    .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
+                    .background(Color.glowSurfaceRaised.opacity(0.9), in: Circle().inset(by: 8))
+            }
+            .accessibilityLabel(Text("Remove photo \(number)"))
+            .accessibilityIdentifier("editPhotos.remove.\(slot.position)")
+        }
     }
 
     private var label: Text {
