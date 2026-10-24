@@ -20,7 +20,7 @@ public struct GlowView: View {
         GlowScreen(
             model: GlowModel(
                 matchID: matchID,
-                client: LiveGlowClient(api: dependencies.api),
+                client: LiveGlowClient(api: dependencies.glowAPI()),
                 liveActivities: ActivityKitGlowLiveActivities(),
                 analytics: dependencies.analytics,
             ),
@@ -196,6 +196,7 @@ struct GlowOnView: View {
                 Text(session.youMet ? "Waiting for them" : "We met")
             }
             .buttonStyle(.glowOnSurface)
+            .glowLoading(isSending && !session.youMet)
             .disabled(session.youMet || isSending)
             .accessibilityHint(session.youMet ? Text("") : Text("It counts once you've both tapped it."))
 

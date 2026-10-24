@@ -61,6 +61,11 @@ _Run by the orchestrator, to whom David handed the checkpoint decisions; written
 
 ### For A1
 
+_From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27).
+
+1. **End finished glows' Live Activities at launch and on foreground.** In `ios/Glow/AppDelegate.swift` (or wherever the app sees `scenePhase` become `.active`), call `Task { await ActivityKitGlowLiveActivities.endFinishedGlows() }` from `FeatureGlow`. It ends only glows whose time has run out or that already show an ending, so a glow that ended while the app slept never lingers on the lock screen (C3-D4). Glows that are still on are left alone.
+2. **A Debug-only way to open a match screen in the Simulator**, for proof before push taps and sign-in are live: a `GlowDebugRoute` launch argument next to `GlowDebugOpenURL`, taking `glow/<matchID>` (and `mutual/`, `match/`, `chat/`). C3 sent it as a tiny `cross-owner` PR (linked in C3's status); C2 and C4 can use it too.
+
 _From B6, 2026-10-24._
 
 1. **DesignSystem strings** (for D4, later): when D4 adds a string catalog to DesignSystem, its target needs `resources: [.process("Resources")]` in `Package.swift`.
@@ -375,6 +380,7 @@ if (verdict.decision === 'flagged') throw messageRejected(); // 422 message_reje
 ### For B5
 
 _Answered by B5, 2026-10-24._ B9: done, Debug registers `sandbox` and Release `production` (`PushModule.apnsEnvironment`, B5-D5). A3: done in #15, one fixture per event from `contracts/events.json`.
+_From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). Two follow-ups, neither blocking: (1) when your `notifySettled(settled)` merges, `markGlowMet` and `getGlow` (`server/src/server/glow/handlers.ts`) and `startGlow` will switch to it from C3's `settledAnnouncements`, which sends the same events (`glow_expired` → `glow.ended`, `choice_timeout` → `match.choice`). (2) Later, with an Apple account: ActivityKit push updates for the glow's Live Activity (`pushType: .token`, a `liveactivity` APNs push on `glow.ended`), so the lock screen shows how a glow ended even while the app sleeps. Until then it reads "Time's up" on time from its stale date (C3-D4).
 
 _From B9, 2026-10-24._ Every TestFlight build is the **Release** configuration, signed for the App Store, so its entitlement is `aps-environment = production` (B9-D1); Debug builds from Xcode are `development`. So register `production` in Release builds and `sandbox` in Debug (a compile-time `#if DEBUG` is enough; there's no development-signed Release build in the pipeline). On the server, the one `.p8` key in `APNS_*` covers both environments; send to `api.push.apple.com` for `production` rows and `api.sandbox.push.apple.com` for `sandbox` ones. B9's Done-when box "Push works on a TestFlight build, through production" is checked with your sender, two iPhones and a mutual tap (docs/RELEASE.md, step 9).
 

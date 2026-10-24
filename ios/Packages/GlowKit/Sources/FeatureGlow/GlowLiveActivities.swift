@@ -62,6 +62,21 @@ public final class ActivityKitGlowLiveActivities: GlowLiveActivities {
         await Self.endAll(at: now, keeping: glowID)
     }
 
+    /// Ends every glow activity whose time has run out or that already shows an ending, and leaves
+    /// glows that are still on alone. The app calls this at launch and when it comes to the front,
+    /// so a glow that ended while the app was asleep never lingers on the lock screen.
+    public nonisolated static func endFinishedGlows(at now: Date = Date()) async {
+        for activity in Activity<GlowActivityAttributes>.activities
+            where activity.content.state.endsAt <= now || activity.content.state.phase.isOver
+        {
+            var state = activity.content.state
+            if !state.phase.isOver {
+                state.phase = .expired
+            }
+            await activity.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: .immediate)
+        }
+    }
+
     // ActivityKit's `Activity` isn't Sendable, so it never crosses to the main actor: each helper
     // looks the activities up and talks to them in its own nonisolated context.
 
