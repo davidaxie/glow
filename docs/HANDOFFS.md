@@ -41,6 +41,22 @@ Things only David can do. None of these block Wave 0 work locally.
 16. **Point `xcode-select` at Xcode** (from B3). The Claude Code iOS Simulator tool refuses to run while `xcode-select` points at the Command Line Tools, so agents can't tap through the app with it. Run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` once. Until then agents drive screens with XCUITest and `scripts/sim.sh shot`, which works but is slower.
 19. **A real sandbox push** (from B5). The `xcode-select` items above (from B6 and B3) also let agents tap notifications in the Simulator. Once the APNs key from item 11.3 exists, run `server/tests/notify/apns-live.test.ts` once with `APNS_*` and `APNS_TEST_DEVICE_TOKEN` set, to check a real push through Apple's sandbox.
 
+## Checkpoint 1 · Contracts (after Wave 0)
+
+_Run by the orchestrator, to whom David handed the checkpoint decisions; written up by A1, 2026-10-24. Result: **pass**. Wave 1 started on main at 51c72dd and later._
+
+**What was checked** (Build plan: "Read the schema, `contracts/openapi.yaml` and the privacy invariants. Launch the empty app in the Simulator.")
+
+- **Contract and schema review.** No blockers. Six should-fixes, all landed in A2's `contract-change` PR #14 (migration `0002_a2_checkpoint1.sql`, D46 to D56): `service_role` default privileges for later migrations; a name-free `match.recheck` push when a Find needs a fresh location check; `start_glow` falls back to chat instead of raising; `create_checkin` needs a passed join location check; `POST /api/me/onboarding/complete` and admin review of held profile photos; settled timeouts returned so the calling route sends the events. Also in #14: no tap counts in room metrics, an exact daily tap count (`room_days`), the deck's `emptyReason` after purge, and a codegen check that ties `openapi.yaml` limits to `constants.json`. A1 added 501 stubs for the four new operations and updated `docs/SPEC.md` (endpoints, events, functions, tables) in the same PR.
+- **Privacy invariants.** Copied word for word into `AGENTS.md` (a test keeps them in step with the build plan). The server enforces P1 (replies carry only contract fields), P2 (logs and Sentry redact coordinates), P11 (403 becomes 404) in the route helper, and A2's pgTAP suite covers the database side.
+- **The empty app.** Verified from A3's Simulator shots and recordings (`docs/shots/launch-rooms-*.png`, `scan-demo-*.png`, `push-match-created-A.png`, `skeleton-scan-and-push-*.mp4`) and by building and testing main locally.
+
+**Main at Checkpoint 1**: tagged `wave-0-done` at e53053a (the #14 merge). Wave 0 merges: #1 cab8f97 (A1 skeleton), #2 e51b0d2 (A2 contracts and database), #3 51c72dd (A3 iPhone skeleton, A3's decisions renumbered to D33–D45), #14 e53053a (Checkpoint 1 fixes), plus A1's integration PRs #4 443bfc0 (parallel agents), #13 cbc563f (generated registry and stubs), #28, #30 and #31.
+
+**CI**: the last fully green GitHub Actions run on main is 40120018085 at 443bfc0. Both jobs ran everything, including codegen staleness, pgTAP (390 tests) and the iOS build and tests; 40118791968 at 51c72dd did the same. GitHub Actions stopped starting jobs at about 18:40 UTC (billing, Needs David 12), so main and PRs are verified with `scripts/ci-local.sh` since: `ci-local A1 53877f0: ubuntu pass, macos pass` for #14.
+
+**Not done at this checkpoint**: no TestFlight build yet (Build plan: end of each wave), because there's no Apple Developer account (Needs David 11). No Vercel preview URL (Needs David 1).
+
 ## Requests
 
 ### For A1
