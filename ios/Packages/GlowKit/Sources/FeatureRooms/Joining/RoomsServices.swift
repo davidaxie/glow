@@ -9,15 +9,14 @@ extension EnvironmentValues {
     @Entry public var roomJoining: (any RoomJoining)?
 }
 
+@MainActor
 extension Dependencies {
     /// The live join service on the app's API.
-    @MainActor
     func roomJoiningService() -> any RoomJoining {
         APIRoomJoining(api: roomsAPI())
     }
 
     /// The app's API, plus a Debug-only stand-in for the session token (see below).
-    @MainActor
     func roomsAPI() -> GlowAPI {
         #if DEBUG
             return GlowAPI(

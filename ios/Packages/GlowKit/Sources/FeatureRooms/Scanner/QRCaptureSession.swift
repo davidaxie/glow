@@ -1,5 +1,5 @@
-@preconcurrency import AVFoundation
 import AppCore
+@preconcurrency import AVFoundation
 import os
 import SwiftUI
 import UIKit

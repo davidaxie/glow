@@ -102,7 +102,6 @@ struct JoinStateView: View {
         }
     }
 
-    @ViewBuilder
     private func actionButton(_ action: JoinFailure.Action, prominent: Bool) -> some View {
         Button(action.title) { perform(action) }
             .buttonStyle(prominent ? .glowPrimary : .glowSecondary)

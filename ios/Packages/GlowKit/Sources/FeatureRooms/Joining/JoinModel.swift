@@ -104,7 +104,8 @@ public final class JoinModel {
             // The fix goes out of scope here and is never stored.
             let expiresAt = now().addingTimeInterval(GlowConstants.joinTicketTTL)
             phase = .passed(room.id, ticket, expiresAt: expiresAt)
-            logger.info("Joined a room after \(self.attempts, privacy: .public) attempt(s)")
+            let tries = attempts
+            logger.info("Joined a room after \(tries, privacy: .public) attempt(s)")
             analytics.track(AnalyticsEvent("room_join_passed", ["via": entry.via, "attempts": .int(attempts)]))
         } catch {
             await fail(error)

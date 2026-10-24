@@ -33,6 +33,7 @@ enum Demo {
             endsAt: endsAt ?? room.endsAt,
         )
     }
+
     static let fix = LocationFix(latitude: 37.8029, longitude: -122.4484, accuracy: 5, timestamp: now)
 }
 
@@ -282,7 +283,7 @@ struct APIRoomJoiningTests {
         let seen = BodyRecorder()
         let api = GlowAPI.mock(MockTransport { _, body, _, _ in
             if let body {
-                await seen.set(try await Data(collecting: body, upTo: 10000))
+                try await seen.set(Data(collecting: body, upTo: 10000))
             }
             var fields = HTTPFields()
             fields[.contentType] = "application/json"
