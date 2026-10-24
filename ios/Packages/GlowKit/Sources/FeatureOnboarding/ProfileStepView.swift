@@ -124,30 +124,35 @@ struct ProfileFields: View {
 struct BirthdayRow: View {
     @Bindable var form: ProfileForm
     @State private var isPicking = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: GlowSpacing.xs) {
-            Button {
-                isPicking.toggle()
-            } label: {
-                ViewThatFits(in: .horizontal) {
+            Group {
+                if typeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: GlowSpacing.xxs) {
+                        label
+                        value
+                    }
+                } else {
                     HStack(spacing: GlowSpacing.sm) {
                         label
                         Spacer(minLength: 0)
                         value
                     }
-                    VStack(alignment: .leading, spacing: GlowSpacing.xxs) {
-                        label
-                        value
-                    }
                 }
-                .padding(.horizontal, GlowSpacing.md)
-                .padding(.vertical, GlowSpacing.sm)
-                .frame(maxWidth: .infinity, minHeight: GlowSize.buttonHeight, alignment: .leading)
-                .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.control))
-                .contentShape(RoundedRectangle(cornerRadius: GlowRadius.control))
             }
-            .buttonStyle(.plain)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, GlowSpacing.md)
+            .padding(.vertical, GlowSpacing.sm)
+            .frame(maxWidth: .infinity, minHeight: GlowSize.buttonHeight, alignment: .leading)
+            .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.control))
+            .contentShape(RoundedRectangle(cornerRadius: GlowRadius.control))
+            // A tap target rather than a Button, so the row sizes with its text at every size.
+            .onTapGesture { isPicking.toggle() }
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { isPicking.toggle() }
             .accessibilityLabel(Text("Birthday"))
             .accessibilityValue(
                 form.birthdayChosen ? Text(form.birthday, format: .dateTime.day().month(.wide).year()) : Text("Not chosen"),

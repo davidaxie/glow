@@ -6,9 +6,18 @@ final class LaunchUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// The shell without a backend. B1's live session starts signed out, so these run on the
+    /// AppCore preview session, signed in and onboarded (B1, cross-owner, for D1).
+    @MainActor
+    private func onboardedApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-GlowPreviewSession", "ready"]
+        return app
+    }
+
     @MainActor
     func testLaunchShowsTheTabs() {
-        let app = XCUIApplication()
+        let app = onboardedApp()
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Rooms"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.tabBars.buttons["Matches"].exists)
@@ -17,7 +26,7 @@ final class LaunchUITests: XCTestCase {
 
     @MainActor
     func testRoomLinkOpensTheJoinScreen() throws {
-        let app = XCUIApplication()
+        let app = onboardedApp()
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Rooms"].waitForExistence(timeout: 10))
         try app.open(XCTUnwrap(URL(string: "glow://r/demo?t=UITEST")))

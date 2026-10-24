@@ -60,7 +60,7 @@ struct OnboardingSnapshotTests {
         case .signIn: SignInContent()
         case .signInError: SignInContent(error: .invalidCode)
         case .email: FocusHost { EmailEntryContent(email: .constant("robin@example.com"), focused: $0) }
-        case .code: FocusHost { CodeEntryContent(email: "robin@example.com", code: .constant("12"), focused: $0) }
+        case .code: CodeEntryContent(email: "robin@example.com", code: .constant("12"))
         case .profileEmpty: ProfileStepContentPreview(form: ProfileForm(now: { Self.fixedNow }))
         case .profileFilled: ProfileStepContentPreview(form: Self.filledForm())
         case .underAge: UnderAgeContent()

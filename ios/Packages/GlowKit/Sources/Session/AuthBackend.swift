@@ -23,7 +23,10 @@ protocol AuthBackend: Sendable {
 }
 
 /// The shapes sign-in input must have before anything is sent.
-enum SignInInput {
+public enum SignInInput {
+    /// Digits in an email code (`auth.email.otp_length` in supabase/config.toml).
+    public static let codeLength = 6
+
     /// Trims and lowercases an email, or nil if it can't be one.
     static func email(_ raw: String) -> String? {
         let email = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -36,7 +39,7 @@ enum SignInInput {
     /// The 6 digits of a code, ignoring spaces, or nil.
     static func code(_ raw: String) -> String? {
         let digits = raw.filter { !$0.isWhitespace }
-        guard digits.count == 6, digits.allSatisfy(\.isASCIIDigit) else { return nil }
+        guard digits.count == codeLength, digits.allSatisfy(\.isASCIIDigit) else { return nil }
         return digits
     }
 }

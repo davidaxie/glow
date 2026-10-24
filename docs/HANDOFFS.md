@@ -64,6 +64,8 @@ _Run by the orchestrator, to whom David handed the checkpoint decisions; written
 **CI**: the last fully green GitHub Actions run on main is 40120018085 at 443bfc0. Both jobs ran everything, including codegen staleness, pgTAP (390 tests) and the iOS build and tests; 40118791968 at 51c72dd did the same. GitHub Actions stopped starting jobs at about 18:40 UTC (billing, Needs David 12), so main and PRs are verified with `scripts/ci-local.sh` since: `ci-local A1 53877f0: ubuntu pass, macos pass` for #14.
 
 **Not done at this checkpoint**: no TestFlight build yet (Build plan: end of each wave), because there's no Apple Developer account (Needs David 11). No Vercel preview URL (Needs David 1).
+18. **Sign-in on the Supabase cloud project** (from B1). (a) Auth → Email Templates: paste `supabase/templates/magic_link.html` into **Magic Link** and `confirmation.html` into **Confirm signup**, subject "Your Glow code" for both, and keep the email OTP length at 6. Without this, the cloud sends links and the app's code screen can't sign anyone in (B1-D4). (b) Auth → Providers → Apple: turn it on with Client IDs `com.davidxie.glow` (the app's bundle ID; no secret is needed for the native ID-token sign-in) and **Allow users without an email** on, because the app asks Apple for no name and no email (B1-D3). This needs the Apple Developer account (item 11). Until then Sign in with Apple is built but blocked, and the email code is the way in.
+19. **The shared local stack's email** (from B1). The shared `glow` stack (54421) still sends sign-in links until it restarts with #11's config. Nobody restarts it mid-wave; when it next restarts (`supabase stop && supabase start` from the main checkout, after #11 merges), codes work there too.
 
 ## Requests
 
@@ -297,6 +299,7 @@ _From B7, 2026-10-24._ Two things the admin web relies on:
 2. **Demo mode skips.** The room page shows how many location checks were skipped today in a demo mode room, by counting `location_checks` rows with `result = 'demo_skip'` since the start of the room's day. Please write one per skip (A2's note), with `purpose` `join` or `find`.
 _From B3, 2026-10-24._ After a passed join, send `navigate(.checkIn(roomID, JoinTicket(ticket)))`. B3's check-in calls your `verifyJoinTicket(ticket, { userId, roomId })` and turns null into 422 `join_ticket_invalid` (the screen then offers "Back to rooms", `navigate(.rooms)`). Until your PR merges, `server/src/server/images/deps.ts` stubs it with your exact signature. If you export a way to issue a ticket (for tests), B3's route tests switch to it when the stub goes.
 _From B3, 2026-10-24._ After a passed join, send `navigate(.checkIn(roomID, JoinTicket(ticket)))`. B3's check-in calls your `verifyJoinTicket(ticket, { userId, roomId })` from `@/server/rooms` and turns null into 422 `join_ticket_invalid` (the screen then offers "Back to rooms", `navigate(.rooms)`). B3's route tests mint tickets with your `issueJoinTicket`.
+_From B1, 2026-10-24._ The live session gives the API a real access token once #6 merges, so `DebugAccessTokenFallback` in `FeatureRooms/Joining/RoomsServices.swift` can go.
 
 _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/route.ts` exists as a 501 stub for `getRoomState`; it's yours (listed in your `AGENTS.md` row), so replace the stub. 2: done. 3: `server/src/env.ts` has two optional variables, both validated and optional everywhere: `TESTFLIGHT_URL` (must be `https://testflight.apple.com/...`) and `APPLE_APP_ID` (`TEAMID.bundle.id`, like `ABCDE12345.com.davidxie.glow`). Please use `APPLE_APP_ID` for the link file rather than `APNS_TEAM_ID` plus `APNS_BUNDLE_ID`: the APNS variables only exist together with the push key, so a preview without push couldn't serve the link file. Read them with `getEnv()`.
 
@@ -685,6 +688,55 @@ _2026-10-24, Wave 2, in progress._ Draft PR [#26](https://github.com/davidaxie/g
 - **D2**: `getMatch` and `setChoice` replies never carry `userIds`, `recheckUserIds`, `settled`, `lastMessageAt` or the glow's `matchId` and `roomId` (`publicMatch` in `shapes.ts`).
 
 **Decisions**: C2-D1 to C2-D9 in `docs/DECISIONS.md`.
+_From B1, 2026-10-24, PR #6 (cross-owner in `ios/GlowUITests/`)._ (1) `LaunchUITests` now launches with `-GlowPreviewSession ready`: with the live session a fresh app starts signed out, so the shell tests use the preview session. (2) New `OnboardingUITests`: P10's UI test (an under-18 birthday stops at the kind message, and stays stopped after a relaunch; no backend needed) and a test sign-in run to the tabs (skips without a local server with `ALLOW_TEST_LOGIN`). They're yours from Wave 3; the launch arguments they use are listed under B1 in Status.
+
+## Status
+
+### B1 · Sign in and onboarding
+
+_2026-10-24, Wave 1._ PR [#6](https://github.com/davidaxie/glow/pull/6) on `w1/b1-onboarding` (the session interface went first in [#8](https://github.com/davidaxie/glow/pull/8); the code-only email template is cross-owner [#11](https://github.com/davidaxie/glow/pull/11) for A2). From first launch to a finished 18+ profile: welcome, sign in, about you, photos, notifications.
+
+**Built**
+
+- **Server** (`server/src/server/profiles`, routes under `server/app/api/me/**` and `dev/test-login`): `GET /api/me`, `PUT /api/me/profile` (18+ checked before anything is written, 422 `under_18`, and the database refuses it too), `POST /api/me/photos` (base64 JPEG, metadata stripped at segment level, 4:5 and at most 1920 px, B8's `moderateImage('profile')`: rejected is 422 `photo_rejected` + reason, held is stored but shown to nobody, an outage is 503 and nothing is stored), `GET /api/me/photos/{id}` (my own photo, `no-store`), `DELETE /api/me/photos/{id}` (404 for anything not mine, 409 `last_photo` once finished), `POST /api/me/onboarding/complete` (A2's `complete_onboarding`, whether or not push was allowed), and `POST /api/dev/test-login` (local only, `@glow.test` only, no passwords: B1-D7). The onboarding state machine is `deriveStep` in `onboarding.ts`: profile, photos (an approved photo), notifications, complete; `GET /api/me` reconciles it every time, so an approved held photo moves the person on (B1-D1).
+- **iOS Session**: `LiveSessionService` on supabase-swift Auth. Email code (`signInWithOTP` + `verifyOTP(.email)`), Sign in with Apple through the ID token (no scopes, B1-D3), Debug-only test sign-in (`#if DEBUG`, hand-written request), restore at launch with `GET /api/me`, offline fallback to the last step only, 401 signs out, Supabase ending the session signs out. The session is in the Keychain on this device only, and a fresh install starts signed out (B1-D5). Shared by onboarding and Settings: `ProfileClient` (every `/api/me` call, mapped to `ProfileError`), `ProfileForm` (fields, the neutral 18+ check, `AgeGateLock`), `PhotoSlots` and `ProfilePhotoPreparer` (4:5 crop, 1920 px, sRGB, JPEG 0.8, no metadata), `AgeGate` (the same UTC-12 rule as the server, D24).
+- **iOS FeatureOnboarding**: Welcome (three lines, the last the privacy promise), Sign in (Apple, or email), email and code entry (paste or the keyboard's suggestion signs in), About you (step 1), the under-18 screen (kind, no way forward but Sign out, B1-D2), photos (step 2, "Being checked" for held photos), notifications (step 3: `push.requestAuthorization()`, and "Not now" finishes too).
+- **iOS FeatureSettings**: Settings (name and viewer code, Edit profile, Edit photos, Pause and Delete account open B8's screens, Sign out calls `push.unregister()` first), Edit profile, Edit photos.
+- **Supabase** (cross-owner, #11): magic link and confirmation emails send the 6-digit code and no link (B1-D4).
+
+**Proof**: PROOF_PLACEHOLDER
+
+**Tests**: server `tests/profiles/` (age rule, state machine, metadata stripping, and every route against a live local Supabase: 401, 404 for someone else's photo, under-18 stores nothing, held photos never finish, rejected and outage store nothing, last photo, replace, test sign-in's locks); iOS `SessionTests` (sign-in input, the session's states, 401, offline, sign-out, the profile client's error mapping, the form's 18+ check never calling the API, the photo preparer dropping GPS and camera data), `AppCoreTests/SessionServiceTests`, and snapshot tests of every onboarding screen at the default and largest text size (`FeatureOnboardingTests`), plus Settings' forms.
+
+**Still mocked**: nothing in B1's paths. Sign in with Apple is built but **blocked: needs Apple Developer account** (and the Supabase Apple provider, below); it can't complete in the Simulator. Rate limits come from A1's route helper (B8's policies).
+
+**How other modules get the signed-in person and their profile**
+
+```swift
+@Environment(\.dependencies) private var dependencies
+
+for await me in dependencies.session.profiles() {     // the current value first, then every change
+    // me?.profile.firstName, me?.profile.paused, me?.isAdmin, me?.onboardingStep; nil when signed out
+}
+let me = await dependencies.session.currentProfile()
+try await dependencies.session.refreshProfile()        // after changing something about yourself
+let id = await dependencies.session.currentUserID()    // only for Realtime's user:{id}
+for await state in dependencies.session.states() { … } // .signedOut, .onboarding(step), .ready
+```
+
+`Me` is `Components.Schemas.Me`. In previews and tests: `PreviewSessionService(state: .ready, profile: .preview(step: .complete, paused: true))`. On the server, `assertOnboardingComplete(user.id)` from `@/server/profiles` answers 409 `onboarding_incomplete` until onboarding is done.
+
+**Running it on the Simulator**
+
+- `ALLOW_TEST_LOGIN=1` in `server/.env.local` (`pnpm env:setup --test-login`), then launch with `-GlowTestSignIn alex@glow.test` (onboarded) or `new@glow.test` (starts at the profile step), or use the Debug test sign-in panel on the sign-in screen. `-GlowSignOutAtLaunch YES` starts signed out; `-GlowResetAgeGate YES` reopens the profile step after an under-18 answer on that Simulator.
+- The email code: on a stack started with this branch's `supabase/` (`scripts/agent-env.sh <ID> --own-db`), the code is in that stack's Mailpit. The shared `glow` stack keeps sending links until it restarts with #11.
+
+**Next wave needs**
+
+- **B2:** delete `DebugAccessTokenFallback`: the live session gives the API a real token now.
+- **C1 to C4:** sign each Simulator in with `-GlowTestSignIn alex@glow.test` and `-GlowTestSignIn blake@glow.test` (both onboarded, but seeded with no photos: add one through Settings → Edit photos or `POST /api/me/photos` so matches have something to show).
+- **D1:** UI test hooks: `onboarding.getStarted`, `signIn.email`, `signIn.apple`, `signIn.test.email`, `signIn.test.button`, `email.field`, `email.send`, `code.field`, `code.verify`, `profile.firstName`, `profile.birthday`, `profile.gender.<woman|man|nonbinary>`, `profile.showMe.<…>`, `profile.continue`, `underAge.signOut`, `photos.slot.<0-2>`, `photos.remove.<n>`, `photos.continue`, `notifications.allow`, `notifications.skip`, `settings.editProfile`, `settings.editPhotos`, `settings.signOut`, `settings.signOut.confirm`.
+- **B9:** sign-in works on `main` once #6 merges (email code and test sign-in); Apple waits on the account.
 
 ### B9 · Release and TestFlight
 
