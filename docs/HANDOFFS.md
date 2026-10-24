@@ -521,7 +521,7 @@ _2026-10-24, Wave 1._ PR [#9](https://github.com/davidaxie/glow/pull/9) on `w1/b
 
 - B3's `cardImageLink(cardId, viewerId)` (PR #7): `server/src/server/deck/stubs/card-link.ts` makes the same link B3's image route checks.
 - B5's `notify(userIds, event)` (PR #15): `server/src/server/deck/stubs/notify.ts` logs the event type only.
-- B8's `rateLimit(key, policy)` (PR #12): `server/src/server/deck/stubs/ratelimit.ts` allows everything. The daily caps are in the database either way.
+- B8's `rateLimit` is real (#12 merged): each handler calls `rateLimit(user.id, 'deck' | 'taps' | 'api')` first, until `route()` does it for every route.
 
 **Commands**
 
