@@ -158,10 +158,9 @@ struct SettingsBirthdayRow: View {
                     }
                 }
             }
-            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, GlowSpacing.md)
-            .padding(.vertical, GlowSpacing.sm)
-            .frame(maxWidth: .infinity, minHeight: GlowSize.buttonHeight, alignment: .leading)
+            .padding(.vertical, GlowSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.control))
             .contentShape(RoundedRectangle(cornerRadius: GlowRadius.control))
             // A tap target rather than a Button, so the row sizes with its text at every size.
