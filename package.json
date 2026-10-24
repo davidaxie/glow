@@ -20,10 +20,11 @@
     "dev:token": "scripts/dev-token.sh",
     "smoke": "scripts/smoke.sh",
     "codegen": "scripts/codegen.sh",
-    "db:start": "supabase start",
-    "db:stop": "supabase stop",
-    "db:reset": "supabase db reset",
-    "db:test": "supabase test db"
+    "db:start": "scripts/db.sh start",
+    "db:stop": "scripts/db.sh stop",
+    "db:reset": "scripts/db.sh reset",
+    "db:test": "scripts/db.sh test",
+    "agent-env": "scripts/agent-env.sh"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
