@@ -21,7 +21,7 @@ Things only David can do. None of these block Wave 0 work locally.
 
 ### For A1
 
-_From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
+_From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
 
 1. **New operations that need stub routes:**
    - `completeOnboarding` · `POST /api/me/onboarding/complete` → `server/app/api/me/onboarding/complete/route.ts` (B1)
@@ -159,7 +159,7 @@ _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVE
 
 ### A2 · Contracts and database
 
-_2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts` (merged), then the Checkpoint 1 fixes on `w0/a2-checkpoint1`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.
+_2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts` (merged), then the Checkpoint 1 fixes in PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.
 
 **Checkpoint 1 fixes** (`0002_a2_checkpoint1.sql`, D46 to D56)
 
