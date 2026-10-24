@@ -11,6 +11,7 @@
  */
 import { notFound, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
+import { rateLimit } from '@/server/ratelimit';
 import { serviceDb } from './db';
 import { roomById } from './rooms';
 import { sendDeckChanged } from './stand-ins';
@@ -18,6 +19,8 @@ import { sendDeckChanged } from './stand-ins';
 const CARD_BUCKET = 'room-cards';
 
 export const leaveRoom: RouteHandler<'leaveRoom'> = async ({ user, params }) => {
+  // Each leave sends deck.changed to the whole room, so it shares the `join` policy.
+  await rateLimit(user.id, 'join');
   const db = serviceDb();
   const room = await roomById(db, params.id);
   if (!room) throw notFound();

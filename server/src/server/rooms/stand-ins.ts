@@ -7,7 +7,6 @@
  *
  * - `sendDeckChanged`  → B5's `notify()` in `server/src/server/notify/`
  * - `signedCardImage`  → B3's link signer in `server/src/server/images/`
- * - `limitRoomAccess`  → B8's limiter in `server/src/server/ratelimit/`
  */
 import { createHmac } from 'node:crypto';
 import { CARD_URL_TTL_SECONDS, roomTopic, type SignedImage } from '@/contracts';
@@ -64,9 +63,3 @@ export function signedCardImage(cardId: string, viewerId: string, now = new Date
     expiresAt: new Date(exp * 1000).toISOString(),
   };
 }
-
-/**
- * Rate limit for resolving and joining (room codes are guessable in principle, and the
- * join check shouldn't be a location oracle). A no-op until B8's limiter merges.
- */
-export async function limitRoomAccess(_kind: 'resolve' | 'join', _userId: string): Promise<void> {}

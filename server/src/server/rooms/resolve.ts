@@ -6,12 +6,13 @@
  */
 import { notFound, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
+import { rateLimit } from '@/server/ratelimit';
 import { serviceDb } from './db';
 import { requireOnboarded, roomForAccess, roomSummary } from './rooms';
-import { limitRoomAccess } from './stand-ins';
 
 export const resolveRoom: RouteHandler<'resolveRoom'> = async ({ user, body }) => {
-  await limitRoomAccess('resolve', user.id);
+  // Room codes are guessable in principle: B8's `join` policy caps tries per person.
+  await rateLimit(user.id, 'join');
   const db = serviceDb();
   await requireOnboarded(db, user.id);
 

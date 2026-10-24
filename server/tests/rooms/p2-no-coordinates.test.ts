@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { destinationPoint } from '@/server/geo';
 import { logger } from '@/server/log';
 import * as observability from '@/server/observability';
+import { memoryStore, setRateLimitStoreForTests } from '@/server/ratelimit';
 import { setServiceDbForTests } from '@/server/rooms/db';
 import * as joinRoute from '../../app/api/rooms/[id]/join/route';
 import { mockVerify, USER_ID } from '../helpers/auth';
@@ -65,6 +66,7 @@ let loggerFields: unknown[];
 
 beforeEach(async () => {
   await mockVerify();
+  setRateLimitStoreForTests(memoryStore());
   db = new FakeDb({
     rooms: [demoRoom()],
     profiles: [onboarded(USER_ID)],
@@ -83,7 +85,10 @@ beforeEach(async () => {
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 202 }));
 });
 
-afterEach(() => setServiceDbForTests(undefined));
+afterEach(() => {
+  setServiceDbForTests(undefined);
+  setRateLimitStoreForTests(undefined);
+});
 
 const join = (location: unknown) =>
   call(joinRoute.POST, {

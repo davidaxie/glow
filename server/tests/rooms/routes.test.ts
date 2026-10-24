@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { qrWindow, rotatingToken } from '@/server/qr';
+import { memoryStore, setRateLimitStoreForTests } from '@/server/ratelimit';
 import { setServiceDbForTests } from '@/server/rooms/db';
 import { verifyJoinTicket } from '@/server/rooms';
 import { destinationPoint } from '@/server/geo';
@@ -63,6 +64,7 @@ function seed(
 
 beforeEach(async () => {
   await mockVerify();
+  setRateLimitStoreForTests(memoryStore());
   seed();
   fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 202 }));
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -70,6 +72,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   setServiceDbForTests(undefined);
+  setRateLimitStoreForTests(undefined);
   // tests/setup.ts doesn't reset these two.
   delete process.env.APPLE_APP_ID;
   delete process.env.TESTFLIGHT_URL;
@@ -290,6 +293,19 @@ describe('POST /api/rooms/{id}/join', () => {
   it('does not let an admin skip outside demo mode', async () => {
     seed(demoRoom(), onboarded(USER_ID), { admins: [{ user_id: USER_ID }] });
     expect((await join({ access: LINK, location: away })).status).toBe(422);
+  });
+
+  it('answers 429 with Retry-After once the join rate limit is used up', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 21; i += 1) {
+      statuses.push((await join({ access: LINK, location: away })).status);
+    }
+    expect(statuses.slice(0, 20).every((s) => s === 422)).toBe(true);
+    const res = await join({ access: LINK, location: inside });
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(0);
+    // The limited request never reached the location check.
+    expect(db.writes).toHaveLength(20);
   });
 
   it('rejects out-of-range coordinates with 400, never echoing them', async () => {

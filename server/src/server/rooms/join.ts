@@ -15,9 +15,9 @@
 import { checkFix, recordLocationCheck } from '@/server/geo';
 import { notFound, unprocessable, type RouteHandler } from '@/server/http';
 import { logger } from '@/server/log';
+import { rateLimit } from '@/server/ratelimit';
 import { serviceDb } from './db';
 import { accessOpensRoom, isAdmin, isOpen, requireOnboarded, roomById, roomNotLive } from './rooms';
-import { limitRoomAccess } from './stand-ins';
 import { issueJoinTicket } from './ticket';
 
 export const notInRoom = () =>
@@ -26,7 +26,8 @@ export const locationInaccurate = () =>
   unprocessable('location_inaccurate', 'The location fix is too rough. Try again.');
 
 export const joinRoom: RouteHandler<'joinRoom'> = async ({ user, params, body }) => {
-  await limitRoomAccess('join', user.id);
+  // Also keeps the check from being a location oracle (many fixes, one room).
+  await rateLimit(user.id, 'join');
   const db = serviceDb();
   await requireOnboarded(db, user.id);
 
