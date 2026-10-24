@@ -517,11 +517,11 @@ _2026-10-24, Wave 1._ PR [#9](https://github.com/davidaxie/glow/pull/9) on `w1/b
 - `supabase/migrations/0004_b4_deck_set_based.sql`: the deck rules written once as views, read by both the per-card helpers and a set-based `get_deck` (B4-D5). About 20 ms to 2 ms of database time per deck with 300 people; query plans are in PR #9.
 - Tests: unit tests for all three routes; integration tests against a real local Supabase for every deck rule, filters, paging, the view cap and shuffle, tap targets (404), the cap (409), mutual taps, 50 pairs tapping at once (twice), P5 (responses, counts, events and timing) and the matches list (B4-D6); and the 300-person HTTP load test, `server/tests/deck/load.ts`.
 
-**Still mocked** (each with the owner's exact signature, swapped in one file, `server/src/server/deck/dependencies.ts`):
+**Still mocked** (swapped in one file, `server/src/server/deck/dependencies.ts`):
 
-- B3's `cardImageLink(cardId, viewerId)` (PR #7): `server/src/server/deck/stubs/card-link.ts` makes the same link B3's image route checks.
-- B5's `notify(userIds, event)` (PR #15): `server/src/server/deck/stubs/notify.ts` logs the event type only.
-- Rate limits are real: `route()` applies B8's `deck`, `taps` and `api` policies before each handler runs.
+- B3's `cardImageLink(cardId, viewerId)` (PR #7): `server/src/server/deck/stubs/card-link.ts` has B3's exact signature and makes the same link B3's image route checks.
+
+Real: B5's `notify(userIds, event)` from `@/server/notify` (#15), and rate limits, which `route()` applies with B8's `deck`, `taps` and `api` policies before each handler runs. Tests mock `notify` to see who would be told what.
 
 **Commands**
 
