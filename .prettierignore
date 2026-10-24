@@ -1,0 +1,20 @@
+# Prettier covers the server, configs and docs it owns. iOS has SwiftFormat.
+node_modules/
+pnpm-lock.yaml
+.next/
+.vercel/
+coverage/
+next-env.d.ts
+
+# Generated code is checked by the codegen staleness check instead.
+server/src/contracts/
+ios/
+
+# The spec is exported verbatim from the doc and must stay that way.
+docs/SPEC.md
+docs/BUILD_PLAN.md
+docs/briefs/
+
+# Owned by A2. Not formatted by Prettier.
+supabase/
+contracts/
