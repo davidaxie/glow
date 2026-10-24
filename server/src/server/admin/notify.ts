@@ -1,14 +1,10 @@
 /**
- * Events the admin module sends. STAND-IN for B5's `notify` and `notifyRoom` in
- * `@/server/notify` (PR #15), which isn't merged yet: today these only log. When it merges,
- * `deckChanged` becomes `notifyRoom(roomId, event)` and `matchEnded` becomes
- * `notify(recipients, event)`, and nothing else in the admin module changes.
- *
+ * Events the admin module sends, through B5's `notify` and `notifyRoom` (`@/server/notify`).
  * Payloads are the contract's events: a type plus a room or match ID, never a user ID, name
- * or anything else (P1, P6). User IDs are only ever passed to say who receives an event.
+ * or anything else (P1, P6). User IDs only ever say who receives an event. B5's sender never
+ * throws, so a missed event never fails the admin's action; apps refetch on their next open.
  */
-import type { DeckChangedEvent, MatchEndedEvent } from '@/contracts';
-import { logger } from '@/server/log';
+import { notify, notifyRoom } from '@/server/notify';
 
 export type AdminEvents = {
   /** deck.changed to everyone checked into the room. */
@@ -17,18 +13,11 @@ export type AdminEvents = {
   matchEnded(matchId: string, recipients: readonly string[]): Promise<void>;
 };
 
-export const pendingEvents: AdminEvents = {
+export const liveEvents: AdminEvents = {
   async deckChanged(roomId) {
-    const event: DeckChangedEvent = { type: 'deck.changed', roomId };
-    logger.info('admin.event', { event: event.type, roomId, sent: false });
+    await notifyRoom(roomId, { type: 'deck.changed', roomId });
   },
   async matchEnded(matchId, recipients) {
-    const event: MatchEndedEvent = { type: 'match.ended', matchId };
-    logger.info('admin.event', {
-      event: event.type,
-      matchId,
-      recipients: recipients.length,
-      sent: false,
-    });
+    await notify(recipients, { type: 'match.ended', matchId });
   },
 };

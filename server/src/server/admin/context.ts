@@ -2,7 +2,7 @@
  * What the admin module depends on: the data, the events and the clock. Tests swap these
  * with `setAdminDepsForTests`; everything else calls `deps()`.
  */
-import { pendingEvents, type AdminEvents } from './notify';
+import { liveEvents, type AdminEvents } from './notify';
 import type { AdminRepo } from './repo';
 import { supabaseRepo } from './supabase-repo';
 
@@ -17,7 +17,7 @@ let override: AdminDeps | undefined;
 
 export function deps(): AdminDeps {
   if (override) return override;
-  live ??= { repo: supabaseRepo(), events: pendingEvents, now: () => Date.now() };
+  live ??= { repo: supabaseRepo(), events: liveEvents, now: () => Date.now() };
   return live;
 }
 
