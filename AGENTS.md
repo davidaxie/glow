@@ -164,6 +164,7 @@ The spec's `pnpm --filter server dev` and `supabase start` work too; `pnpm dev` 
 | `pnpm format`, `pnpm format:check` | Prettier, for everything except iOS, generated code, `supabase/` and `contracts/` |
 | `pnpm test` | Vitest |
 | `pnpm check` | typecheck, lint, format check and tests: what CI's Ubuntu job runs on the server |
+| `pnpm ci:local <ID> [--server-only]` | Both CI jobs on this Mac, in your agent slot, with a one-line summary for your PR (see "While GitHub Actions is down") |
 | `pnpm env:setup [--force] [--test-login]` | Writes `server/.env.local`. Copies keys from `supabase status` if it's running. `--test-login` turns on `ALLOW_TEST_LOGIN` (local only). |
 | `pnpm dev:token` | Prints an access token for a new throwaway test person on the local Supabase |
 | `pnpm smoke` | Calls every operation in the contract on a running server. Signed out, user routes must answer 401; with `GLOW_TOKEN=$(pnpm -s dev:token)`, each route must answer 501 (a stub) or a status the contract declares for it, never a 500. Uses `GLOW_API` (set by `agent-env.sh`). |
@@ -194,6 +195,8 @@ Up to nine agents build and test on the same Mac at once. Each works in its own 
 3. **Never run `supabase db reset`, `supabase stop` or `supabase start` on the shared `glow` stack** (API 54421, DB 54422). Other agents are using it. `pnpm db:reset` and `pnpm db:stop` refuse when `GLOW_AGENT_ID` is set. If you add a migration or need a reset, take your own stack: `eval "$(scripts/agent-env.sh <ID> --own-db)"` copies your worktree's `supabase/` into `.agent-state/<id>/`, starts it as `glow-<id>` on your own port block, and exports its `SUPABASE_URL` and keys (your server and `sim.sh build` use them). `--own-db --reset` reapplies your migrations and seed; `scripts/agent-env.sh <ID> --stop-db` stops it. `pnpm db:*` follows `GLOW_SUPABASE_WORKDIR`, so it targets your stack.
 4. **Clean up** with `scripts/sim.sh teardown` (and `--stop-db` if you took a stack) when your work is merged.
 5. **Prove iOS work locally while your PR is a draft.** Run `scripts/sim.sh build`, `test` and `lint`, and attach `scripts/sim.sh shot` screenshots to the PR.
+6. **Never poll GitHub in a loop.** Every agent shares one GitHub token, and a polling loop trips GitHub's rate limit for everyone. To wait for CI, run one `gh pr checks <n> --watch --interval 60` in the background and let it tell you when it's done, or check once after doing other work. Never more than one watcher at a time.
+7. **Decision IDs carry your agent ID.** In `docs/DECISIONS.md`, add a `## {ID} · {your name}` section and number your decisions inside it: `### B2-D1 · {short title}`, `### B2-D2`, and so on, so parallel PRs never collide. `D1` to `D56` keep their numbers.
 
 | Agents | Server port | Own Supabase API (`--own-db`) |
 | --- | --- | --- |
@@ -238,6 +241,15 @@ The helper reads the operation from the generated contract and, before your hand
 - Next.js 16 has breaking changes from what you may know (middleware is now `proxy.ts`, route `params` are a Promise, `next lint` is gone). Read `server/node_modules/next/dist/docs/` before relying on memory.
 
 ## Pull requests and integration
+
+### While GitHub Actions is down
+
+GitHub Actions isn't starting jobs (Needs David: billing), so local CI is the merge gate until A1 says otherwise.
+
+1. Rebase on `main`, commit everything, then run `scripts/ci-local.sh <your ID>` (or `pnpm ci:local <your ID>`) from your worktree. It runs both CI jobs in your agent slot: your own Supabase stack (`--own-db --reset`, so the database matches your migrations), your port, and `Glow A ({ID})`. It takes about 10 minutes. Add `--server-only` only when the PR changes nothing in `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh`.
+2. Post its last line, the summary, as a PR comment, for example `ci-local B1 3f2a9c1 (rebased on main 9de2799): ubuntu pass, macos pass, 9m40s`.
+3. A PR is mergeable when its author's latest summary names the PR's current head SHA, says `rebased on main`, and shows `ubuntu pass` and `macos pass` (or `macos skipped` with `--server-only`, when allowed). A1 merges. Any push after the summary needs a new run.
+
 
 - Branch `w{wave}/{agent id}-{short name}`, draft PR in your first hour, push often.
 - CI runs two jobs on every PR and on main. **Ubuntu**: install, typecheck, lint, Prettier, Vitest, `next build`, a smoke test of every endpoint, the codegen staleness check, and pgTAP on a local Supabase. **macOS**: SwiftLint, SwiftFormat, xcodegen, then the iOS build and tests on a Simulator.
