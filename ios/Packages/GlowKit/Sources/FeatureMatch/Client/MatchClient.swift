@@ -1,0 +1,202 @@
+import APIClient
+import AppCore
+import Foundation
+import OpenAPIRuntime
+import SwiftUI
+
+/// What FeatureMatch needs from the server. `APIMatchClient` is the real one; previews, tests and
+/// the Debug fixtures (`-GlowMatchFixtures <scenario>`) use `FixtureMatchClient`.
+public protocol MatchClient: Sendable {
+    /// One match from my side. Throws `.notFound` once it has ended.
+    func match(_ id: MatchID) async throws(MatchError) -> MatchSnapshot
+    /// Find (with a fresh fix) or Chat.
+    func choose(_ choice: MatchSnapshot.Choice, for id: MatchID, fix: LocationFix?) async throws(MatchError) -> ChoiceOutcome
+    /// My matches that haven't ended, newest first.
+    func matches() async throws(MatchError) -> [MatchSummary]
+    /// The other person's photo `index` (below `photoCount`), as JPEG data. Only for a match that
+    /// exists: the server answers 404 otherwise (P1). Held in memory only, never cached.
+    func photo(_ id: MatchID, index: Int) async throws(MatchError) -> Data
+    /// Events this client makes up itself. Only the Debug fixtures have any; the live client's
+    /// events come from Realtime.
+    func events() -> AsyncStream<MatchEvent>
+}
+
+/// A match event, from Realtime, a push, or the Debug fixtures. Only ever a kind and a match ID.
+public struct MatchEvent: Hashable, Sendable {
+    public enum Kind: String, Hashable, Sendable {
+        case created = "match.created"
+        case choice = "match.choice"
+        case recheck = "match.recheck"
+        case ended = "match.ended"
+        case glowStarted = "glow.started"
+        case glowEnded = "glow.ended"
+        case messageCreated = "message.created"
+    }
+
+    public let kind: Kind
+    public let matchID: MatchID
+
+    public init(_ kind: Kind, _ matchID: MatchID) {
+        self.kind = kind
+        self.matchID = matchID
+    }
+
+    /// The match events among Realtime's. Read by the event's type string, so it works with any
+    /// shape of `RealtimeEventKind` that keeps the contract's names.
+    init?(_ event: RealtimeEvent) {
+        guard let kind = Kind(rawValue: event.kind.rawValue), let matchID = event.matchID else { return nil }
+        self.init(kind, matchID)
+    }
+}
+
+extension Dependencies {
+    /// Match events from Realtime and from the match client, merged, until cancelled.
+    func matchEvents(_ client: any MatchClient) -> AsyncStream<MatchEvent> {
+        let realtime = realtime.events()
+        let own = client.events()
+        return AsyncStream { continuation in
+            let fromRealtime = Task {
+                for await event in realtime {
+                    if let match = MatchEvent(event) {
+                        continuation.yield(match)
+                    }
+                }
+            }
+            let fromClient = Task {
+                for await event in own {
+                    continuation.yield(event)
+                }
+            }
+            continuation.onTermination = { _ in
+                fromRealtime.cancel()
+                fromClient.cancel()
+            }
+        }
+    }
+}
+
+// MARK: - Choosing the client
+
+extension EnvironmentValues {
+    /// Set to use a particular `MatchClient` (tests and previews). Nil means the app's own: the
+    /// API, or the Debug fixtures when launched with `-GlowMatchFixtures <scenario>`.
+    @Entry public var matchClient: (any MatchClient)?
+}
+
+enum MatchClients {
+    /// The client FeatureMatch's screens use.
+    static func resolve(_ override: (any MatchClient)?, _ dependencies: Dependencies) -> any MatchClient {
+        if let override {
+            return override
+        }
+        #if DEBUG
+            if dependencies.config.environment == .debug, let fixtures = FixtureMatchClient.launchFixtures {
+                return fixtures
+            }
+        #endif
+        return APIMatchClient(api: dependencies.api)
+    }
+}
+
+// MARK: - The API
+
+/// FeatureMatch over the Glow API: `getMatch`, `setChoice`, `listMatches` and `getMatchPhoto`.
+public struct APIMatchClient: MatchClient {
+    private let api: GlowAPI
+
+    public init(api: GlowAPI) {
+        self.api = api
+    }
+
+    public func match(_ id: MatchID) async throws(MatchError) -> MatchSnapshot {
+        let output: Operations.GetMatch.Output
+        do {
+            output = try await api.perform { try await $0.getMatch(path: .init(id: id.rawValue)) }
+        } catch {
+            throw MatchError(error)
+        }
+        switch output {
+        case let .ok(ok):
+            guard case let .json(detail) = ok.body, let snapshot = MatchSnapshot(detail) else { throw .failed }
+            return snapshot
+        case .notFound: throw .notFound
+        case .unauthorized: throw .unauthorized
+        case .default: throw .failed
+        }
+    }
+
+    public func choose(
+        _ choice: MatchSnapshot.Choice,
+        for id: MatchID,
+        fix: LocationFix?,
+    ) async throws(MatchError) -> ChoiceOutcome {
+        let request = Components.Schemas.ChoiceRequest(
+            choice: choice == .find ? .find : .chat,
+            location: fix.map { Components.Schemas.LocationFix(latitude: $0.latitude, longitude: $0.longitude, accuracy: $0.accuracy) },
+        )
+        let output: Operations.SetChoice.Output
+        do {
+            output = try await api.perform { try await $0.setChoice(path: .init(id: id.rawValue), body: .json(request)) }
+        } catch {
+            throw MatchError(error)
+        }
+        switch output {
+        case let .ok(ok):
+            guard case let .json(result) = ok.body, let outcome = ChoiceOutcome(result) else { throw .failed }
+            return outcome
+        case let .unprocessableContent(response):
+            guard case let .json(body) = response.body else { throw .failed }
+            switch body.error.code {
+            case .notInRoom: throw .notInRoom
+            // The server refused a fix that was too rough, or a stale check: try a fresh fix.
+            case .locationInaccurate, .locationRequired: throw .locationInaccurate
+            default: throw .failed
+            }
+        case .notFound: throw .notFound
+        case .unauthorized: throw .unauthorized
+        case .tooManyRequests: throw .rateLimited
+        case .badRequest, .default: throw .failed
+        }
+    }
+
+    public func matches() async throws(MatchError) -> [MatchSummary] {
+        let output: Operations.ListMatches.Output
+        do {
+            output = try await api.perform { try await $0.listMatches() }
+        } catch {
+            throw MatchError(error)
+        }
+        switch output {
+        case let .ok(ok):
+            guard case let .json(list) = ok.body else { throw .failed }
+            return list.matches.compactMap(MatchSummary.init)
+        case .unauthorized: throw .unauthorized
+        case .tooManyRequests: throw .rateLimited
+        case .default: throw .failed
+        }
+    }
+
+    public func photo(_ id: MatchID, index: Int) async throws(MatchError) -> Data {
+        guard index >= 0, index < GlowConstants.profilePhotosMax else { throw .notFound }
+        do {
+            return try await api.perform { client in
+                let output = try await client.getMatchPhoto(path: .init(id: id.rawValue, n: index))
+                switch output {
+                case let .ok(ok):
+                    guard case let .jpeg(body) = ok.body else { throw APIError.unexpected(status: 200) }
+                    // A profile photo is a few hundred KB; 6 MB is a generous ceiling.
+                    return try await Data(collecting: body, upTo: 6 * 1024 * 1024)
+                case .notFound: throw APIError.notFound
+                case .unauthorized: throw APIError.unauthorized
+                case let .default(statusCode, _): throw APIError.unexpected(status: statusCode)
+                }
+            }
+        } catch {
+            throw MatchError(error)
+        }
+    }
+
+    public func events() -> AsyncStream<MatchEvent> {
+        AsyncStream { $0.finish() }
+    }
+}
