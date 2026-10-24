@@ -165,6 +165,25 @@ _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVE
 
 ## Status
 
+### B6 · Design system
+
+_2026-10-24, Wave 1, first PR (tokens and basic components)._ Branch `w1/b6-design-tokens`. The full module (tag picker, card tile, code fields, takeover, GlowSurface, haptics, icon, README) follows on `w1/b6-design`.
+
+**Built**
+
+- `DesignSystem/Tokens`: every color token from the spec as SwiftUI styles (`.glowBackground`, `.glowSurface`, `.glowSurfaceRaised`, `.glowTextPrimary`, `.glowTextSecondary`, `.glowLine`, `.glowAccent`, `.glowDanger`, plus `.glowOnAccent` for text on accent and danger fills); the exact values in `GlowPalette` (`GlowRGB`, hex); the eight glow colors as `GlowHue` (raw values are the contract's `GlowColor`) with their text color `ink`; tag swatches as `GlowSwatch` (raw values are the contract's `TopColor` and `HairColor`); type as `GlowTextStyle` (`.glowFont(.title)`, `.font(.glow(.body))`), all Dynamic Type; `GlowSpacing` (4-point grid), `GlowRadius` (12 and 20), `GlowSize`; `GlowMotion` (0.2 s ease-out, the reveal spring, Reduce Motion fallbacks, `glowAnimation(_:value:)`) and `GlowPulse` (1.25 s, flash-safe); `GlowContrast` (WCAG math) and `GlowPalette.textPairings`.
+- `DesignSystem/Components`: `GlowButtonStyle` (`.glowPrimary`, `.glowSecondary`, `.glowQuiet`, `.glowDanger`, `.glow(_:size:)`, plus `.glowLoading(_:)`), `GlowChip` and `GlowChipStyle`, `GlowFlowLayout` (wrapping rows), `.glowSheet(isPresented:)`, `.glowSheet(item:)`, `.glowSheetPresentation()` and `GlowSheetContent`, `GlowToast` and `.glowToast($message)`, `GlowStepHeader`, `GlowEmptyState`.
+- `GalleryView` (Settings > Debug > Gallery): every token and component above in every state (normal, pressed, loading, disabled, selected). Compiled out of Release.
+- Tests: every text pairing and every glow color's ink meets WCAG AA 4.5:1, the pulse never dims below 70% and runs under once a second, tokens match the spec, glow colors and swatches match `contracts/openapi.yaml`, and snapshots of every Gallery section at the default and the largest text size.
+
+**Proof**: the Gallery on "Glow A (B6)", top to bottom, in `docs/shots/b6-gallery-page-1-A.png` to `b6-gallery-page-12-A.png`, plus [a live sheet](shots/b6-gallery-sheet-presented-A.png) and [a live toast](shots/b6-gallery-toast-presented-A.png). Full-section snapshots at both text sizes are in `ios/Packages/GlowKit/Tests/DesignSystemTests/__Snapshots__/`.
+
+**Decisions**: B6-D1 (dark ink on every glow color), B6-D2 (dark ink on filled buttons and selected chips), B6-D3 (the pulse brightens, never darkens).
+
+**Using it** (feature modules): `import DesignSystem`, then `Text("Hi").glowFont(.body).foregroundStyle(.glowTextPrimary)`, `Button("Check in") { … }.buttonStyle(.glowPrimary)`, `.background(.glowBackground)`. Never `Color(...)`, `UIColor`, `.font(.title)` or `Font.system` in a feature: a SwiftLint rule (sent to A1 as a `cross-owner` PR) fails them. Need a color or style that isn't here? Ask under **For B6**.
+
+**Still mocked**: nothing. DesignSystem depends on nothing but SwiftUI.
+
 ### A2 · Contracts and database
 
 _2026-10-24, Wave 0._ PR [#2](https://github.com/davidaxie/glow/pull/2) on `w0/a2-contracts` (merged), then the Checkpoint 1 fixes in PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. The reference is [`docs/CONTRACTS.md`](CONTRACTS.md): one line per endpoint, event, constant and database function.

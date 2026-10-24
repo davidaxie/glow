@@ -339,3 +339,29 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 ## D56 · A2 · Known gap: deleting an account clears a ban
 
 **Choice, for D2.** `banned_at` lives on the profile, so a banned person who deletes their account (P9 and B8 delete every row) can sign up again with a new account and isn't banned. Not fixed in Wave 0. Options for later: a ban list keyed by a salted hash of the Apple ID `sub` or the email, kept after deletion. That keeps data about a deleted person, so it needs its own privacy decision.
+
+## B6 · Design system
+
+### B6-D1 · Dark ink on every glow color
+
+**Question.** The spec puts a white code word on Ember, Rose, Violet and Sky. White on those is 2.8:1 (Ember), 3.3:1 (Rose, Sky) and 4.2:1 (Violet), under WCAG AA for normal text, and Ember is under 3:1 even for large text. B6's brief requires all text to meet AA, and the glow screen also shows smaller text (meeting spot, countdown) that scales with Dynamic Type.
+
+**Choice.** `GlowHue.ink` is the app background color, #0B0B10, on all eight colors: 4.7:1 on Violet (the lowest) and up to 17:1 on Pearl. It's one property, so switching back to the spec's rule is a one-line change if A1 prefers it.
+
+**Why.** It's the only rule that passes AA on every color at every text size, and the code word has to be read across a dark room.
+
+### B6-D2 · Filled buttons and selected chips use dark ink
+
+**Question.** White text on the accent #FF4FA3 is 2.8:1, and on danger #FF5A5F 2.9:1.
+
+**Choice.** Primary and danger buttons and selected chips draw their label in #0B0B10 (`GlowPalette.onAccent`), 6.4:1. Pressing a filled control mixes in 12% white instead of darkening it, so pressed labels gain contrast. `GlowPalette.textPairings` lists every text and background combination the components draw, and a test checks each one against 4.5:1.
+
+**Why.** WCAG AA, with nothing resting on the large-text exception.
+
+### B6-D3 · The glow pulse brightens and never darkens
+
+**Question.** The spec's flash safety says the glow pulses slower than once a second and never dims below 70% brightness. A pulse that darkens the color would also lower the code word's contrast at its dimmest moment.
+
+**Choice.** The glow color stays at full strength. A soft white bloom (at most 15% white at its center) fades in and out on top every 1.25 s (0.8 times a second). The dimmest moment is 76% of the brightest in luminance on the darkest color (Violet), and tests check all eight against 70%. Under Reduce Motion the bloom doesn't scale: it only fades, on a slower 4 s cycle.
+
+**Why.** Contrast only goes up during a pulse, and the flash limits hold with margin.
