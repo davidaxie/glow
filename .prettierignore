@@ -1,0 +1,20 @@
+# Prettier covers the server, configs and docs it owns. iOS has SwiftFormat.
+node_modules/
+pnpm-lock.yaml
+.next/
+.vercel/
+coverage/
+next-env.d.ts
+
+# Generated code is checked by the codegen staleness check instead.
+server/src/contracts/
+ios/
+
+# Markdown isn't reformatted: the spec, build plan and briefs are exported verbatim
+# from the doc, AGENTS.md copies parts of them word for word, and every agent edits
+# HANDOFFS.md and DECISIONS.md.
+**/*.md
+
+# Owned by A2. Not formatted by Prettier.
+supabase/
+contracts/

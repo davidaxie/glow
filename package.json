@@ -1,0 +1,31 @@
+{
+  "name": "glow",
+  "private": true,
+  "description": "Glow: find out, privately, that you noticed each other.",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter server dev",
+    "build": "pnpm --filter server build",
+    "start": "pnpm --filter server start",
+    "typecheck": "pnpm --filter server typecheck",
+    "lint": "pnpm --filter server lint",
+    "test": "pnpm --filter server test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "env:setup": "scripts/env-setup.sh",
+    "dev:token": "scripts/dev-token.sh",
+    "smoke": "scripts/smoke.sh",
+    "codegen": "scripts/codegen.sh",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}

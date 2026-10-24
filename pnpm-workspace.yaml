@@ -1,0 +1,8 @@
+packages:
+  - server
+
+# pnpm 10 blocks dependency install scripts unless they're listed here.
+# Add a package only when it truly needs its install script.
+onlyBuiltDependencies:
+  - sharp
+  - unrs-resolver
