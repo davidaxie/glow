@@ -6,8 +6,10 @@ public enum SessionModule {
     /// Supabase sign-in against `config.supabaseURL` with the anon key.
     ///
     /// Debug builds also read these launch arguments, for Simulator automation and screenshots:
-    /// - `-GlowTestSignIn new@glow.test`: if nobody is signed in, sign in that test person through
-    ///   `POST /api/dev/test-login` (needs `ALLOW_TEST_LOGIN` on the local server).
+    /// - `-GlowDebugTestLogin alex@glow.test`: start signed in as that test person, whoever was signed
+    ///   in before, through `POST /api/dev/test-login` (needs `ALLOW_TEST_LOGIN` on the local server).
+    ///   The session's token goes to the API client like any other sign-in, so UI tests can start
+    ///   signed in. The launch screen shows until the profile has loaded.
     /// - `-GlowSignOutAtLaunch YES`: start signed out.
     /// - `-GlowResetAgeGate YES`: reopen the profile step after an under-18 answer on this phone.
     /// - `-GlowPreviewSession ready|onboarding|signedOut`: no Supabase at all, the AppCore preview
@@ -49,9 +51,17 @@ public enum SessionModule {
             if defaults.bool(forKey: "GlowSignOutAtLaunch"), backend.currentUserID() != nil {
                 await backend.signOut()
             }
-            if let email = defaults.string(forKey: "GlowTestSignIn"), backend.currentUserID() == nil {
-                await session.restore()
-                try? await session.signInForTesting(email: email)
+            if let email = defaults.string(forKey: "GlowDebugTestLogin") {
+                // Always the person asked for: a session left over from an earlier launch is dropped.
+                if backend.currentUserID() != nil {
+                    await backend.signOut()
+                }
+                do {
+                    try await session.signInForTesting(email: email)
+                } catch {
+                    // Server without ALLOW_TEST_LOGIN, or nothing listening: show the sign-in screen.
+                    await session.restore()
+                }
                 return
             }
             await session.restore()

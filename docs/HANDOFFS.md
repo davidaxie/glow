@@ -728,13 +728,13 @@ for await state in dependencies.session.states() { … } // .signedOut, .onboard
 
 **Running it on the Simulator**
 
-- `ALLOW_TEST_LOGIN=1` in `server/.env.local` (`pnpm env:setup --test-login`), then launch with `-GlowTestSignIn alex@glow.test` (onboarded) or `new@glow.test` (starts at the profile step), or use the Debug test sign-in panel on the sign-in screen. `-GlowSignOutAtLaunch YES` starts signed out; `-GlowResetAgeGate YES` reopens the profile step after an under-18 answer on that Simulator.
+- `ALLOW_TEST_LOGIN=1` in `server/.env.local` (`pnpm env:setup --test-login`), then launch with `-GlowDebugTestLogin alex@glow.test` (onboarded) or `new@glow.test` (starts at the profile step), or use the Debug test sign-in panel on the sign-in screen. `-GlowSignOutAtLaunch YES` starts signed out; `-GlowResetAgeGate YES` reopens the profile step after an under-18 answer on that Simulator.
 - The email code: on a stack started with this branch's `supabase/` (`scripts/agent-env.sh <ID> --own-db`), the code is in that stack's Mailpit. The shared `glow` stack keeps sending links until it restarts with #11.
 
 **Next wave needs**
 
 - **B2:** delete `DebugAccessTokenFallback`: the live session gives the API a real token now.
-- **C1 to C4:** sign each Simulator in with `-GlowTestSignIn alex@glow.test` and `-GlowTestSignIn blake@glow.test` (both onboarded, but seeded with no photos: add one through Settings → Edit photos or `POST /api/me/photos` so matches have something to show).
+- **C1 to C4:** sign each Simulator in with `-GlowDebugTestLogin alex@glow.test` and `-GlowDebugTestLogin blake@glow.test` (both onboarded, but seeded with no photos: add one through Settings → Edit photos or `POST /api/me/photos` so matches have something to show).
 - **D1:** UI test hooks: `onboarding.getStarted`, `signIn.email`, `signIn.apple`, `signIn.test.email`, `signIn.test.button`, `email.field`, `email.send`, `code.field`, `code.verify`, `profile.firstName`, `profile.birthday`, `profile.gender.<woman|man|nonbinary>`, `profile.showMe.<…>`, `profile.continue`, `underAge.signOut`, `photos.slot.<0-2>`, `photos.remove.<n>`, `photos.continue`, `notifications.allow`, `notifications.skip`, `settings.editProfile`, `settings.editPhotos`, `settings.signOut`, `settings.signOut.confirm`.
 - **B9:** sign-in works on `main` once #6 merges (email code and test sign-in); Apple waits on the account.
 

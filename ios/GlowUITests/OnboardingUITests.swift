@@ -71,7 +71,7 @@ final class OnboardingUITests: XCTestCase {
         let email = "b1-ui-\(UUID().uuidString.prefix(8).lowercased())@glow.test"
         app.launchArguments += [
             "-GlowSignOutAtLaunch", "YES",
-            "-GlowTestSignIn", email,
+            "-GlowDebugTestLogin", email,
             "-GlowResetAgeGate", "YES",
             "-GlowTestBirthday", "1999-04-12",
         ]

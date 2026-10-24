@@ -1060,7 +1060,7 @@ It stops the same address and the same Apple ID, and nothing else. A new address
 
 ### B1-D7 · Test sign-in mints sessions without passwords or emails
 
-**Choice.** `POST /api/dev/test-login` asks the admin API for a one-time token for the `@glow.test` address (creating the person if needed) and redeems it with `verifyOtp(token_hash, type: email)`, returning a normal session. It answers 404 unless the profile is local and `ALLOW_TEST_LOGIN` is on (checked in the handler as well as `proxy.ts` and `env.ts`). The app's call is hand-written and inside `#if DEBUG`, so a Release binary can't form it; Debug builds also accept `-GlowTestSignIn new@glow.test` at launch for automation.
+**Choice.** `POST /api/dev/test-login` asks the admin API for a one-time token for the `@glow.test` address (creating the person if needed) and redeems it with `verifyOtp(token_hash, type: email)`, returning a normal session. It answers 404 unless the profile is local and `ALLOW_TEST_LOGIN` is on (checked in the handler as well as `proxy.ts` and `env.ts`). The app's call is hand-written and inside `#if DEBUG`, so a Release binary can't form it; Debug builds also accept `-GlowDebugTestLogin new@glow.test` at launch for automation.
 
 **Why.** No test passwords to leak, nothing in Mailpit to scrape, and the same session shape as a real sign-in.
 
