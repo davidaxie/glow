@@ -480,6 +480,9 @@ isOneToOne: false
 "create_report":
 { Args: { "p_context": Database["public"]['Enums']["report_context"],"p_context_id": string,"p_details"?: string,"p_reason": Database["public"]['Enums']["report_reason"],"p_reporter_id": string }; Returns: Json
                            },
+"forget_account_traces":
+{ Args: { "p_user_id": string }; Returns: Json
+                           },
 "get_deck":
 { Args: { "p_filters"?: Json,"p_limit"?: number,"p_offset"?: number,"p_room_id": string,"p_viewer_id": string }; Returns: Json
                            },
@@ -497,6 +500,9 @@ isOneToOne: false
                            },
 "match_photo_path":
 { Args: { "p_match_id": string,"p_n": number,"p_viewer_id": string }; Returns: string
+                           },
+"purge_auth_audit":
+{ Args: { "p_older_than": string }; Returns: number
                            },
 "purge_expired":
 { Args: Record<PropertyKey, never>; Returns: Json
