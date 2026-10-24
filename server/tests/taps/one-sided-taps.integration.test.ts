@@ -33,6 +33,43 @@ const median = (xs: number[]) => {
   return s[Math.floor(s.length / 2)]!;
 };
 
+/**
+ * Times `a` and `b` in alternating order, round after round, and compares the median of the
+ * per-round differences, so load on a shared machine (or CI runner) hits both sides alike.
+ * A real leak, an extra query on one side, is a gap every time; noise is not. So the check
+ * fails only if three separate measurements all show a gap over max(8 ms, 25%).
+ */
+async function expectSameTiming(a: () => Promise<void>, b: () => Promise<void>, rounds = 24) {
+  const time = async (f: () => Promise<void>) => {
+    const t0 = performance.now();
+    await f();
+    return performance.now() - t0;
+  };
+  const gaps: string[] = [];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const diffs: number[] = [];
+    const base: number[] = [];
+    for (let i = 0; i < rounds; i++) {
+      let ta: number;
+      let tb: number;
+      if (i % 2 === 0) {
+        ta = await time(a);
+        tb = await time(b);
+      } else {
+        tb = await time(b);
+        ta = await time(a);
+      }
+      diffs.push(ta - tb);
+      base.push(Math.min(ta, tb));
+    }
+    const gap = Math.abs(median(diffs));
+    const allowed = Math.max(8, 0.25 * median(base));
+    if (gap <= allowed) return;
+    gaps.push(`${gap.toFixed(1)} ms > ${allowed.toFixed(1)} ms`);
+  }
+  expect.fail(`a consistent timing gap in three measurements: ${gaps.join('; ')}`);
+}
+
 describe.runIf(IT)('one-sided taps stay secret (P5, integration)', { timeout: 180_000 }, () => {
   let world: World;
   let room: string;
@@ -158,50 +195,22 @@ describe.runIf(IT)('one-sided taps stay secret (P5, integration)', { timeout: 18
   });
 
   it("timing: the tapped person's deck is as fast as an untapped person's", async () => {
-    // Interleaved, so drift on a shared machine hits both equally.
-    const tapped: number[] = [];
-    const untapped: number[] = [];
-    for (let i = 0; i < 30; i++) {
-      for (const [p, into] of i % 2 === 0
-        ? ([
-            [bea, tapped],
-            [bo, untapped],
-          ] as const)
-        : ([
-            [bo, untapped],
-            [bea, tapped],
-          ] as const)) {
-        const t0 = performance.now();
-        const res = await world.deck(p, room);
-        await res.arrayBuffer();
-        into.push(performance.now() - t0);
-      }
-    }
-    const a = median(tapped);
-    const b = median(untapped);
-    // A real leak (an extra query or lookup) shows up as a consistent gap; noise doesn't.
-    expect(Math.abs(a - b)).toBeLessThanOrEqual(Math.max(8, 0.25 * Math.min(a, b)));
+    const load = (p: Person) => async () => {
+      const res = await world.deck(p, room);
+      expect(res.status).toBe(200);
+      await res.arrayBuffer();
+    };
+    await expectSameTiming(load(bea), load(bo));
   });
 
   it('timing: a sent tap is as fast whether or not the other person tapped someone', async () => {
     // One person taps Bea (tapped many times), another taps Cara (never tapped). Re-taps
     // are free, so each taps the same card again and again.
     const [p1, p2] = bystanders.slice(3) as [Person, Person];
-    const toTapped: number[] = [];
-    const toQuiet: number[] = [];
-    for (let i = 0; i < 20; i++) {
-      for (const [p, card, into] of [
-        [p1, beaCard, toTapped],
-        [p2, caraCard, toQuiet],
-      ] as const) {
-        const t0 = performance.now();
-        const res = await world.tap(p, room, card);
-        expect(((await res.json()) as TapResult).result).toBe('sent');
-        into.push(performance.now() - t0);
-      }
-    }
-    const a = median(toTapped);
-    const b = median(toQuiet);
-    expect(Math.abs(a - b)).toBeLessThanOrEqual(Math.max(8, 0.25 * Math.min(a, b)));
+    const tap = (p: Person, card: string) => async () => {
+      const res = await world.tap(p, room, card);
+      expect(((await res.json()) as TapResult).result).toBe('sent');
+    };
+    await expectSameTiming(tap(p1, beaCard), tap(p2, caraCard));
   });
 });

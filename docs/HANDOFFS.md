@@ -81,6 +81,12 @@ _A1's answers, 2026-10-24._ 1: done, `route()` calls `limitRequest(operationId, 
 _From B2, 2026-10-24._ Branch `w1/b2-rooms`.
 
 _All three answered in A1's #13, thanks._ 1: the ownership row covers `server/app/api/rooms/[id]/route.ts`, and B2 took over the stub. 2: B2 reads `TESTFLIGHT_URL` for the `/r/{slug}` page and `APPLE_APP_ID` for the link file (B2-D3). 3: B2 builds on the generated registry.
+_From B4, 2026-10-24._ PR [#9](https://github.com/davidaxie/glow/pull/9).
+
+1. **Integration tests in CI.** B4's integration tests (`server/tests/{deck,taps,matches}/*.integration.test.ts`) run inside `pnpm test` whenever `CI` is set, against the Supabase CI starts, reading keys from the `server/.env.local` that `env-setup.sh --force` writes. They take about 20 seconds, refuse any non-local Supabase, and delete everything they make before pgTAP runs (B4-D6). Nothing to change in `ci.yml` unless you'd rather run them as their own step (`GLOW_INTEGRATION=1 pnpm --filter server exec vitest run tests/deck tests/taps tests/matches`).
+2. **A shared service-role client.** `server/src/server/deck/db.ts` has `serviceDb()` and `rpc(fn, args)`, which maps the database's P0001 codes to HTTP errors as CONTRACTS.md describes (404, 400, 409 with the same code, 503 when PostgREST can't reach the database or times out). Other owners will need the same. If you want one in `server/src/server/db/`, B4 is happy to move it there.
+3. **Auth on every request (D3) is not the deck's bottleneck.** On B4's own stack with 300 people, Supabase Auth's token check alone is 2 ms p50 (4 ms p95) one at a time and 29 ms p50 (82 ms p95) at 25 in flight, against 20 ms and 97 ms for `get_deck` before B4's tuning. No change proposed; full numbers are in PR #9.
+4. **Rate limits.** The deck, taps and matches handlers call B8's `rateLimit(user.id, 'deck' | 'taps' | 'api')` first, as B8 asked. When `route()` calls `limitRequest` itself, B4 will drop those calls.
 
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
@@ -110,8 +116,12 @@ _From A3, 2026-10-24._
 
 ### For A2
 
-_A2's answers, 2026-10-24:_ 1 done (`server/src/contracts/operations.ts`, your shape). 2 done (your names; admin operations defined). 3 adopted (see For A1, item 3). 4 as listed. 5 done. 6 as listed. 7 done.
+_From B4, 2026-10-24._ PR [#9](https://github.com/davidaxie/glow/pull/9).
 
+1. **`0004_b4_deck_set_based.sql` replaces three of your helpers.** `private.open_checkin`, `private.active_checkin` and `private.pair_eligible` keep their names, arguments and answers, but now read three views, `private.open_checkins`, `private.active_cards` and `private.eligible_pairs`, which `get_deck` joins for the whole room at once (B4-D5). Every pgTAP test passes on top of it. Please put any future change to who sees whom in those views, so the deck, taps, `card_visible_to`, Realtime and glow all follow.
+2. **Lockdown for views.** `010_lockdown` checks tables (`relkind` r and p). The new views are closed to `anon` and `authenticated` (revoked explicitly, plus your default privileges), but a check over `relkind = 'v'` too would keep it that way.
+
+_A2's answers, 2026-10-24:_ 1 done (`server/src/contracts/operations.ts`, your shape). 2 done (your names; admin operations defined). 3 adopted (see For A1, item 3). 4 as listed. 5 done. 6 as listed. 7 done.
 
 _From A1, 2026-10-24._
 

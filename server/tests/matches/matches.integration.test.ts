@@ -11,6 +11,7 @@ vi.mock('@/server/deck/dependencies', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/deck/dependencies')>();
   return { ...actual, notify: vi.fn(async () => ({ realtime: 'skipped', push: null })) };
 });
+const { notify } = await import('@/server/deck/dependencies');
 
 describe.runIf(IT)('GET /api/matches (integration)', { timeout: 120_000 }, () => {
   let world: World;
@@ -99,11 +100,20 @@ describe.runIf(IT)('GET /api/matches (integration)', { timeout: 120_000 }, () =>
       },
       { id: first!.id },
     );
+    vi.mocked(notify).mockClear();
     const forAna = await list(ana);
     expect(forAna.matches.map((x) => [x.id, x.status, x.firstName])).toEqual([
       [second.matchId, 'choosing', 'Dev'],
       [first!.id, 'chatting', 'Ben'],
     ]);
+    // The timeout list_matches applied goes to both people as match.choice (A2's settled).
+    expect(notify).toHaveBeenCalledTimes(1);
+    const [people, event] = vi.mocked(notify).mock.calls[0]!;
+    expect([...(people as string[])].sort()).toEqual([ana.id, ben.id].sort());
+    expect(event).toEqual({ type: 'match.choice', matchId: first!.id });
+    // Applied once: the next list sends nothing.
+    await list(ben);
+    expect(notify).toHaveBeenCalledTimes(1);
   });
 
   it('an ended match (unmatch or block) disappears for both', async () => {

@@ -23,6 +23,7 @@
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpus, loadavg } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 
@@ -141,15 +142,13 @@ async function room(): Promise<string> {
 }
 
 async function checkIn(p: Person, roomId: string, i: number) {
-  const lc = await admin
-    .from('location_checks')
-    .insert({
-      user_id: p.id,
-      room_id: roomId,
-      purpose: 'join',
-      result: 'pass',
-      accuracy_bucket: 'under_20m',
-    });
+  const lc = await admin.from('location_checks').insert({
+    user_id: p.id,
+    room_id: roomId,
+    purpose: 'join',
+    result: 'pass',
+    accuracy_bucket: 'under_20m',
+  });
   if (lc.error) throw new Error(`location check: ${lc.error.message}`);
   const card = randomUUID();
   const extras = (['glasses', 'hat', 'beard', 'headphones', 'backpack'] as const).filter(
@@ -273,6 +272,8 @@ async function main() {
     people: PEOPLE,
     pages: PAGES,
     startedAt: new Date().toISOString(),
+    // The machine is shared: load averages (1, 5, 15 min) and cores, at the start and end.
+    machine: { cores: cpus().length, loadAtStart: loadavg().map((x) => +x.toFixed(1)) },
   };
   const health = await fetch(`${API}/`).catch(() => null);
   if (!health) throw new Error(`No server at ${API}. Start it first (see the top of this file).`);
@@ -360,6 +361,7 @@ async function main() {
     latency: stats(results),
   };
   report.finishedAt = new Date().toISOString();
+  report.loadAtEnd = loadavg().map((x) => +x.toFixed(1));
 
   console.log(JSON.stringify(report, null, 2));
   if (OUT) writeFileSync(OUT, JSON.stringify(report, null, 2));

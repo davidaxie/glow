@@ -144,6 +144,20 @@ describe.runIf(IT)('deck rules (integration)', { timeout: 120_000 }, () => {
       }
     });
 
+    it('the deck and card_visible_to (the image route, taps, blocks) agree on every card', async () => {
+      // get_deck asks about the whole room at once; card_visible_to and record_tap ask about
+      // one card. Both read the same rules (migration 0004), and must give the same answer.
+      const inDeck = new Set(await world.wholeDeck(v, room));
+      for (const card of [...Object.values(visible), ...Object.values(hidden)]) {
+        const { data, error } = await world.admin.rpc('card_visible_to', {
+          p_viewer_id: v.id,
+          p_checkin_id: card,
+        });
+        expect(error).toBeNull();
+        expect(data, card).toBe(inDeck.has(card));
+      }
+    });
+
     it('a card never carries a user ID, name, card path or anything outside the contract (P1)', async () => {
       const res = await world.deck(v, room);
       const text = await res.clone().text();

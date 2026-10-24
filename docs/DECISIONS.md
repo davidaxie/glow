@@ -506,3 +506,53 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 ### B2-D5 · Join checks happen in an order that leaks nothing
 
 **Choice.** `POST /api/rooms/{id}/join` checks sign-in, then onboarding (409), then the room and the code or token together (a wrong token for a real room is the same 404 as no room), then whether the room is open (409 `room_not_live`), and only then the location (422). A room code or QR token must open the room in the path, so a code for one room can't be used to join another. Too-rough fixes (`location_inaccurate`) and fixes outside (`not_in_room`) are both stored as `fail` with their accuracy bucket; nothing about the fix itself is stored or logged. A live room past its `ends_at` is reported as `ended` by resolve and room state, before any admin or purge job changes it.
+
+## B4 · Deck and matching engine
+
+### B4-D1 · A repeated filter value is a 400
+
+**Question.** `DeckFilters` lists are `uniqueItems` in the contract, but the generated zod schemas don't check it.
+
+**Choice.** `POST /api/rooms/{id}/deck` answers 400 `bad_request` when a filter list repeats a value, with the field path (`body.filters.topColor`, code `not_unique`) and never the value. An empty list means any, the same as leaving the field out.
+
+**Why.** A request that doesn't match the contract is a 400 everywhere else. Quietly de-duplicating would hide client bugs.
+
+### B4-D2 · Deck offsets past the daily cap are clamped
+
+**Choice.** The deck route passes `min(offset, CARD_VIEWS_PER_ROOM_PER_DAY)` to `get_deck`. A day's deck never holds more cards than the view cap, so every larger offset is the same empty last page.
+
+**Why.** The contract allows any integer, and an offset past Postgres's integer range would otherwise be a 500.
+
+### B4-D3 · match.created goes out after the response, and never fails a tap
+
+**Choice.** `record_tap` commits the match first. Then the tap route reads the pair from `matches` on the server and calls `notify([userA, userB], { type: 'match.created', matchId })` inside Next's `after()`, so a slow push never slows the reply. A failed notification is logged by event type only; the tap still answers `mutual`.
+
+**Why.** The match exists either way, and the app finds it through `GET /api/matches`. User IDs only ever go to `notify()`, never to a reply (P1).
+
+### B4-D4 · Two simultaneous taps: one says sent, the other says mutual
+
+**Question.** When two people tap each other at the same moment, the pair lock in `record_tap` lets one tap land first. What does each person hear?
+
+**Choice.** The first tap to land answers `sent`; the second finds it and answers `mutual` with the match ID. Both people get `match.created`. The app treats `match.created` (or a `mutual` reply) as the moment, and never assumes `sent` is final.
+
+**Why.** It's the only answer that's true when it's given, and `sent` already promises nothing about the other person (P5). 50 pairs tapping at once make exactly 50 matches, each with one `sent` and one `mutual`.
+
+### B4-D5 · The deck rules are written once, as views (migration 0004)
+
+**Question.** With 300 people checked in, `get_deck` took about 25 ms of database time, mostly calling `private.active_checkin` and `private.pair_eligible` once per candidate. Rewriting the deck query set-based would copy the rules into a second place.
+
+**Choice.** `0004_b4_deck_set_based.sql` writes the rules once, as `private.open_checkins`, `private.active_cards` and `private.eligible_pairs`, and replaces 0001's helpers (`open_checkin`, `active_checkin`, `pair_eligible`) with one-line reads of those views, same names and answers. `get_deck` joins the same views for the whole room. Postgres inlines views, so a single card is still a few index lookups and the whole deck is one set-based query (about 2 ms). The views are `security_invoker` and closed to clients. A rule change goes in the view, and both paths follow. B4's integration test checks that the deck and `card_visible_to` agree on every card.
+
+**Why.** One definition of who sees whom, and the speed of a set-based query.
+
+### B4-D6 · B4's integration tests run in CI
+
+**Choice.** The deck, taps and matches integration tests call the real route handlers with real access tokens against a local Supabase. They run when `GLOW_INTEGRATION=1` or `CI` is set (GitHub Actions sets `CI`, after `supabase start` and `env:setup`), and refuse any non-local Supabase. Everything they make is named `b4it-…` and deleted afterwards, so pgTAP sees the database as it was. The 300-person load test is a separate script (`server/tests/deck/load.ts`) run by hand, not in CI.
+
+**Why.** The Done-when boxes (every deck rule, 50 simultaneous pairs, P5) stay proven on every PR, without slowing local `pnpm test` for other agents.
+
+### B4-D7 · Timing checks for P5 compare medians, interleaved
+
+**Choice.** The P5 tests time the tapped person's deck against an untapped person's in the same room, and a `sent` tap to someone tapped many times against one to someone never tapped, interleaving the two so machine load hits both. They fail on a median gap over max(8 ms, 25%).
+
+**Why.** A real leak (an extra query on one side) is a consistent gap; shared-machine noise isn't. The code paths are also identical by construction: `tappedByMe` reads only the viewer's own taps, and nothing is sent or counted for a `sent` tap.
