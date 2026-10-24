@@ -821,7 +821,7 @@ _2026-10-24, Wave 2._ PR [#25](https://github.com/davidaxie/glow/pull/25) on `w2
 
 **Still mocked**
 
-- Card photos load through FeatureDeck's `APICardImageLoader`, a stand-in with B3's rules (relative card image links only, through `GlowAPI`, nothing cached). When B3's PR #7 merges, `DeckCardImage` switches to `PrivateImageView(.card(signedURL:))` and the stand-in goes.
+- Nothing in FeatureDeck itself: card photos come from B3's `PrivateImageView`, the deck from B4's routes, the room from B2's. Fixture rooms (`FixtureDeckService`, `FixtureImagingService`) are only for previews, tests and Debug launches.
 - The preview session has no access token, so in the Simulator the live deck can't reach the server until B1's session (PR #6) lands. `-GlowDebugDeckFixture` runs every screen on a made-up room meanwhile.
 
 **Next wave needs**

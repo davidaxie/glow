@@ -216,9 +216,8 @@ struct DeckSnapshotTests {
             .environment(\.dynamicTypeSize, size)
             .environment(\.colorScheme, .dark)
             .environment(\.deckHidesWhenInactive, false)
-            .environment(\.deckImageLoader, FixtureCardImageLoader())
             .environment(\.deckClock) { testNow }
-            .environment(\.dependencies, .preview())
+            .environment(\.dependencies, .preview(imaging: FixtureImagingService()))
         let traits = UITraitCollection { traits in
             traits.displayScale = 1
             traits.userInterfaceStyle = .dark

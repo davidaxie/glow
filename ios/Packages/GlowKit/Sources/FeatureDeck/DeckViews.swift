@@ -57,7 +57,7 @@ public struct DeckView: View {
                 Color.glowBackground.ignoresSafeArea()
             }
         }
-        .modifier(DebugScreenCapture())
+        .modifier(DebugLaunch())
         .onAppear {
             guard model == nil else { return }
             model = DeckModel(
@@ -77,17 +77,25 @@ public struct DeckView: View {
 }
 
 /// Debug builds only: `-GlowDebugFakeScreenCapture YES` makes the deck behave as if the screen is
-/// being recorded, for the P12 UI test.
-private struct DebugScreenCapture: ViewModifier {
+/// being recorded (the P12 UI test), and `-GlowDebugDeckFixture` draws the made-up room's photos
+/// on the phone instead of fetching them.
+private struct DebugLaunch: ViewModifier {
+    @Environment(\.dependencies) private var dependencies
+
     func body(content: Content) -> some View {
         #if DEBUG
-            if DeckDebugLaunch.shared.fakesScreenCapture {
-                content.environment(\.isSceneCaptured, true)
-            } else {
-                content
+            var fixed = dependencies
+            if DeckDebugLaunch.shared.service != nil {
+                fixed.imaging = FixtureImagingService()
             }
+            let fakesCapture = DeckDebugLaunch.shared.fakesScreenCapture
+            return content
+                .environment(\.dependencies, fixed)
+                .transformEnvironment(\.isSceneCaptured) { captured in
+                    captured = captured || fakesCapture
+                }
         #else
-            content
+            return content
         #endif
     }
 }
@@ -95,13 +103,13 @@ private struct DebugScreenCapture: ViewModifier {
 #Preview("Room home") {
     NavigationStack { RoomHomeView(roomID: RoomID(rawValue: "de000000-0000-4000-8000-000000000001")) }
         .environment(\.deckService, FixtureDeckService())
-        .environment(\.deckImageLoader, FixtureCardImageLoader())
+        .environment(\.dependencies, .preview(imaging: FixtureImagingService()))
         .preferredColorScheme(.dark)
 }
 
 #Preview("Deck") {
     NavigationStack { DeckView(roomID: RoomID(rawValue: "de000000-0000-4000-8000-000000000001")) }
         .environment(\.deckService, FixtureDeckService(count: 200))
-        .environment(\.deckImageLoader, FixtureCardImageLoader())
+        .environment(\.dependencies, .preview(imaging: FixtureImagingService()))
         .preferredColorScheme(.dark)
 }

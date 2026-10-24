@@ -11,7 +11,7 @@ struct DeckTile: View {
     let card: DeckCard
     /// My viewer code, for the on-device watermark. Nil until my profile is in.
     let viewerCode: String?
-    let onUnavailable: @MainActor () -> Void
+    let onUnavailable: @MainActor @Sendable () -> Void
 
     var body: some View {
         GlowCardTile(

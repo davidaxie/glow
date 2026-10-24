@@ -1087,7 +1087,7 @@ It stops the same address and the same Apple ID, and nothing else. A new address
 
 **Question.** P12 says the deck blurs while the screen is recorded or mirrored. A blur still records the shapes and colors of every outfit.
 
-**Choice.** While `isSceneCaptured` is true, the deck screen (grid, enlarged card, tags, everything) is drawn at zero opacity, hidden from VoiceOver and taps, and covered by a soft wash with "Looks are hidden". Each photo also stops drawing its image on its own, so nothing leaks if the cover were ever missing. Any open card closes when a capture starts. When B6's `.glowHiddenWhenCaptured()` (PR #24) lands, the photos use it too.
+**Choice.** While `isSceneCaptured` is true, the deck screen (grid, enlarged card, tags, everything) is drawn at zero opacity, hidden from VoiceOver and taps, and covered by a soft wash with "Looks are hidden". Each photo is also hidden on its own by B6's `.glowHiddenWhenCaptured()` (inside `GlowCardTile`, and on the enlarged card), so nothing leaks if the cover were ever missing. Any open card closes when a capture starts.
 
 **Why.** Nothing of a hidden deck can be recovered from a recording, which is what the blur is for.
 

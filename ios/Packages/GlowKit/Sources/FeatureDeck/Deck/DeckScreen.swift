@@ -98,7 +98,7 @@ struct DeckScreen: View {
         case .loading:
             ProgressView()
                 .tint(.glowTextSecondary)
-                .accessibilityLabel(Text(DeckCopy.loadingLook))
+                .accessibilityLabel(Text(DeckCopy.loadingLooks))
         case .loaded:
             grid
         case let .empty(reason):

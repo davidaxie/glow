@@ -98,8 +98,8 @@ enum DeckCopy {
     static let cardGone = String(localized: "That look isn't in the deck anymore.")
     static let tapFailed = String(localized: "Couldn't send that. Try again in a moment.")
     static let slowDown = String(localized: "Slow down a little and try again.")
-    static let imageFailed = String(localized: "Couldn't load this look")
-    static let loadingLook = String(localized: "Loading look")
+    static let loadingLooks = String(localized: "Loading looks")
+    static let todaysLook = String(localized: "Today's look")
 
     // MARK: Empty states
 

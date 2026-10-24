@@ -2,8 +2,9 @@ import AppCore
 import Foundation
 import SwiftUI
 
-// Owner: C1. Where the deck gets its server calls and card photos. The app uses the live API from
-// `Dependencies`; tests and previews inject fixtures, and Debug builds can launch with a made-up room:
+// Owner: C1. Where the deck gets its server calls. The app uses the live API from `Dependencies`
+// (card photos come from `dependencies.imaging`, B3); tests and previews inject fixtures, and Debug
+// builds can launch with a made-up room, whose photos FixtureImagingService draws:
 //
 //     -GlowDebugDeckFixture 200            a room of 200 made-up people (C1's find test)
 //     -GlowDebugDeckFixture quiet          or normal, checkinEnded, paused, viewLimitReached
@@ -12,8 +13,6 @@ import SwiftUI
 extension EnvironmentValues {
     /// Overrides the deck's server calls. Nil means the live API.
     @Entry var deckService: (any DeckService)?
-    /// Overrides how card photos load. Nil means the live API.
-    @Entry var deckImageLoader: (any CardImageLoading)?
     /// Hide the deck whenever the app isn't active, so the app switcher's snapshot never holds
     /// anyone's look (C1-D4). Snapshot tests turn it off: they render outside any scene.
     @Entry var deckHidesWhenInactive = true
@@ -34,18 +33,6 @@ extension Dependencies {
             }
         #endif
         return APIDeckService(api: api)
-    }
-
-    func deckImageLoader(override: (any CardImageLoading)?) -> any CardImageLoading {
-        if let override {
-            return override
-        }
-        #if DEBUG
-            if DeckDebugLaunch.shared.service != nil {
-                return FixtureCardImageLoader()
-            }
-        #endif
-        return APICardImageLoader(api: api)
     }
 }
 

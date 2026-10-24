@@ -192,7 +192,7 @@ actor FixtureDeckService: DeckService {
     }
 
     /// A link shaped like the server's, plus the top color, so the fixture image loader can draw the
-    /// look. Only `FixtureCardImageLoader` ever reads these.
+    /// look. Only `FixtureImagingService` ever reads these.
     static func imageURL(for person: Person, expires: Date) -> String {
         let exp = Int(expires.timeIntervalSince1970)
         return "/api/cards/\(person.card.rawValue)/image?exp=\(exp)&sig=fixture&top=\(person.tags.topColor.rawValue)"

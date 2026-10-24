@@ -117,14 +117,4 @@ struct APIDeckServiceTests {
         await APIDeckService(api: api(transport)).reportCapture(.recording, in: testRoom)
         #expect(transport.sent.count == 1)
     }
-
-    @Test func onlyCardImageLinksAreFetched() {
-        let id = FixtureDeckService.fixtureUUID(1)
-        #expect(APICardImageLoader.isCardImageLink("/api/cards/\(id)/image?exp=1&sig=abc"))
-        #expect(!APICardImageLoader.isCardImageLink("https://evil.example/api/cards/\(id)/image?exp=1&sig=abc"))
-        #expect(!APICardImageLoader.isCardImageLink("//evil.example/api/cards/\(id)/image?exp=1&sig=abc"))
-        #expect(!APICardImageLoader.isCardImageLink("/api/me/photos/\(id)"))
-        #expect(!APICardImageLoader.isCardImageLink("/api/cards/\(id.uppercased())/image?exp=1&sig=abc"))
-        #expect(!APICardImageLoader.isCardImageLink("/api/cards/\(id)/image?exp=1&sig=abc&next=x"))
-    }
 }
