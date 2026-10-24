@@ -785,3 +785,56 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Question.** Actions stopped starting jobs (billing), and nine agents still need a way to prove a PR before it merges.
 
 **Choice.** `scripts/ci-local.sh <ID>` runs both CI jobs in the agent's own slot (its port, Simulator and own Supabase stack, reset to the branch's migrations) and prints one summary with the head SHA and whether it's rebased on main. A PR is mergeable when its author posts a passing summary for the current head SHA, rebased on main. `--server-only` skips the iOS job only when nothing under `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh` changed.
+## C3 · Glow mode
+
+### C3-D1 · How the 300 code words were picked
+
+**Question.** The brief asks for 300 short, friendly words, nothing romantic or rude and not easy to mishear. What counts?
+
+**Choice.** `server/src/server/glow/words.ts` holds 300 hand-picked concrete words (animals, foods, things, places, weather), 3 to 9 lowercase letters. None is romantic or suggestive (no flowers, sweets or pet names, so no "tulip", "honey" or "peach"), rude or slangy ("cougar", "beaver"), an insult or a comment on a body ("hippo", "walrus"), or a common first name ("robin", "juniper"), so a word is never mistaken for the other person's name. None contains a glow color's name (no "sundial" next to the Sun glow) or is an everyday color. No two words rhyme (identical after their first consonants, like "rocket" and "pocket"), differ by one letter ("beagle" and "eagle"), or contain each other, and near-homophones are out ("prism" and prison, "pigeon" and pidgin, "palette"). `server/tests/glow/words.test.ts` checks every one of these rules, so a later edit can't quietly break them.
+
+**Why.** People say the word across a loud room and read it off a screen held up in the air. A word that sounds like a name, a compliment or another word on the list defeats the point, and some read as a come-on in a dating app.
+
+### C3-D2 · An ended glow is visible for GLOW_ENDED_RETENTION, then it's gone
+
+**Question.** `GET /api/matches/{id}/glow` reads the glow through `get_match`, which returns the latest session whatever its age. How long should an ended glow stay readable?
+
+**Choice.** An active glow is always returned. An ended one (met, canceled, expired) is returned only until `GLOW_ENDED_RETENTION` (10 minutes) after it ended, then the route answers 404 as if it were never there. `glow/met` and `glow/cancel` follow the same rule. Reading the glow applies its timeout first (through `get_match`), and the route sends `glow.ended` for anything that settled.
+
+**Why.** Both apps need a few minutes to show how it ended, and nothing more. It also matches purge, which deletes the session after the same time, so the answer never depends on when the cron last ran.
+
+### C3-D3 · glow.ended goes out once, from the call that ended the glow
+
+**Question.** `glow_met` and `cancel_glow` return the same glow whether this call ended it or it had already ended. Which call sends `glow.ended`?
+
+**Choice.** Before calling the function, the route reads whether the match has an active glow (`activeGlowId`). It sends `glow.ended` to both only if there was one and the answer is `met` (for We met) or `canceled` (for End glow or Switch to chat). Timeouts the function settled are sent from `settled`. Repeating a tap, or the second person canceling a moment later, sends nothing new.
+
+**Why.** It saves the other phone a refetch and a flicker. Two calls racing at the same moment can still send it twice, which is harmless.
+
+### C3-D4 · The Live Activity shows only what's on the glow screen, and leaves a minute after the glow ends
+
+**Question.** The lock screen is visible to anyone near the phone. What may the glow's Live Activity show, and for how long?
+
+**Choice.** Only the glow color, the code word, the meeting spot and the countdown, the same things the glow screen already holds up for the room. Never a name, a photo, a user ID or a match ID (P1, P6). The attributes carry the glow session's own random ID so the app can find the activity again; it's never shown. The stale date is the glow's end, so the lock screen and Dynamic Island read "Time's up" exactly on time even if the app is asleep. When the glow ends, the app ends the activity showing how it ended and lets the system remove it 60 seconds later (`dismissalPolicy: .after`), instead of the default of up to 4 hours. Starting a glow ends any other glow's activity. There are no push updates to the activity yet: ActivityKit push tokens need APNs (B5) and an Apple account.
+
+**Why.** The code word shouldn't sit on a lock screen long after it means anything. A minute is long enough to read "You found each other".
+
+### C3-D5 · "They tapped We met" shows by refetching every 5 seconds
+
+**Question.** When one person taps We met, the other's screen should say so ("They tapped We met. Tap it when you've found each other."), but no event covers one person's tap. Add an event?
+
+**Choice.** No new event. While the glow screen is open and the glow is on, the app refetches the glow every 5 seconds, and at once on `glow.ended` or `glow.started`. The countdown and the end are checked every second on the phone itself.
+
+**Why.** `theyMet` is already in the contract and only ever goes to the other person in the match, during the glow. A new event would be a contract change for a hint that a 5-second refetch covers, at most 180 small requests per phone per glow.
+
+### C3-D6 · Hide glow keeps it going, at the person's own brightness
+
+**Choice.** A small "Hide glow" button closes the glow screen to the Matches tab without ending anything. Brightness and keep-awake go back to the person's own settings at once, and the Live Activity keeps counting. The glowing match in the Matches list opens it again (C2's routes). Ending is only ever We met, End glow (with a confirmation) or Switch to chat.
+
+**Why.** Someone may need their phone for something else for a minute. Ending the glow by accident would cost both people their chance, and a forced full-brightness screen that can't be left isn't kind.
+
+### C3-D7 · The color's name is written on the glow, and analytics never carry it
+
+**Choice.** Under the code word the screen says "Aqua glow" (the color's name), so someone who can't tell the colors apart still knows what to look for. Analytics events are `glow_shown`, `glow_we_met_tapped`, `glow_end_tapped` (`as`: `cancel` or `switch_to_chat`) and `glow_ended` (`outcome`: `met`, `canceled` or `expired`), with no code word, color or meeting spot.
+
+**Why.** Color alone excludes some people. And a word plus a color plus a time is enough to pick a pair out of a room's metrics, so none of them go to PostHog.

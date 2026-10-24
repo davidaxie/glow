@@ -1,4 +1,5 @@
-// Owner: C3. Replace `notImplemented` with a handler that lives in `server/src/server/glow`.
-import { notImplemented, route } from '@/server/http';
+// Owner: C3. The handler lives in server/src/server/glow.
+import { route } from '@/server/http';
+import { markGlowMetFor } from '@/server/glow';
 
-export const POST = route('markGlowMet', notImplemented);
+export const POST = route('markGlowMet', markGlowMetFor);
