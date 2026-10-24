@@ -787,6 +787,9 @@ _2026-10-24, Wave 1._ PR [#16](https://github.com/davidaxie/glow/pull/16) on `w1
 - **Whoever owns {DOMAIN}:** change `WEB_DOMAIN` (`server/src/server/admin/links.ts`) together with `GLOW_WEB_DOMAIN` in the app, or `WEB_DOMAIN` in env.ts once A1 adds it.
 
 **Decisions**: B7-D1 to B7-D11.
+### C1 · Deck experience
+
+_2026-10-24, Wave 2, in progress._ Branch `w2/c1-deck`. FeatureDeck: room home, What did you notice, the deck, tapping, empty states, capture privacy (P12) and live updates (P8). Full notes land here when the PR is ready.
 
 ### B6 · Design system
 

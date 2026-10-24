@@ -1073,3 +1073,6 @@ It stops the same address and the same Apple ID, and nothing else. A new address
 **Choice.** `docs/PITCH.md` uses the 75-second cut (also in `docs/DEMO.md`): the tension line, one tap, the second tap, both pick Find, then the glow around 0:50 to 1:10 and the code word as the excuse. The seeded test people are named out loud at the first deck. Every claim the repo can't back (competitors, Lovegety, business model, why now, team description, current test counts) is marked `[verify]`, and "faces never leave your phone" is replaced by the accurate wording: outfit-card faces are blurred before upload, and profile photos show only after a mutual match.
 
 **Why.** An audience that has watched the one-sided beat feels the glow more, and a pitch that overclaims loses a judge's trust faster than a modest one.
+## C1 · Deck experience
+
+Decisions C1 made while building FeatureDeck. Filled in as the PR progresses.
