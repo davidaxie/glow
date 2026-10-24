@@ -57,6 +57,7 @@ struct RoomHomeScreen: View {
         .task(id: model.roomID) {
             await followRoom()
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.FeatureDeck.roomHome")
     }
 

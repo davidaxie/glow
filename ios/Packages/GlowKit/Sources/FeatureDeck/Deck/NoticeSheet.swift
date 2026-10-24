@@ -83,6 +83,7 @@ struct NoticeSheet: View {
             .background(.glowSurface)
         }
         .background(.glowSurface)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deck.notice")
     }
 }

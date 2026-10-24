@@ -43,6 +43,7 @@ struct DeckScreen: View {
                 .presentationCornerRadius(GlowRadius.card)
                 .presentationBackground(.glowSurface)
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screen.FeatureDeck.deck")
             .task(id: model.roomID) {
                 await listenForDeckChanges()
@@ -149,6 +150,7 @@ struct DeckScreen: View {
         }
         .refreshable { await model.refresh() }
         .safeAreaInset(edge: .bottom) { noticeBar }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deck.grid")
     }
 

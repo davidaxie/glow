@@ -99,6 +99,7 @@ struct CardDetailView: View {
         }
         .glowAnimation(value: model.confirming)
         .accessibilityAddTraits(.isModal)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deck.detail")
     }
 
@@ -177,6 +178,7 @@ struct TapConfirmPanel: View {
             .padding(.bottom, GlowSpacing.md)
             .background(.glowSurface, in: UnevenRoundedRectangle(topLeadingRadius: GlowRadius.card, topTrailingRadius: GlowRadius.card))
             .accessibilityAddTraits(.isModal)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("deck.confirm")
         }
     }

@@ -69,6 +69,7 @@ struct DeckEmptyView: View {
                 )
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deck.empty.\(reason.rawValue)")
     }
 }
