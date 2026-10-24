@@ -33,6 +33,9 @@ create function tests.check_in(p_user uuid, p_room uuid, p_tags jsonb default '{
 returns uuid language plpgsql as $$
 declare v_id uuid := gen_random_uuid();
 begin
+  -- The join route's passed location check, which create_checkin requires.
+  insert into public.location_checks (user_id, room_id, purpose, result, accuracy_bucket)
+  values (p_user, p_room, 'join', 'pass', 'under_20m');
   perform public.create_checkin(p_user, p_room, v_id, p_room::text || '/' || v_id::text || '.jpg', p_tags);
   return v_id;
 end $$;
@@ -89,8 +92,11 @@ select throws_ok(format('select tests.check_in(%L, %L, %L)', tests.id('ann'), te
 select throws_ok(format($$ select public.create_checkin(%L, %L, gen_random_uuid(), 'somewhere/else.jpg', '{"topColor": "blue"}') $$,
                         tests.id('ann'), tests.id('r')),
                  'P0001', 'invalid_input', 'the card path must be room-cards/{roomId}/{cardId}.jpg');
-select throws_ok(format('select tests.check_in(%L, %L)', tests.id('ann'), gen_random_uuid()), 'P0001', 'not_found',
-                 'an unknown room is not found');
+select throws_ok(format($$ select public.create_checkin(%L, 'f0f0f0f0-0000-4000-8000-000000000001',
+                                 'c4c4c4c4-0000-4000-8000-000000000001',
+                                 'f0f0f0f0-0000-4000-8000-000000000001/c4c4c4c4-0000-4000-8000-000000000001.jpg',
+                                 '{"topColor": "blue"}') $$, tests.id('ann')),
+                 'P0001', 'not_found', 'an unknown room is not found');
 update public.rooms set status = 'paused' where id = tests.id('s');
 select throws_ok(format('select tests.check_in(%L, %L)', tests.id('ann'), tests.id('s')), 'P0001', 'room_not_live',
                  'a paused room takes no check-ins');
@@ -172,8 +178,9 @@ select is((select jsonb_array_length(public.purge_expired() -> 'expiringCheckins
 select is((select count(*)::integer from public.taps where room_id = tests.id('p')), 1, 'expired taps are deleted, live ones kept');
 select is((select count(*)::integer from public.card_views where room_id = tests.id('p')), 1,
           'card views older than CARD_VIEW_RETENTION (48 hours) are deleted');
-select is((select count(*)::integer from public.location_checks where room_id = tests.id('p')), 1,
-          'location checks older than LOCATION_CHECK_RETENTION are deleted');
+select is((select (count(*) filter (where created_at <= now() - interval '24 hours'))::text || ' ' || (count(*) > 0)::text
+             from public.location_checks where room_id = tests.id('p')), '0 true',
+          'location checks older than LOCATION_CHECK_RETENTION are deleted, recent ones kept');
 select is((select result -> 'endedGlows' -> 0 ->> 'matchId' from purge1), 'aa000000-0000-4000-8000-000000000002',
           'a glow whose time ran out is ended and returned, for glow.ended');
 select is((select status::text from public.matches where id = 'aa000000-0000-4000-8000-000000000002'), 'chatting',

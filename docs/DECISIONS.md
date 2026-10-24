@@ -280,3 +280,62 @@ On Vercel the server also refuses a localhost or non-https `SUPABASE_URL`, the l
 **Choice.** `scripts/sim.sh scan` relaunches the Debug app with `-GlowDebugOpenURL <link>`, which goes through the same `Router.open` as any link (and waits for onboarding like one). It's compiled out of Release. `scripts/sim.sh open <url>` still takes the system path, prompt and all.
 
 **Why.** A real QR scan hands a universal link straight to the app, with no prompt, so this is closer to the real thing than the prompt is.
+
+## D46 · A2 · service_role can use what later migrations create
+
+**Question.** With `auto_expose_new_tables = false`, tables, sequences and functions from later migrations got no grants at all. Wave 1 routes would hit "permission denied" while pgTAP, running as `postgres`, still passed.
+
+**Choice.** `0002` sets default privileges for the migration role: all on tables and sequences, and execute on functions, in `public` for `service_role`; select on tables and execute on functions in `private`. `anon` and `authenticated` still get nothing. `090_checkpoint1.test.sql` creates a table, sequence and functions and checks both sides. The rule is in `docs/CONTRACTS.md` ("Grants for new tables and functions").
+
+## D47 · A2 · A push when your Find needs a fresh location check
+
+**Question.** If A chose Find and pocketed the phone, and B chose Find more than `GEO_FRESHNESS_FOR_GLOW` later, A's suspended app never heard the silent `match.choice`, and the match timed out into chat.
+
+**Choice.** A new event `match.recheck`, `{ type, matchId }`, goes to whoever's check is stale (`set_choice`'s `recheckUserIds`, `start_glow`'s `staleUserIds`). Its push says "Open Glow to find each other." (fixed text, no name, P6), with category `MATCH`, so a tap opens the match. It's time-sensitive, because the choice window is short. The app then sends Find again with a fresh fix.
+
+## D48 · A2 · start_glow answers instead of raising
+
+**Choice.** `start_glow` returns `{ result: started | chat | waiting, reason, ... }`, and changes `matches.status` itself:
+- **Chat.** Both chose Find but someone left the room, or no code word is free: the match moves to `chatting` and the result is `chat`.
+- **Waiting.** A location check went stale between `set_choice` and `start_glow` (a millisecond race at the 2-minute edge): nothing changes, and the stale people get `match.recheck`. This doesn't open the chat, because the check can still be redone in time.
+- **Not both Find.** The call was early (a server bug): nothing changes.
+
+It only raises `not_found` or `invalid_input`.
+
+## D49 · A2 · A card needs a passed join check
+
+**Choice.** `create_checkin` requires a `location_checks` row with purpose `join` and result `pass` or `demo_skip`, for that person and room, newer than `JOIN_TICKET_TTL`. The join route already writes one (D17). A QR code, poster or room code alone can never create a card, even if a route forgets to check the ticket. An admin's demo-mode skip counts, as the spec intends for stage phones.
+
+## D50 · A2 · Finishing onboarding, and reviewing held photos
+
+**Choice.** `POST /api/me/onboarding/complete` (B1) calls `complete_onboarding`. It finishes once the profile is filled in and at least `PROFILE_PHOTOS_MIN` photos are **approved**. Push is optional, so declining notifications never blocks anyone. Photos held for review (possibly under 18) don't count, so a possible minor stays in onboarding until a person looks (P10).
+
+Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/photos/{id}/image` and `POST /api/admin/photos/{id}/review` (approve, reject, or ban), each 404 for non-admins. Admins see the owner's viewer code, never a user ID.
+
+## D51 · A2 · Lazy timeouts are reported, and the caller notifies
+
+**Choice.** `get_match`, `list_matches`, `set_choice`, `start_glow` and `glow_met` return `settled: [{ matchId, kind: choice_timeout | glow_expired, userIds }]` for every timeout they apply. Purge skips anything already settled, so the route that called the function sends `match.choice` (choice_timeout) or `glow.ended` (glow_expired) to both people. `start_glow` can also expire other pairs' glows in the same room, and reports those too. The routes are listed in `docs/CONTRACTS.md` ("Settled timeouts").
+
+## D52 · A2 · No tap counts in metrics at all
+
+**Question.** `RoomMetrics.taps` with any `since` let an admin standing in the room time someone's one-sided tap. Options: drop it, or bucket `since` to 15 minutes and hide counts under 5.
+
+**Choice.** Drop it, the more private option. `RoomMetrics` has no `taps`, `record_tap` writes no activity row, and a check constraint (`room_activity_no_taps`) stops anyone writing one. `0002` deleted the existing tap rows. Matches, which are mutual, still count.
+
+## D53 · A2 · A re-tap after an unmatch is a new tap
+
+**Question.** The review found the re-tap reply's `tapsLeftToday` off by one, because it reused today's tap row, and a re-tap at the cap refused.
+
+**Choice.** Today's taps are now counted in `room_days.taps_used`, apart from the per-pair tap row, so every reply and `get_room_state` is exact. I kept "a re-tap after an unmatch uses a tap", so at the cap it's refused. This differs from reading the review as "re-tapping should be free": the old tap was used up by the match, and tapping again is a new choice to signal someone. Without the separate count, the old code effectively let someone tap one extra time a day. Tapping someone you already tapped (no match in between) is still free.
+
+## D54 · A2 · The deck says "check-in ended" after purge, the same day
+
+**Choice.** `room_days` also records that a person checked in to a room on a given room day (written by `create_checkin` and `get_deck`). `get_deck` answers 404 only when the room doesn't exist, or the viewer has no check-in there and none today. So after purge deletes an expired check-in, the app still gets `emptyReason: checkin_ended` and can offer to check in again. `room_days` is purged after `CARD_VIEW_RETENTION`.
+
+## D55 · A2 · Limits in openapi.yaml are tied to constants.json
+
+**Choice.** Every limit in `openapi.yaml` that repeats a constant carries `x-constant`, for example `x-constant: { maxLength: MESSAGE_MAX_CHARS }`, `"PROFILE_PHOTOS_MAX - 1"` or `"base64(PHOTO_MAX_BYTES)"`. `codegen.sh` fails if the number disagrees with `constants.json`. Changing a constant now means changing the schema too, and CI says so.
+
+## D56 · A2 · Known gap: deleting an account clears a ban
+
+**Choice, for D2.** `banned_at` lives on the profile, so a banned person who deletes their account (P9 and B8 delete every row) can sign up again with a new account and isn't banned. Not fixed in Wave 0. Options for later: a ban list keyed by a salted hash of the Apple ID `sub` or the email, kept after deletion. That keeps data about a deleted person, so it needs its own privacy decision.

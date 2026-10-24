@@ -45,6 +45,8 @@ begin
                                show_me = '{man}', onboarding_step = 'complete' where id = a;
     update public.profiles set first_name = 'Racer B' || i, birthdate = date '1996-05-05', gender = 'man',
                                show_me = '{woman}', onboarding_step = 'complete' where id = b;
+    insert into public.location_checks (user_id, room_id, purpose, result, accuracy_bucket)
+    values (a, v_room, 'join', 'pass', 'under_20m'), (b, v_room, 'join', 'pass', 'under_20m');
     perform public.create_checkin(a, v_room, ca, v_room::text || '/' || ca::text || '.jpg', '{"topColor": "blue"}');
     perform public.create_checkin(b, v_room, cb, v_room::text || '/' || cb::text || '.jpg', '{"topColor": "red"}');
     -- Each has been shown the other's card, as get_deck would record it.

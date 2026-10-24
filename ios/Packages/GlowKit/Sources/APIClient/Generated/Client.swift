@@ -1141,6 +1141,165 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Finish onboarding
+    ///
+    /// Moves `onboardingStep` to `complete` once the profile is filled in and at least
+    /// PROFILE_PHOTOS_MIN photos are approved. The notifications step is optional: the app calls
+    /// this whether or not the person allowed push, so declining notifications never blocks
+    /// anyone. Photos held for review (possibly under 18) don't count (P10). Anything missing is
+    /// 409 `onboarding_incomplete`, and `GET /api/me` shows what. Calling it again once complete
+    /// is harmless. Calls `complete_onboarding`.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/me/onboarding/complete`.
+    /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)`.
+    public func completeOnboarding(_ input: Operations.CompleteOnboarding.Input) async throws -> Operations.CompleteOnboarding.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.CompleteOnboarding.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/me/onboarding/complete",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.CompleteOnboarding.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.Me.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Unauthorized.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 409:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.Conflict.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .conflict(.init(body: body))
+                case 429:
+                    let headers: Components.Responses.RateLimited.Headers = .init(retryAfter: try converter.getOptionalHeaderFieldAsURI(
+                        in: response.headerFields,
+                        name: "Retry-After",
+                        as: Components.Headers.RetryAfter.self
+                    ))
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.RateLimited.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .tooManyRequests(.init(
+                        headers: headers,
+                        body: body
+                    ))
+                default:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses.UnexpectedError.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .`default`(
+                        statusCode: response.status.code,
+                        .init(body: body)
+                    )
+                }
+            }
+        )
+    }
     /// Register a push token
     ///
     /// Registering a token that already exists moves it to the signed-in person.
@@ -2087,7 +2246,9 @@ public struct Client: APIProtocol {
     /// Only a face-blurred photo ever leaves the phone (P3). The server moderates it and fails
     /// closed: a visible face, nudity or no outfit gets 422 `photo_rejected` with a `reason`, and
     /// a moderation outage gets 503 `unavailable`. Any older check-in of mine in this
-    /// room ends. Calls `create_checkin`.
+    /// room ends. Calls `create_checkin`, which also needs the passed join location check that
+    /// joinRoom recorded within JOIN_TICKET_TTL (422 `location_required` otherwise), so a QR code
+    /// or room code alone can never make a card.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/checkin`.
@@ -2522,8 +2683,10 @@ public struct Client: APIProtocol {
     /// Filters return up to DECK_PAGE_SIZE cards with signed image links
     ///
     /// Calls `get_deck`, which applies every deck rule, the filters and the daily view cap, in an
-    /// order that stays the same all day. Cards never carry a user ID (P1). 404 if I've never
-    /// checked in to this room.
+    /// order that stays the same all day. Cards never carry a user ID (P1). 404 only when the room
+    /// doesn't exist, or I have no check-in there and haven't checked in there today. After my
+    /// check-in expires (even once purge has deleted it), the same day answers
+    /// `emptyReason: checkin_ended`.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/deck`.
@@ -2712,7 +2875,8 @@ public struct Client: APIProtocol {
     ///
     /// Calls `record_tap`. The other person is never told about a one-sided tap (P5). A card
     /// that isn't in my deck right now is 404; no taps left today is 409 `tap_limit_reached`.
-    /// Tapping the same card again doesn't use a tap. On mutual, both people get match.created.
+    /// Tapping the same card again doesn't use a tap, but tapping someone again after an
+    /// unmatch is a new tap. On mutual, both people get match.created.
     ///
     ///
     /// - Remark: HTTP `POST /api/rooms/{id}/taps`.
@@ -2922,7 +3086,9 @@ public struct Client: APIProtocol {
     /// My active and past matches
     ///
     /// Newest first. Ended matches (unmatched or blocked) never appear. "Now" in the app is
-    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`.
+    /// `choosing` and `glowing`; "Earlier" is `chatting` and `met`. Calls `list_matches`, which
+    /// applies timeouts first; for each one it reports in `settled`, this route sends the events
+    /// (docs/CONTRACTS.md, "Settled timeouts").
     ///
     ///
     /// - Remark: HTTP `GET /api/matches`.
@@ -3054,7 +3220,9 @@ public struct Client: APIProtocol {
     }
     /// One match, with the other person's first name and photo count
     ///
-    /// Applies any timeout first (choice window, glow time). Calls `get_match`.
+    /// Applies any timeout first (choice window, glow time). Calls `get_match`; for each timeout
+    /// it reports in `settled`, this route sends the events (docs/CONTRACTS.md, "Settled timeouts").
+    ///
     ///
     /// - Remark: HTTP `GET /api/matches/{id}`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/get(getMatch)`.
@@ -3316,10 +3484,13 @@ public struct Client: APIProtocol {
     /// Find needs `location`; the server checks it like a join (422 `not_in_room` or
     /// `location_inaccurate` on failure) before calling `set_choice`. When both chose Find, both
     /// are still checked in and both passed a check in the last GEO_FRESHNESS_FOR_GLOW, the glow
-    /// starts and `next` is `glow`. Anything else opens the chat. `next: waiting` with
-    /// `reason: other_location_stale` means the other person's app is being asked (match.choice)
-    /// to send Find again with a fresh fix. While waiting with Find, the app re-sends Find with a
-    /// fresh fix whenever it gets match.choice.
+    /// starts and `next` is `glow` (the server calls `start_glow`, which either starts it or opens
+    /// the chat; it never leaves the match stuck). Anything else opens the chat. `next: waiting`
+    /// with `reason: other_location_stale` means the other person's location check went stale
+    /// while they waited: the server sends them match.recheck, a push that asks them to open Glow
+    /// ("Open Glow to find each other."), so their app sends Find again with a fresh fix. The app
+    /// re-sends Find with a fresh fix whenever it gets match.recheck, or opens from its push.
+    /// Timeouts this call applies are reported in `settled`, and this route sends their events.
     ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/choice`.
@@ -3760,7 +3931,10 @@ public struct Client: APIProtocol {
     }
     /// I tapped We met
     ///
-    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`.
+    /// When both have, the glow ends as `met` and both get glow.ended. Calls `glow_met`. A glow
+    /// whose time already ran out comes back `expired`, reported in `settled`, and this route
+    /// sends glow.ended for it.
+    ///
     ///
     /// - Remark: HTTP `POST /api/matches/{id}/glow/met`.
     /// - Remark: Generated from `#/paths//api/matches/{id}/glow/met/post(markGlowMet)`.

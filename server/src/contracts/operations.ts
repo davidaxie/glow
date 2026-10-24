@@ -96,6 +96,17 @@ export const operations = {
       429: s.zError,
     },
   },
+  completeOnboarding: {
+    method: 'POST',
+    path: '/api/me/onboarding/complete',
+    auth: 'user',
+    responses: {
+      200: s.zMe,
+      401: s.zError,
+      409: s.zError,
+      429: s.zError,
+    },
+  },
   testLogin: {
     method: 'POST',
     path: '/api/dev/test-login',
@@ -642,6 +653,48 @@ export const operations = {
       404: s.zError,
     },
   },
+  adminListPhotos: {
+    method: 'GET',
+    path: '/api/admin/photos',
+    auth: 'user',
+    query: z.object({
+      status: z.enum(["pending","approved","held","rejected"]).optional(),
+    }),
+    responses: {
+      200: s.zAdminPhotoList,
+      400: s.zError,
+      401: s.zError,
+      404: s.zError,
+    },
+  },
+  adminPhotoImage: {
+    method: 'GET',
+    path: '/api/admin/photos/{id}/image',
+    auth: 'user',
+    params: z.object({
+      id: z.uuid(),
+    }),
+    responses: {
+      200: 'raw',
+      401: s.zError,
+      404: s.zError,
+    },
+  },
+  adminReviewPhoto: {
+    method: 'POST',
+    path: '/api/admin/photos/{id}/review',
+    auth: 'user',
+    params: z.object({
+      id: z.uuid(),
+    }),
+    body: s.zAdminPhotoReview,
+    responses: {
+      200: s.zAdminPhoto,
+      400: s.zError,
+      401: s.zError,
+      404: s.zError,
+    },
+  },
   getAppSiteAssociation: {
     method: 'GET',
     path: '/.well-known/apple-app-site-association',
@@ -678,6 +731,7 @@ export const operationInfo = {
   getMyPhoto: { owner: 'B1', tags: ['me'], summary: "One of my own profile photos" },
   deleteProfilePhoto: { owner: 'B1', tags: ['me'], summary: "Remove one of my profile photos" },
   setPaused: { owner: 'B8', tags: ['me'], summary: "Pause or resume being visible" },
+  completeOnboarding: { owner: 'B1', tags: ['me'], summary: "Finish onboarding" },
   testLogin: { owner: 'B1', tags: ['dev'], summary: "Debug-only sign-in for Simulator tests" },
   registerDevice: { owner: 'B5', tags: ['devices'], summary: "Register a push token" },
   deleteDevice: { owner: 'B5', tags: ['devices'], summary: "Remove a push token" },
@@ -717,6 +771,9 @@ export const operationInfo = {
   adminRemoveCard: { owner: 'B7', tags: ['admin'], summary: "Remove a card, or remove the person from the room" },
   adminListReports: { owner: 'B7', tags: ['admin'], summary: "The reports queue" },
   adminResolveReport: { owner: 'B7', tags: ['admin'], summary: "Dismiss a report, remove the card, or ban the person" },
+  adminListPhotos: { owner: 'B7', tags: ['admin'], summary: "Profile photos waiting for review" },
+  adminPhotoImage: { owner: 'B7', tags: ['admin'], summary: "A profile photo for review, watermarked with the admin's code" },
+  adminReviewPhoto: { owner: 'B7', tags: ['admin'], summary: "Approve or reject a held profile photo, or ban its owner" },
   getAppSiteAssociation: { owner: 'B2', tags: ['web'], summary: "The file that lets QR links open the app" },
   getRoomWebPage: { owner: 'B2', tags: ['web'], summary: "Web page for people who don't have Glow yet, with the TestFlight link" },
 } as const satisfies Record<ContractOperationId, { owner: string; tags: readonly string[]; summary: string }>;

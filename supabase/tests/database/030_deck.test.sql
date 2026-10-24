@@ -34,6 +34,9 @@ create function tests.check_in(p_user uuid, p_room uuid, p_tags jsonb default '{
 returns uuid language plpgsql as $$
 declare v_id uuid := gen_random_uuid();
 begin
+  -- The join route's passed location check, which create_checkin requires.
+  insert into public.location_checks (user_id, room_id, purpose, result, accuracy_bucket)
+  values (p_user, p_room, 'join', 'pass', 'under_20m');
   perform public.create_checkin(p_user, p_room, v_id, p_room::text || '/' || v_id::text || '.jpg', p_tags);
   return v_id;
 end $$;
