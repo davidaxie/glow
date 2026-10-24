@@ -78,6 +78,10 @@ _From B8, 2026-10-24._
 
 _A1's answers, 2026-10-24._ 1: done, `route()` calls `limitRequest(operationId, req, user)` right after sign-in, so every route is limited and a 401 is never counted. 3: done, `tests/setup.ts` deletes `ANTHROPIC_API_KEY` and resets the in-memory store before every test.
 
+_From B2, 2026-10-24._ Branch `w1/b2-rooms`.
+
+_All three answered in A1's #13, thanks._ 1: the ownership row covers `server/app/api/rooms/[id]/route.ts`, and B2 took over the stub. 2: B2 reads `TESTFLIGHT_URL` for the `/r/{slug}` page and `APPLE_APP_ID` for the link file (B2-D3). 3: B2 builds on the generated registry.
+
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
 1. **Wire the generated registry.** `server/src/contracts/operations.ts` exports `operations` (typed `as const satisfies Record<string, OperationDef>`), with the operationIds your stubs already use. In `server/src/server/http/operations.ts`, replace the placeholder import with `import { operations as generated } from '@/contracts/operations';` and `export const operations = generated;`, then delete `contract-placeholder.ts`. I tried exactly that locally: `tsc --noEmit` passes with every existing route. `tests/stubs.test.ts` then wants route files for the operations the placeholder didn't have:
@@ -196,7 +200,31 @@ _From B8, 2026-10-24, PR #22._ (1) The purge cron deletes any `profile-photos` o
 
 _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/route.ts` exists as a 501 stub for `getRoomState`; it's yours (listed in your `AGENTS.md` row), so replace the stub. 2: done. 3: `server/src/env.ts` has two optional variables, both validated and optional everywhere: `TESTFLIGHT_URL` (must be `https://testflight.apple.com/...`) and `APPLE_APP_ID` (`TEAMID.bundle.id`, like `ABCDE12345.com.davidxie.glow`). Please use `APPLE_APP_ID` for the link file rather than `APNS_TEAM_ID` plus `APNS_BUNDLE_ID`: the APNS variables only exist together with the push key, so a preview without push couldn't serve the link file. Read them with `getEnv()`.
 
+_Answered by B2, 2026-10-24._ All three done in PR [#10](https://github.com/davidaxie/glow/pull/10): B2 took over the stub, and reads `APPLE_APP_ID` and `TESTFLIGHT_URL` with `getEnv()` (B2-D3, B2-D4).
+
 ### For B3
+
+_From B2, 2026-10-24._ The join ticket, for `POST /api/rooms/{id}/checkin`. Branch `w1/b2-rooms`, file `server/src/server/rooms/ticket.ts`.
+
+```ts
+import { verifyJoinTicket } from '@/server/rooms';
+
+verifyJoinTicket(
+  ticket: string,
+  expected: { userId: string; roomId: string; now?: Date },
+): Promise<VerifiedJoinTicket | null>
+
+type VerifiedJoinTicket = {
+  locationCheckId: string;          // the location_checks row the join route wrote
+  result: 'pass' | 'demo_skip';     // demo_skip: an admin in a demo mode room
+  issuedAt: Date;
+  expiresAt: Date;                  // issuedAt + JOIN_TICKET_TTL
+};
+```
+
+- It never throws. It returns `null` for anything that isn't a live ticket issued to this person for this room: expired (past `exp`, or older than JOIN_TICKET_TTL), another person's, another room's, edited, malformed, or longer than 2 KB. Answer `null` with 422 `join_ticket_invalid`.
+- The ticket is an encrypted JWT (JWE `dir` + `A256GCM`, key derived from `JOIN_TICKET_SECRET` with HKDF), so it's opaque: nothing in it is readable without the server's key (B2-D1). Treat it as an opaque string and never log it.
+- Every join writes a `location_checks` row before the ticket is issued: `purpose = 'join'`, `result = 'pass'` (or `'demo_skip'`), plus an accuracy bucket. A ticket exists only for a passed or skipped check, so A2's 0002 `create_checkin` finds its row. If 0002 takes the check ID, pass `locationCheckId`.
 
 _From A3, 2026-10-24._ `ios/fixtures/photos/` has four synthetic, faceless outfit images (D44). Add fixture photos with real faces that the people in them agreed to (or freely licensed ones) for the blur tests. `ios/fixtures/` is A3's, so add them in a `cross-owner` PR or ask A1.
 
@@ -254,6 +282,8 @@ _From A3, 2026-10-24._ The app icon (`ios/Glow/Assets.xcassets/AppIcon.appiconse
 
 _Answered by B9, 2026-10-24, in PRs #5 and #17._ The team stays in `DEVELOPMENT_TEAM` in `Shared.xcconfig` (David fills it in; the lane refuses to ship while it's empty). The Release Supabase values, `POSTHOG_KEY` and `SENTRY_DSN` go in from CI secrets through an `xcodebuild -xcconfig` override, never into git (B9-D2). Release `aps-environment = production` needed manual App Store signing for the archive (#17, B9-D1). The App Privacy answers are generated from the manifest and CI fails if they drift (`ios/fastlane/app-privacy.json`).
 
+_From B2, 2026-10-24._ Two server variables, both optional and read with `getEnv()`: `APPLE_APP_ID` (`{TEAM_ID}.com.davidxie.glow`, once the Apple team exists) makes `/.well-known/apple-app-site-association` name the app, so QR links open Glow; until it's set the file lists no app (B2-D3). `TESTFLIGHT_URL` (the public `https://testflight.apple.com/join/...` link) puts the "Get Glow on TestFlight" button on the `/r/{slug}` page (B2-D4). Set both on Vercel preview and production when they exist, and keep `GLOW_WEB_DOMAIN` in the app the same host the server is on.
+
 _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVELOPMENT_TEAM` is empty, `CODE_SIGN_STYLE = Automatic`), so set the team there. `GLOW_WEB_DOMAIN` (same file) is {DOMAIN}. Release `SUPABASE_URL` and `SUPABASE_ANON_KEY` are empty in `Release.xcconfig`: pass them, and `POSTHOG_KEY` (and `SENTRY_DSN` once Sentry is back, D36), as xcodebuild settings from CI. `aps-environment` is `development` in Debug and `production` in Release. App Privacy answers should match `ios/Glow/PrivacyInfo.xcprivacy` (D43).
 
 ## Status
@@ -295,6 +325,38 @@ _2026-10-24, Wave 1._ PR [#5](https://github.com/davidaxie/glow/pull/5) on `w1/b
 - **B2:** the `/r/{slug}` page shows `TESTFLIGHT_URL` and the link file lists `APPLE_APP_ID` (A1's variables); David sets both in Vercel (RELEASE.md steps 11 and 12).
 - **D2, D3:** TestFlight builds go through the release gate above; `ios/fastlane/ship verify_release` reproduces it locally on an unsigned build.
 - **Anyone changing `project.yml`, `Info.plist`, entitlements, the xcconfigs or the privacy manifest:** run `ios/fastlane/ship check` and `ios/fastlane/ship verify_release`.
+
+### B2 · Rooms and joining
+
+_2026-10-24, Wave 1._ PR [#10](https://github.com/davidaxie/glow/pull/10) on `w1/b2-rooms`. From a QR code to a verified spot in the room: on the Simulator, `scan demo` to check-in takes about a second.
+
+**Built**
+
+- `server/src/server/rooms`: `resolveRoom` (code, or slug plus token, to the room's summary; 409 `onboarding_incomplete`, 404 for anything wrong), `joinRoom` (the location check, then a JOIN_TICKET_TTL join ticket), `leaveRoom` (ends my check-in, deletes my card photo, sends `deck.changed`), `getRoomState` (`get_room_state` plus a fresh signed link to my own card), the link file and the `/r/{slug}` page. Join checks in an order that leaks nothing (B2-D5), and a live room past its end reads as ended.
+- `server/src/server/geo`: `checkFix` (distance minus the smaller of accuracy and GEO_ACCURACY_CREDIT, within the radius; edge counts as inside; worse than GEO_MAX_ACCURACY is `inaccurate`), `accuracyBucket`, and `recordLocationCheck`, which keeps only person, room, purpose, result and bucket (P2).
+- `server/src/server/qr`: poster tokens (only with `allow_static_qr`) and rotating screen tokens, constant time, current and previous window, no early exit (B2-D2). `displayToken(qrSecretHex, nowMs)` for B7.
+- `server/src/server/rooms/ticket.ts`: encrypted join tickets (B2-D1), `issueJoinTicket` and `verifyJoinTicket` (For B3 above).
+- iOS **Location**: `LiveLocationService` (CoreLocation, When In Use, temporary full accuracy with the `RoomCheck` purpose key, one fresh fix within LOCATION_FIX_TIMEOUT, updates off straight after) and `FixSelector` (takes 25 m at once, 65 m from 3 s, 100 m from 6 s, else the best usable fix at the limit; ignores cached and invalid fixes). `LocationError` gained `.approximateOnly`; `PreviewLocationService` takes an error, a delay and what a permission request grants.
+- iOS **FeatureRooms**: `RoomsHomeView`, `RoomScannerView` (AVFoundation QR only, torch, "type the code" fallback, camera-off and no-camera screens), `RoomCodeEntryView` (6 characters, look-alikes dropped as you type), `RoomJoinView(link:)` and `JoinFlowView`, driven by `JoinModel`: resolve, then location, then join, then `navigate(.checkIn(roomID, ticket))`. Failure screens for not in the room, weak signal, room ended, paused or not open yet, wrong code, screen code changed, location off, precise off, offline and rate limited, all in DesignSystem type and colors.
+- Tests: server, 5 files and 123 tests (`tests/geo`, `tests/qr`, `tests/rooms`) including the radius edge to the millimeter, both token windows and their boundaries, tickets, every route's 401, 404, 409 and 422, and `p2-no-coordinates.test.ts` (logger spy before redaction, console, error reports, database writes and replies, plus a column audit of the database types). iOS: `FeatureRoomsTests`, 28 tests (join flow, server answer mapping, codes, screens) and `LocationTests`, 13 tests (FixSelector, redaction, the mock).
+
+**Proof** (Glow A (B2), local server on 3102, shared database): [at venue then scan demo reaches check-in](shots/b2-venue-reaches-checkin-A.png), [at away shows not in the room](shots/b2-away-not-in-room-A.png), [wrong code](shots/b2-wrong-code-not-found-A.png), [a link with no code](shots/b2-link-without-code-A.png), [Rooms home](shots/b2-rooms-home-A.png), [the code typed](shots/b2-room-code-typed-A.png) then [check-in](shots/b2-room-code-reaches-checkin-A.png), [the scanner on a device with no camera](shots/b2-scanner-no-camera-A.png), the largest text size ([not in the room](shots/b2-away-not-in-room-largest-text-A.png), [home](shots/b2-rooms-home-largest-text-A.png)), and a [recording of both flows](shots/b2-join-venue-then-away-A.mp4).
+
+**Running it on the Simulator** until B1's session lands: the preview session has no access token, so Debug builds of FeatureRooms fall back to a `GlowDebugAccessToken` user default. Make an onboarded `@glow.test` person on the local Supabase, sign in with a password to get a token, then `xcrun simctl spawn <udid> defaults write com.davidxie.glow GlowDebugAccessToken <token>`. Answer the location prompt once (or `xcrun simctl privacy <udid> grant location com.davidxie.glow`). Then `scripts/sim.sh at venue A` and `scripts/sim.sh scan demo A`.
+
+**Still mocked**
+
+- `server/src/server/rooms/stand-ins.ts`: `sendDeckChanged` broadcasts straight to Realtime (B5's `notifyRoom` replaces it when #15 merges) and `signedCardImage` signs per CONTRACTS.md (B3's signer replaces it). Rate limits are real: A1's route helper limits resolve, join and leave with B8's `join` policy.
+- `DebugAccessTokenFallback` in `FeatureRooms/Joining/RoomsServices.swift`, Debug only, until B1's Supabase session exists. B2 deletes it then.
+
+**Next wave needs**
+
+- **C1 (room home):** the current room and my check-in come from `try await dependencies.api.perform { try await $0.getRoomState(path: .init(id: roomID.rawValue)) }`: `room` (name, status, times), `checkin` (card ID, tags, `visible`, `expiresAt`, a 60-second image link to my own card) when I'm checked in, and `tapsLeftToday`, `viewsLeftToday`. A 404 means the room is gone. The Leave button calls `leaveRoom(path: .init(id:))` (always 204 for a room that exists), and the server sends `deck.changed` to everyone else. `RoomInfo` (FeatureRooms) isn't shared: features don't import each other, so map the generated `RoomSummary` yourself. If the room home should survive a relaunch, keep only the room ID, and only until the check-in's `expiresAt` (a room ID is a place someone was).
+- **B3:** `CheckInView(roomID:ticket:)` gets the ticket from the join flow; send `ticket.rawValue`. A 422 `join_ticket_invalid` should send the person back through `.joinRoom` (the ticket lasts 10 minutes).
+- **C2 (Find):** on the server, `checkFix` then `recordLocationCheck(db, { …, purpose: 'find' })` from `@/server/geo`, before `set_choice`. In the app, `dependencies.location.requestAuthorization()` then `currentFix(timeout: .seconds(GlowConstants.locationFixTimeout))`, and map `LocationError` the way `JoinFailure.init(_: LocationError)` does.
+- **B7:** the display page's token is `displayToken(room.qr_secret, Date.now())` from `@/server/qr`; posters use `static_qr_token` and need `allow_static_qr`.
+- **B9:** B2 tells you under For B9 once room joining is on `main` (Build plan's first external review).
+- **D1:** UI test hooks: `rooms.home.scan`, `rooms.home.code`, `rooms.code.field`, `rooms.code.join`, `rooms.join.progress`, `rooms.join.passed`, `rooms.join.failure.<reason>` (for example `rooms.join.failure.not_in_room`), `rooms.scanner`, `rooms.scanner.torch`. `LaunchUITests.testRoomLinkOpensTheJoinScreen` still finds "Room: demo": the join screen shows the slug until the room's name arrives, and keeps it on failure screens.
 
 ### B6 · Design system
 

@@ -1,22 +1,11 @@
 import AppCore
-import SwiftUI
+import Foundation
 
-// Placeholder from A3 so the module graph compiles on day one. Owner: B2.
-// Replace the body of `live` with the CoreLocation service. Keep its signature: the app target
-// calls it in AppComposition.
+// Owner: B2. The app target calls `LocationModule.live` in AppComposition; keep its signature.
 
 public enum LocationModule {
-    /// The location service the app runs on. For now, the AppCore preview mock.
+    /// The location service the app runs on: CoreLocation, one precise fix per room check.
     public static func live(_: ServiceContext) -> any LocationService {
-        PreviewLocationService()
-    }
-}
-
-/// Placeholder view for the Location module.
-public struct LocationPlaceholderView: View {
-    public init() {}
-
-    public var body: some View {
-        PlaceholderScreen("Location", module: "Location", owner: "B2")
+        LiveLocationService()
     }
 }

@@ -1,4 +1,5 @@
-// Owner: B2. Replace `notImplemented` with a handler that lives in `server/src/server/rooms`.
-import { notImplemented, route } from '@/server/http';
+// Owner: B2. The handler lives in `server/src/server/rooms`.
+import { route } from '@/server/http';
+import { joinRoom } from '@/server/rooms';
 
-export const POST = route('joinRoom', notImplemented);
+export const POST = route('joinRoom', joinRoom);

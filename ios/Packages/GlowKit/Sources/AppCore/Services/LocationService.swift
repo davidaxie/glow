@@ -1,7 +1,6 @@
 import Foundation
 
-// Owner from Wave 1: B2 (Location). A3 wrote this first shape; B2 may change this file and
-// Mocks/PreviewLocationService.swift together.
+// Owner: B2 (Location), from Wave 1 (D40). Changes here go with Mocks/PreviewLocationService.swift.
 
 public enum LocationAuthorization: Hashable, Sendable {
     case notDetermined
@@ -45,16 +44,25 @@ public struct LocationFix: Hashable, Sendable, CustomStringConvertible, CustomDe
 }
 
 public enum LocationError: Error, Hashable, Sendable {
+    /// Location is off for Glow (denied or restricted). Settings is the only way back.
     case denied
+    /// The person kept approximate location and declined precise for this check.
+    case approximateOnly
+    /// No usable fix arrived in time: weak signal. Try near a window or door.
     case timedOut
+    /// Location services are off for the whole phone, or the hardware gave up.
     case unavailable
 }
 
-/// One precise When In Use fix for room checks.
+/// One precise When In Use fix for room checks (docs/SPEC.md, Location check).
+///
+/// The live service (Location module) keeps nothing: each fix goes to one request and is dropped.
 public protocol LocationService: Sendable {
     func authorization() async -> LocationAuthorization
-    /// Asks for When In Use (and temporary full accuracy if needed). Returns the result.
+    /// Asks for When In Use if it hasn't been asked yet, then, if only approximate location is
+    /// allowed, for temporary full accuracy for this check. Returns where that leaves things.
     func requestAuthorization() async -> LocationAuthorization
-    /// One fresh fix, waiting up to `timeout` (the spec says 10 seconds).
+    /// One fresh fix, waiting up to `timeout` (LOCATION_FIX_TIMEOUT, 10 seconds).
+    /// Throws `LocationError`: `.denied`, `.approximateOnly`, `.timedOut` or `.unavailable`.
     func currentFix(timeout: Duration) async throws -> LocationFix
 }
