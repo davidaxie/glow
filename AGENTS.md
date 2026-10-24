@@ -231,7 +231,7 @@ export const getMatchFor: RouteHandler<'getMatch'> = async ({ user, params }) =>
 };
 ```
 
-The helper reads the operation from the generated contract and, before your handler runs, checks sign-in (401, or 503 if Supabase Auth is down), turns a malformed path ID into 404, and validates the query and body (400, with field paths but never the values sent). After it runs, it validates your reply and sends only the fields the contract declares. A reply that breaks the contract becomes a 500, so test your happy path.
+The helper reads the operation from the generated contract and, before your handler runs, checks sign-in (401, or 503 if Supabase Auth is down), applies B8's rate limit for the operation (429 with `Retry-After`; policies in `server/src/server/ratelimit/policies.ts`), turns a malformed path ID into 404, and validates the query and body (400, with field paths but never the values sent). After it runs, it validates your reply and sends only the fields the contract declares. A reply that breaks the contract becomes a 500, so test your happy path.
 
 - Throw `notFound()`, `badRequest()`, `conflict(code, message)`, `unprocessable(code, message, { reason })`, `rateLimited()` or `unavailable()` from `@/server/http`. Codes are the contract's `ErrorCode` enum (409 `tap_limit_reached`, 422 `not_in_room` and so on; `docs/CONTRACTS.md` maps database errors to them). There is no `forbidden()`: a 403 is always sent as 404 (P11).
 - Times go out as `2026-10-24T20:15:00.000Z`. The database functions already return that; rows read straight from tables come back as `+00:00`, so send `new Date(value).toISOString()`, or the contract check turns the reply into a 500.

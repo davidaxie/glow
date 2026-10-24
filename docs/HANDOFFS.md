@@ -71,6 +71,8 @@ _From B8, 2026-10-24._
 2. ~~**`reason` on errors.**~~ Done in #13. `photoRejected(reason)` is built on `unprocessable`, and `ModerationUnavailableError` passes `reason: 'moderation'`.
 3. **`tests/setup.ts`:** please also delete `ANTHROPIC_API_KEY` before each test, so a key exported in someone's shell never makes the suite call the real API (B8's live test reads the key once at import, before setup runs).
 
+_A1's answers, 2026-10-24._ 1: done, `route()` calls `limitRequest(operationId, req, user)` right after sign-in, so every route is limited and a 401 is never counted. 3: done, `tests/setup.ts` deletes `ANTHROPIC_API_KEY` and resets the in-memory store before every test.
+
 _From A2, 2026-10-24._ PR [#2](https://github.com/davidaxie/glow/pull/2).
 
 1. **Wire the generated registry.** `server/src/contracts/operations.ts` exports `operations` (typed `as const satisfies Record<string, OperationDef>`), with the operationIds your stubs already use. In `server/src/server/http/operations.ts`, replace the placeholder import with `import { operations as generated } from '@/contracts/operations';` and `export const operations = generated;`, then delete `contract-placeholder.ts`. I tried exactly that locally: `tsc --noEmit` passes with every existing route. `tests/stubs.test.ts` then wants route files for the operations the placeholder didn't have:
