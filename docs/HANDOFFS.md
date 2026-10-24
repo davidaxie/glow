@@ -33,10 +33,16 @@ Things only David can do. None of these block Wave 0 work locally.
 13. **Purge every 5 minutes** (from B8, item 3 above). `server/vercel.json` already schedules `/api/cron/purge` at `*/5 * * * *`. On a Pro plan that's all. On Hobby, Vercel may refuse to deploy a schedule that runs more than once a day: change it to `0 0 * * *` and add an outside schedule instead, for example an Upstash QStash schedule (`*/5 * * * *`) that calls `GET https://{DOMAIN}/api/cron/purge` and forwards `Authorization: Bearer <CRON_SECRET>` (QStash's `Upstash-Forward-Authorization` header). The route is safe to be called by both (B8-D8).
 14. **Moderation** (from B8). With `ANTHROPIC_API_KEY` set, run `pnpm --filter server exec vitest run tests/moderation/live.test.ts` once: it checks p95 latency under 2.5 s and decides every photo in `server/tests/moderation/fixtures/live/` as its name says (`approve-*.jpg`, `reject-face_visible-*.jpg`, `reject-nudity-*.jpg`, `hold-*.jpg`). No such photos are committed, because they need real people who agreed to be fixtures (or freely licensed ones, D44); please add a few, or decide they stay local. Note the synthetic outfit drawings in `ios/fixtures/photos/` are *rejected* by real Claude as "no person", so Simulator check-ins with a key set need real outfit photos.
 15. **Supabase cloud, account deletion** (from B8). After `supabase db push`, check that `select public.purge_auth_audit(interval '7 days')` runs as the service role. It deletes from `auth.audit_log_entries`, which a hosted project may restrict. If it's refused, deletion still works but Auth's audit log keeps emails and IPs: either allow it, or turn off "write auth audit logs to the database" in the project's Auth settings (B8-D4, B8-D5).
+16. **Select the full Xcode** (from B6, optional): `xcode-select` points at the Command Line Tools, so Claude Code's built-in iOS Simulator panel refuses to start. `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` fixes it. Agents work around it with `scripts/sim.sh` (which sets `DEVELOPER_DIR` itself), so nothing is blocked.
+17. **Haptics and brightness on a real iPhone** (from B6): the Simulator can't play haptics or change brightness. On a device, check the Gallery (Settings > Debug > Gallery): the Haptics buttons, and "Open a live glow", which should go to full brightness, keep the screen awake, and return your own brightness when closed or when you open Control Center.
 
 ## Requests
 
 ### For A1
+
+_From B6, 2026-10-24._
+
+1. **DesignSystem strings** (for D4, later): when D4 adds a string catalog to DesignSystem, its target needs `resources: [.process("Resources")]` in `Package.swift`.
 
 _From A2, Checkpoint 1 fixes, 2026-10-24._ `contract-change` PR [#14](https://github.com/davidaxie/glow/pull/14) on `w0/a2-checkpoint1`. It adds migration `0002_a2_checkpoint1.sql` (0001 untouched), D46 to D56, and 53 new pgTAP tests (443 in all).
 
@@ -288,6 +294,8 @@ _From A3, 2026-10-24._ Please replace `ios/fixtures/push/match_created.apns` (A3
 
 _From A3, 2026-10-24._ The app icon (`ios/Glow/Assets.xcassets/AppIcon.appiconset`), the accent color and `LaunchBackground` (the launch screen color) are A3's placeholders; they're yours to replace. `.swiftlint.yml` has a marked spot under `custom_rules` for your "no colors or fonts in feature modules" rule.
 
+_Answered by B6, 2026-10-24._ The icon is replaced on `w1/b6-design`. The accent color (#FF4FA3) and `LaunchBackground` (#0B0B10) already match the tokens, so they stay (B6-D5). The lint rule is in #21 (merged).
+
 ### For B9
 
 _Answered by B9, 2026-10-24, in PRs #5 and #17._ The team stays in `DEVELOPMENT_TEAM` in `Shared.xcconfig` (David fills it in; the lane refuses to ship while it's empty). The Release Supabase values, `POSTHOG_KEY` and `SENTRY_DSN` go in from CI secrets through an `xcodebuild -xcconfig` override, never into git (B9-D2). Release `aps-environment = production` needed manual App Store signing for the archive (#17, B9-D1). The App Privacy answers are generated from the manifest and CI fails if they drift (`ios/fastlane/app-privacy.json`).
@@ -370,22 +378,36 @@ _2026-10-24, Wave 1._ PR [#10](https://github.com/davidaxie/glow/pull/10) on `w1
 
 ### B6 · Design system
 
-_2026-10-24, Wave 1, first PR (tokens and basic components)._ Branch `w1/b6-design-tokens`. The full module (tag picker, card tile, code fields, takeover, GlowSurface, haptics, icon, README) follows on `w1/b6-design`.
+_2026-10-24, Wave 1._ Three PRs: [#20](https://github.com/davidaxie/glow/pull/20) on `w1/b6-design-tokens` (tokens and basic components, merged first so everyone can use them), [#21](https://github.com/davidaxie/glow/pull/21) on `w1/b6-lint` (`cross-owner` for A1: the SwiftLint rule) and the full module on `w1/b6-design`. **How to use everything is in [`ios/Packages/GlowKit/Sources/DesignSystem/README.md`](../ios/Packages/GlowKit/Sources/DesignSystem/README.md)**, one page.
 
 **Built**
 
 - `DesignSystem/Tokens`: every color token from the spec as SwiftUI styles (`.glowBackground`, `.glowSurface`, `.glowSurfaceRaised`, `.glowTextPrimary`, `.glowTextSecondary`, `.glowLine`, `.glowAccent`, `.glowDanger`, plus `.glowOnAccent` for text on accent and danger fills); the exact values in `GlowPalette` (`GlowRGB`, hex); the eight glow colors as `GlowHue` (raw values are the contract's `GlowColor`) with their text color `ink`; tag swatches as `GlowSwatch` (raw values are the contract's `TopColor` and `HairColor`); type as `GlowTextStyle` (`.glowFont(.title)`, `.font(.glow(.body))`), all Dynamic Type; `GlowSpacing` (4-point grid), `GlowRadius` (12 and 20), `GlowSize`; `GlowMotion` (0.2 s ease-out, the reveal spring, Reduce Motion fallbacks, `glowAnimation(_:value:)`) and `GlowPulse` (1.25 s, flash-safe); `GlowContrast` (WCAG math) and `GlowPalette.textPairings`.
-- `DesignSystem/Components`: `GlowButtonStyle` (`.glowPrimary`, `.glowSecondary`, `.glowQuiet`, `.glowDanger`, `.glow(_:size:)`, plus `.glowLoading(_:)`), `GlowChip` and `GlowChipStyle`, `GlowFlowLayout` (wrapping rows), `.glowSheet(isPresented:)`, `.glowSheet(item:)`, `.glowSheetPresentation()` and `GlowSheetContent`, `GlowToast` and `.glowToast($message)`, `GlowStepHeader`, `GlowEmptyState`.
-- `GalleryView` (Settings > Debug > Gallery): every token and component above in every state (normal, pressed, loading, disabled, selected). Compiled out of Release.
-- Tests: every text pairing and every glow color's ink meets WCAG AA 4.5:1, the pulse never dims below 70% and runs under once a second, tokens match the spec, glow colors and swatches match `contracts/openapi.yaml`, and snapshots of every Gallery section at the default and the largest text size.
+- `DesignSystem/Components`: buttons (`.glowPrimary`, `.glowSecondary`, `.glowQuiet`, `.glowDanger`, `.glow(_:size:)`, `.glowLoading(_:)`), `GlowChip`, `GlowTagPicker` (one, or several with a limit), `GlowFlowLayout`, `GlowCardTile` with a watermark slot and `GlowWatermark`, `.glowHiddenWhenCaptured()` (P12), sheets (`.glowSheet`, `GlowSheetContent`), toasts (`.glowToast`), `GlowCodeField` (`.roomCode`, `.digits`), `GlowStepHeader`, `GlowEmptyState`, `GlowTakeover` (`.bloom`, `.night`, `.hue`).
+- `DesignSystem/Glow`: `GlowSurface` (full-screen color, a flash-safe bloom pulse, a slow fade under Reduce Motion), `GlowCodeWord`, `.buttonStyle(.glowOnSurface)`, `.glowFullBrightness()` with `GlowBrightness` (restores the person's own level), `.glowKeepAwake()` with `GlowKeepAwake`.
+- `DesignSystem/Haptics`: `.glowHaptic(_:trigger:)` (light tap, selection, success, warning, mutual, glow pulse), `GlowHaptics` and `GlowHapticPattern` (Core Haptics, silent on the Simulator).
+- `GalleryView` (Settings > Debug > Gallery): every token and component in every state, plus a live sheet, toasts, takeover and full-screen glow. Compiled out of Release.
+- The app icon (two soft glows, brightest where they overlap). The accent color (#FF4FA3) and `LaunchBackground` (#0B0B10) already matched the tokens, so they stay (B6-D5).
+- Tests (`scripts/sim.sh test DesignSystem`): WCAG AA on every text pairing and every glow color's ink through the whole pulse; the pulse's period, smoothness and 70% floor in both motion settings; brightness and keep-awake restore in every order of events; code formats, the tag picker's limits, haptic patterns; tokens against the spec and `contracts/`; the lint rule (in #21); snapshots of every Gallery section at the default and the largest text size.
 
-**Proof**: the Gallery on "Glow A (B6)", top to bottom, in `docs/shots/b6-gallery-page-1-A.png` to `b6-gallery-page-12-A.png`, plus [a live sheet](shots/b6-gallery-sheet-presented-A.png) and [a live toast](shots/b6-gallery-toast-presented-A.png). Full-section snapshots at both text sizes are in `ios/Packages/GlowKit/Tests/DesignSystemTests/__Snapshots__/`.
+**Proof**: Gallery screenshots on "Glow A (B6)" in `docs/shots/b6-gallery-*.png` (from #20) and `docs/shots/b6-full-*.png` (live glow, takeover, card tiles, code fields). Full-section snapshots at both text sizes are in `ios/Packages/GlowKit/Tests/DesignSystemTests/__Snapshots__/`.
 
-**Decisions**: B6-D1 (dark ink on every glow color), B6-D2 (dark ink on filled buttons and selected chips), B6-D3 (the pulse brightens, never darkens).
+**Decisions**: B6-D1 (dark ink on every glow color), B6-D2 (dark ink on filled buttons and selected chips), B6-D3 (the pulse brightens, never darkens), B6-D4 (a recorded screen hides cards instead of blurring them), B6-D5 (plain launch color), B6-D6 (screen helpers count holders, app only), B6-D7 (three-beat glow haptic).
 
-**Using it** (feature modules): `import DesignSystem`, then `Text("Hi").glowFont(.body).foregroundStyle(.glowTextPrimary)`, `Button("Check in") { … }.buttonStyle(.glowPrimary)`, `.background(.glowBackground)`. Never `Color(...)`, `UIColor`, `.font(.title)` or `Font.system` in a feature: a SwiftLint rule (sent to A1 as a `cross-owner` PR) fails them. Need a color or style that isn't here? Ask under **For B6**.
+**Using it** (feature modules): `import DesignSystem`, then `Text("Hi").glowFont(.body).foregroundStyle(.glowTextPrimary)`, `Button("Check in") { … }.buttonStyle(.glowPrimary)`, `.background(.glowBackground)`. Never `Color(...)`, `UIColor`, `.font(.title)` or `Font.system` in a feature: SwiftLint fails them once #21 is in. Need a color or style that isn't here? Ask under **For B6**.
 
-**Still mocked**: nothing. DesignSystem depends on nothing but SwiftUI.
+**Still mocked**: nothing. DesignSystem depends only on SwiftUI, UIKit and Core Haptics.
+
+**Next wave needs**
+
+- **C1 (deck):** `GlowCardTile` for cards (pass your non-caching image view as `photo`, and `GlowWatermark(viewerCode)` if you add one on the device), `GlowTagPicker` for What did you notice, `.glowHiddenWhenCaptured()` around the deck (fake a capture in UI tests with `.environment(\.isSceneCaptured, true)`), `GlowEmptyState` for "Nobody fits that yet.", `.glowHaptic(.lightTap, trigger:)` for taps, and `.glowSheet` for the tap confirmation. Screenshot logging is yours (P12).
+- **C2 (mutual moment):** `GlowTakeover(.bloom) { … }` and `.glowHaptic(.mutual, trigger: matchID)`.
+- **C3 (glow):** `GlowSurface(GlowHue(rawValue: glow.color.rawValue) ?? .pearl) { GlowCodeWord(word) … }`, which already handles brightness, keep-awake, Reduce Motion and the ink color. Use `.buttonStyle(.glowOnSurface)` for buttons on it, and `GlowHaptics.shared.play(.glowPulse)` when it starts. The Live Activity extension can use `GlowHue` and the tokens, but not `GlowSurface` or `glowKeepAwake` (app only, B6-D6).
+- **B1, B2:** `GlowCodeField(…, format: .digits)` for the email code and `.roomCode` for room codes (pass `GlowConstants.ROOM_CODE_LENGTH`), `GlowStepHeader` for onboarding steps, `.glowToast` for "Looks like you're not in this room yet. Try again inside."
+- **B3:** `GlowTagPicker` with `GlowSwatch` for the outfit tags.
+- **B8:** `GlowSheetContent(…, tint: GlowPalette.danger)` with `.glowDanger` buttons, and a `.success` toast for "Done. They won't see you again."
+- **B7:** the admin CSS variables come from `GlowPalette.tokens` (name and hex) and `GlowHue.allCases` (`rgb.hex`); the spec's values are unchanged.
+- **D4:** DesignSystem has a few strings of its own ("In progress", "Dismiss", "Step %lld of %lld", "Close", "Noticed", "Code word: %@", "Hidden while your screen is shared", "Couldn't load this look", "Photo didn't load", and the eight color names). They use the main bundle today. When you add a string catalog to DesignSystem, A1 needs to add `resources: [.process("Resources")]` to its target, and the strings need `bundle: .module`.
 
 ### B8 · Safety, moderation and cleanup
 

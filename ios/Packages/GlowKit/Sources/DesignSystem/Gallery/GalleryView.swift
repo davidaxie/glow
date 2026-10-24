@@ -22,7 +22,8 @@ public struct GalleryView: View {
     /// One section of the Gallery. Each one is also a snapshot test, at the default and the largest
     /// text size.
     enum GallerySection: String, CaseIterable, Identifiable {
-        case colors, type, spacing, buttons, chips, sheets, toasts, stepHeader, emptyStates
+        case colors, type, spacing, buttons, chips, tagPicker, cardTile, codeFields, sheets, toasts, stepHeader
+        case emptyStates, takeover, glowSurface, haptics
 
         var id: String {
             rawValue
@@ -35,10 +36,16 @@ public struct GalleryView: View {
             case .spacing: "Spacing and corners"
             case .buttons: "Buttons"
             case .chips: "Chips"
+            case .tagPicker: "Tag picker"
+            case .cardTile: "Card tile"
+            case .codeFields: "Code fields"
             case .sheets: "Sheets"
             case .toasts: "Toasts"
             case .stepHeader: "Step header"
             case .emptyStates: "Empty states"
+            case .takeover: "Full-screen takeover"
+            case .glowSurface: "Glow surface"
+            case .haptics: "Haptics"
             }
         }
 
@@ -50,10 +57,16 @@ public struct GalleryView: View {
             case .spacing: GallerySpacing()
             case .buttons: GalleryButtons()
             case .chips: GalleryChips()
+            case .tagPicker: GalleryTagPickers()
+            case .cardTile: GalleryCardTiles()
+            case .codeFields: GalleryCodeFields()
             case .sheets: GallerySheets()
             case .toasts: GalleryToasts()
             case .stepHeader: GalleryStepHeaders()
             case .emptyStates: GalleryEmptyStates()
+            case .takeover: GalleryTakeovers()
+            case .glowSurface: GalleryGlowSurfaces()
+            case .haptics: GalleryHaptics()
             }
         }
     }

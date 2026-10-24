@@ -67,6 +67,11 @@ extension GlowPalette {
             GlowTextPairing(onAccent, on: pressedAccent, usage: "onAccent on pressed accent"),
             GlowTextPairing(onAccent, on: danger, usage: "onAccent on danger (danger button)"),
             GlowTextPairing(onAccent, on: pressedDanger, usage: "onAccent on pressed danger"),
+            GlowTextPairing(
+                textPrimary,
+                on: background.mixed(with: accent, amount: GlowBackdrop.bloomOpacity),
+                usage: "textPrimary on the takeover bloom at its brightest",
+            ),
         ]
         return pairings
     }
