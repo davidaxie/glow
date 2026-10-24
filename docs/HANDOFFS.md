@@ -317,7 +317,7 @@ _From B8, 2026-10-24, PR #22._ From a card, open `navigate(.block(.card(cardID))
 
 ### For B4
 
-_From D1, 2026-10-24, `integration` PR._ `server/src/server/deck/dependencies.ts` now exports B3's `cardImageLink` from `@/server/images/signed-link`, and `deck/stubs/card-link.ts` is deleted. Same signature and the same links, so nothing else changed.
+_From D1, 2026-10-24, `integration` PR._ `server/src/server/deck/dependencies.ts` now exports B3's `cardImageLink` from `@/server/images/signed-link`, and `deck/stubs/card-link.ts` is deleted. Same signature and the same links. Also, with B5's #37, `GET /api/matches` hands `list_matches`'s `settled` to B5's `notifySettled` (exported through `dependencies.ts`, still after the response), in place of `announceSettled`, which is gone. Same events to the same people; `list-matches.test.ts` and `matches.integration.test.ts` now assert on `notifySettled`.
 
 _From B3, 2026-10-24._ Sign each deck card's image link with `cardImageLink(cardId, viewerId)` from `@/server/images`: it returns the contract's `SignedImage` (`url`, `expiresAt`), a 60-second link that only works for that viewer. `GET /api/cards/{cardId}/image` then checks `card_visible_to`, so a card serves only while the deck may show it (and only after `get_deck` has recorded the view).
 
