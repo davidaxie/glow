@@ -106,10 +106,11 @@ extension EnvironmentValues {
     @Entry public var glowHue: GlowHue?
 }
 
-/// The code word, as big as it fits: SF Pro Rounded, heavy, scaling with Dynamic Type.
+/// The code word, as big as it fits: New York, semibold, set tight (U1, DIRECTION.md), scaling with
+/// Dynamic Type.
 public struct GlowCodeWord: View {
     private let word: String
-    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 76
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 80
 
     public init(_ word: String) {
         self.word = word
@@ -117,7 +118,8 @@ public struct GlowCodeWord: View {
 
     public var body: some View {
         Text(verbatim: word)
-            .font(.system(size: size, weight: .heavy, design: .rounded))
+            .font(.system(size: size, weight: .semibold, design: .serif))
+            .tracking(-size * 0.02)
             .lineLimit(1)
             .minimumScaleFactor(0.3)
             .accessibilityLabel(Text("Code word: \(word)"))
@@ -155,7 +157,7 @@ struct GlowOnSurfaceButtonBody<Label: View>: View {
 
     var body: some View {
         let hue = hue ?? .pearl
-        let shape = RoundedRectangle(cornerRadius: GlowRadius.control, style: .continuous)
+        let shape = Capsule(style: .continuous)
         ZStack {
             label.opacity(isLoading ? 0 : 1)
             if isLoading {

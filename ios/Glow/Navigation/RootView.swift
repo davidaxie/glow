@@ -1,4 +1,5 @@
 import AppCore
+import DesignSystem
 import FeatureMatch
 import FeatureOnboarding
 import FeatureRooms
@@ -77,19 +78,41 @@ private struct MainTabs: View {
             .tabItem { Label("Settings", systemImage: "gearshape") }
             .tag(AppTab.settings)
         }
+        // U1 (design wave): the accent is the one light in the tab bar.
+        .tint(.glowAccent)
     }
 }
 
+/// While the session resolves: the launch color, then the canvas with a breathing light, so the
+/// first frame after the launch screen is already warm.
 private struct LaunchView: View {
     var body: some View {
-        Color("LaunchBackground")
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
+        ZStack {
+            Color("LaunchBackground")
+            GlowBreathingLight()
+        }
+        .glowCanvas()
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 }
 
 extension View {
+    /// Every tab's navigation stack on the canvas instead of plain system black (iOS 18 and later;
+    /// iOS 17 keeps each screen's own background).
+    @ViewBuilder private func glowTabCanvas() -> some View {
+        if #available(iOS 18.0, *) {
+            containerBackground(for: .navigation) { GlowCanvasBackground() }
+        } else {
+            self
+        }
+    }
+}
+
+extension View {
+    /// Also puts the stack's root and every pushed screen on the warm canvas (U1).
     fileprivate func routeDestinations() -> some View {
-        navigationDestination(for: Route.self) { RouteDestination(route: $0) }
+        navigationDestination(for: Route.self) { RouteDestination(route: $0).glowTabCanvas() }
+            .glowTabCanvas()
     }
 }

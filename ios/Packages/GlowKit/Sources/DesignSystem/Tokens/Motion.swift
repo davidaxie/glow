@@ -172,6 +172,8 @@ private struct GlowRiseModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
+        // Under tests everything is already in place, so snapshots never catch a rise midway.
+        let isVisible = isVisible || GlowMotionClock.isFrozen
         content
             .opacity(isVisible ? 1 : 0)
             .offset(y: isVisible || reduceMotion ? 0 : Motion.riseDistance)
@@ -185,6 +187,7 @@ private struct GlowBreathingModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
+        let isActive = isActive && !GlowMotionClock.isFrozen
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isActive)) { timeline in
             let breath = isActive ? GlowBreath.at(timeline.date.timeIntervalSinceReferenceDate, reduceMotion: reduceMotion) : .rest
             content
