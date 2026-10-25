@@ -2,7 +2,7 @@
 
 D5's hand-off: how to run the 3-minute demo so it can't break, how to get the first 50 people into the room, what to say about privacy, and the Devpost draft. Decisions are D5-D1 to D5-D9 in [`DECISIONS.md`](DECISIONS.md).
 
-**Status, 2026-10-24.** The seed script, this script, the fallbacks and the checklists are done. Three things wait on others: the venue (David), the full loop on `main` (B1, B3, C1 to C4, then the backup video), and real iPhones with TestFlight (the Apple Developer account, then the two dry runs). See [Done when](#done-when).
+**Status, 2026-10-24.** The seed script, this script, the fallbacks and the checklists are done. Three things wait on others: the venue (David), the real-iPhone dry runs; the full loop already runs on Simulators (D1, #43 and #56), and real iPhones with TestFlight (the Apple Developer account, then the two dry runs). See [Done when](#done-when).
 
 Contents: [Before the event](#before-the-event) · [The two rooms](#the-two-rooms) · [The seeded room](#the-seeded-room) · [The 3-minute demo](#the-3-minute-demo) · [The 75-second cut](#the-75-second-cut) · [Fallback plan](#fallback-plan) · [Stage setup](#stage-setup) · [Dry runs](#dry-runs-on-real-phones) · [Backup video](#backup-video) · [First 50 people](#the-first-50-people) · [Pitch points](#pitch-points) · [Devpost draft](#devpost-draft)
 
@@ -158,7 +158,7 @@ Before the first run: both stage accounts are admins with profile photos; the st
 
 ## Backup video
 
-**Blocked** until the full loop works on `main` (needs B1's sign-in, B3's check-in, and C1 to C4's deck, mutual moment, glow and chat). Recorded on two Simulators with `sim.sh record`. D5 asks main before taking two Simulator slots.
+**Recorded** (D1, `docs/shots/d1-e2e-full.mp4`, 54 s, two Simulators, person B played by a script). Re-record on real phones once TestFlight exists; say it is a Simulator recording until then.
 
 Shot list, about 90 seconds, both screens side by side: Glow A scans the demo room, checks in with `outfit-real-white-suit.jpg` (tagged white) and shows the blur preview; Glow B checks in with `outfit-real-lightblue-suit.jpg` (tagged blue); A picks What did you notice (blue) and taps B's card ("They won't know unless they tap you too"); B taps A; the mutual takeover on both; both choose Find; both glow; both tap We met; one chat message each way. The seeded crowd uses the same three photos, so a few cards look alike; that's expected.
 
@@ -250,5 +250,5 @@ A draft for David to edit and submit. Not posted (D5-D7). It says what's real an
 | Box | State | Why |
 | --- | --- | --- |
 | Two full dry runs on real phones, on venue Wi-Fi | **Blocked** | Needs the Apple Developer account, a TestFlight build, the cloud project and the venue. The [checklist](#dry-runs-on-real-phones) is ready for David. |
-| The backup video is recorded | **Blocked** | Needs the full loop on `main` (B1 #6, B3 #7, C1 #25, C2 #26, C3 #27, C4 #23 are still open). The [shot list and commands](#backup-video) are ready. |
+| The backup video is recorded | Simulator recording done | D1's `docs/shots/d1-e2e-full.mp4`. A real-phone backup video still waits on TestFlight. The [shot list and commands](#backup-video) are ready. |
 | The Devpost draft is ready | **Done** | [Above](#devpost-draft), with the real-and-simulated section. Not posted. |
