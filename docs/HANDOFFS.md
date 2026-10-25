@@ -1366,3 +1366,41 @@ _2026-10-24, Wave 3._ `cross-owner` PR on `w3/chips` (touches C3's FeatureGlow, 
 **For D4**: new strings: "Need an excuse?", "Are you %@?", "We both noticed. Hi.", "Found you. Shall we sit by %@?", "Need a way to start?", "Hey, glad we both noticed. What brought you to %@?", "Are you %@? I'm the other one.", "Want to find a seat at %@?", "Suggested opener: %@", "Puts it in the message box. Nothing is sent until you send it.", "Tap one to start your message. You can change it first."
 
 **For A1**: `scripts/agent-env.sh` has a new row, `CHIPS 51` (port 3141), CHIPS-D4.
+
+### X1 · Blind backend
+
+_2026-10-25, Blind mode (docs/briefs/blind-mode.md). Branch `blind/x1-backend`._
+
+**Contract is in: commit `a598fa9`** ("X1: Blind mode contract (/api/blind), codegen and 501 stubs"). **X2: merge `blind/x1-backend` (at least `a598fa9`) and build `LiveBlindService` on the generated Swift client.** The routes answer 501 until the next commits land; the shapes don't change.
+
+Operations (tag `blind`, in the Swift client; `Client.blindX(...)`):
+
+| operationId | Endpoint | Body | Reply |
+| --- | --- | --- | --- |
+| `blindGetMe` | `GET /api/blind/me` | | `BlindMe {member, hasPhoto, rightRemaining, rightCount, canDrop}` |
+| `blindJoin` | `POST /api/blind/join` | | `BlindMe` (409 `onboarding_incomplete`) |
+| `blindLeave` | `DELETE /api/blind/join` | | 204 |
+| `blindGetDeck` | `GET /api/blind/deck?limit=1..20` | | `BlindDeck {cards: [BlindCard {id, photoUrl}]}` |
+| `blindSwipe` | `POST /api/blind/swipe` | `{targetId: cardId, kind: pass\|like\|love}` | `{rightRemaining, rightCount}` (409 `right_cap_reached`) |
+| `blindGetPool` | `GET /api/blind/pool` | | `{rightCount, rightRemaining, canDrop}` |
+| `blindGetPoolCards` | `GET /api/blind/pool/cards` | | `BlindDeck` (Guess Who cards) |
+| `blindGetCardImage` | `GET /api/blind/cards/{cardId}/image?exp&sig` | | JPEG. Use `photoUrl` as is (relative, bearer token, 60 s) |
+| `blindGetDrop` | `GET /api/blind/drop` | | `{ready, demo, nextDropAt, rightCount, canDrop}` |
+| `blindOpenDrop` | `POST /api/blind/drop` | | `{opened, chats: [{id, codename}]}` (409 `drop_not_ready`) |
+| `blindListChats` | `GET /api/blind/chats` | | `{chats: [{id, codename, status, lastMessage?, unread}]}` |
+| `blindGetChat` | `GET /api/blind/chats/{id}` | | `BlindChat {id, codename, status, iTappedReveal, theyLeft, partner?, guessCorrect?}` |
+| `blindListMessages` | `GET /api/blind/chats/{id}/messages?after=` | | `{messages: [{id: Int, mine, text, at}]}` |
+| `blindSendMessage` | `POST /api/blind/chats/{id}/messages` | `{text, confirm?}` | `{message?}` or `{warning: {reason}}` (409 `chat_closed`) |
+| `blindReveal` | `POST /api/blind/chats/{id}/reveal` | | `{status}` |
+| `blindLeaveChat` | `POST /api/blind/chats/{id}/leave` | | `{ok}` |
+| `blindGuess` | `POST /api/blind/chats/{id}/guess` | `{guessId: poolCardId}` | `{ok}` |
+| `blindBlock` | `POST /api/blind/chats/{id}/block` | | `{ok}` |
+| `blindReport` | `POST /api/blind/chats/{id}/report` | `{reason (1..500), category?: ReportReason}` | `{ok}` |
+| `blindGetPartnerPhoto` | `GET /api/blind/chats/{id}/photos/{n}?exp&sig` | | JPEG, only once revealed. Use `partner.photos[n]` as is |
+| `blindAdminDrop` (admin, not in Swift) | `POST /api/admin/blind/drop` | | `{opened}` |
+| `blindCronDrop` (cron, not in Swift) | `GET /api/cron/blind-drop` | | `{opened}` |
+
+Differences from Double Blind's contract, for X2: absent instead of `null` for `lastMessage` and for `message` in a send reply (X1-D2); `photoUrl` and `partner.photos` are relative signed links fetched with the bearer token (like Glow's card images); block and report take the chat ID in the path; report adds an optional `category`. Not a member answers 404 on everything except `me` and `join` (P11). New error codes: `right_cap_reached`, `drop_not_ready`, `chat_closed`. Constants in `GlowConstants`: `blindRightSwipesPerDay` (20), `blindDropMinRightSwipes` (5), `blindMaxOpenChats` (5), `blindDeckPageMax` (20), `blindReportMaxChars` (500), `blindDropReplayWindow` (300 s).
+
+**For A1**: `scripts/agent-env.sh` gains `X1 61` and `X2 62` (ports 3151, 3152); `scripts/codegen.sh` accepts `X` agent IDs in `x-owner`; AGENTS.md lists the Blind paths (X1 server and database, X2 FeatureBlind).
+**For B7**: `AdminReport.context` is now `AdminReportContext` (ReportContext plus `blind_chat`), so Blind reports show in the queue.
