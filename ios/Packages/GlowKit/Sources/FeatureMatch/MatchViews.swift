@@ -5,8 +5,8 @@ import SwiftUI
 // The entry views the app shows for `.mutual` and `.match` (ios/Glow/Navigation/RouteDestination.swift).
 // Keep these public initializers.
 
-/// The full-screen mutual moment: two cards drift together with a haptic, then the other person's
-/// first name and photos appear, with the choice under them.
+/// The full-screen mutual moment: two points of light drift together, meet with a heartbeat and a
+/// bloom, then the other person's first name and photos appear, with the choice under them.
 public struct MutualMomentView: View {
     public let matchID: MatchID
 
@@ -37,7 +37,7 @@ public struct MatchView: View {
 /// Builds the model from the environment once, feeds it events, and navigates when it says so.
 struct MatchHost: View {
     enum Style {
-        /// The full-screen takeover, with the cards intro and a close button.
+        /// The full-screen takeover, with the lights intro and a close button.
         case takeover
         /// A screen pushed on the Matches tab.
         case screen
@@ -94,7 +94,7 @@ extension MatchHost {
             guard dependencies.config.environment == .debug, clientOverride == nil,
                   let choice = FixtureMatchClient.launchAutoChoice
             else { return }
-            try? await Task.sleep(for: .seconds(style == .takeover ? 5.5 : 3))
+            try? await Task.sleep(for: .seconds(style == .takeover ? 6 : 3))
             switch choice {
             case .find: await model.chooseFind()
             case .chat: await model.chooseChat()
@@ -114,9 +114,9 @@ struct MatchScreen: View {
     var body: some View {
         switch style {
         case .takeover:
-            // B6's takeover: the accent bloom, the reveal spring, and the close button. Closing
-            // keeps the match in the Matches tab.
-            GlowTakeover(.bloom) {
+            // The stage: a warm dark room with one light. The light the two points became in the
+            // intro rises behind the name, so the takeover reads as one continuous moment.
+            MomentStage(lightRisen: introDone, onClose: { dismiss() }) {
                 ZStack {
                     if introDone {
                         content.transition(.opacity)
@@ -124,9 +124,7 @@ struct MatchScreen: View {
                         MutualIntro { introDone = true }.transition(.opacity)
                     }
                 }
-                .glowAnimation(.reveal, value: introDone)
-            } onClose: {
-                dismiss()
+                .animation(Moment.fade, value: introDone)
             }
         case .screen:
             content
@@ -137,10 +135,8 @@ struct MatchScreen: View {
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .loading:
-            ProgressView()
-                .tint(.glowAccent)
+            MomentWaitingLight(label: Text("Loading the match"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityLabel(Text("Loading the match"))
         case .gone:
             GlowEmptyState(
                 systemImage: "moon.stars",
@@ -161,118 +157,246 @@ struct MatchScreen: View {
         case .choosing, .sending, .waiting, .moved:
             if let snapshot = model.snapshot {
                 MatchDetails(model: model, snapshot: snapshot, showsHeadline: style == .takeover)
+                    .padding(.horizontal, style == .takeover ? GlowSpacing.screenMargin : 0)
             }
         }
     }
 }
 
-/// Photos, name and the choice, scrolling at large text sizes.
+/// Photos, name and the choice, scrolling at large text sizes. Arrives in a 40 ms stagger.
 struct MatchDetails: View {
     @Bindable var model: MatchModel
     let snapshot: MatchSnapshot
     let showsHeadline: Bool
+
+    @Environment(\.matchClockOverride) private var frozenNow
+    @State private var appeared = false
+    @ScaledMetric(relativeTo: .largeTitle) private var nameSize: CGFloat = 52
+
+    /// Snapshot tests hold the clock still; they get the settled layout, no entrance.
+    private var shown: Bool {
+        appeared || frozenNow != nil
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: GlowSpacing.lg) {
                 VStack(spacing: GlowSpacing.xs) {
                     if showsHeadline {
+                        Text("It's mutual")
+                            .momentOverline()
+                            .foregroundStyle(.glowAccent)
+                            .accessibilityHidden(true)
+                            .momentRise(0, shown: shown)
                         Text("Someone you noticed noticed you back.")
                             .glowFont(.callout)
                             .foregroundStyle(.glowTextSecondary)
                             .multilineTextAlignment(.center)
+                            .momentRise(1, shown: shown)
                     }
                     Text(verbatim: snapshot.firstName)
-                        .glowFont(.display)
+                        .font(Moment.serif(size: nameSize, weight: .medium))
+                        .kerning(-0.5)
                         .foregroundStyle(.glowTextPrimary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.6)
                         .accessibilityAddTraits(.isHeader)
+                        .momentRise(2, shown: shown)
                     Text("In \(snapshot.roomName)")
                         .glowFont(.footnote)
                         .foregroundStyle(.glowTextSecondary)
+                        .momentRise(3, shown: shown)
                 }
                 .multilineTextAlignment(.center)
-                .padding(.top, GlowSpacing.xl)
+                .padding(.top, showsHeadline ? GlowSpacing.xxl : GlowSpacing.lg)
 
                 MatchPhotoCarousel(model: model, snapshot: snapshot)
+                    .momentRise(4, shown: shown)
 
                 ChoicePanel(model: model, snapshot: snapshot)
+                    .momentRise(5, shown: shown)
             }
             .padding(.bottom, GlowSpacing.xl)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
+        .onAppear { appeared = true }
+    }
+}
+
+// MARK: - The stage
+
+/// The takeover's room: warm near-black, one accent light, and a glass close button. The light
+/// sits in the middle during the intro and rises behind the name once it's done.
+struct MomentStage<Content: View>: View {
+    let lightRisen: Bool
+    let onClose: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [GlowPalette.surface.color, GlowPalette.background.color, GlowPalette.background.color],
+                startPoint: .top,
+                endPoint: .bottom,
+            )
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+
+            GeometryReader { proxy in
+                let side = max(proxy.size.width, proxy.size.height)
+                MomentLight(core: lightRisen ? 0.35 : 0)
+                    .frame(width: side * (lightRisen ? 1.1 : 0.9), height: side * (lightRisen ? 1.1 : 0.9))
+                    .position(x: proxy.size.width / 2, y: lightRisen ? -side * 0.12 : proxy.size.height * 0.4)
+                    .opacity(lightRisen ? 0.75 : 0)
+                    .momentBreathing(lightRisen)
+            }
+            .ignoresSafeArea()
+            .animation(Moment.animation(Moment.gentle, reduceMotion: reduceMotion), value: lightRisen)
+            .accessibilityHidden(true)
+
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.glow(.headline))
+                    .foregroundStyle(.glowTextPrimary)
+                    .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(GlowPalette.textPrimary.color.opacity(0.12), lineWidth: 1))
+            }
+            .accessibilityLabel(Text("Close"))
+            .padding(.horizontal, GlowSpacing.md)
+            .padding(.top, GlowSpacing.xs)
+        }
+    }
+}
+
+/// A waiting state that breathes instead of spinning.
+struct MomentWaitingLight: View {
+    let label: Text
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 120
+
+    var body: some View {
+        MomentLight(core: 0.7)
+            .frame(width: size, height: size)
+            .momentBreathing()
+            .accessibilityElement()
+            .accessibilityLabel(label)
     }
 }
 
 // MARK: - The intro
 
-/// Two cards drift together, the phone buzzes, and a soft glow blooms where they meet. Under Reduce
-/// Motion the cards are already together and simply fade in.
+/// Two points of light drift in from the edges and meet in the middle. As they touch, the phone
+/// beats twice (a heartbeat), a bloom radiates from where they met, and the line arrives in New
+/// York. Under Reduce Motion the lights are already together and everything simply fades in.
 struct MutualIntro: View {
     let onFinished: @MainActor () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var together = false
-    @ScaledMetric(relativeTo: .largeTitle) private var cardWidth: CGFloat = 132
+    enum Stage: Int, Comparable {
+        case dark, apart, together, spoken
 
-    var body: some View {
-        VStack(spacing: GlowSpacing.xl) {
-            ZStack {
-                Circle()
-                    .fill(RadialGradient(
-                        colors: [GlowPalette.accent.color.opacity(0.55), GlowPalette.accent.color.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: cardWidth * 1.6,
-                    ))
-                    .frame(width: cardWidth * 3.2, height: cardWidth * 3.2)
-                    .opacity(together ? 1 : 0)
-                    .scaleEffect(together || reduceMotion ? 1 : 0.6)
-                card(tilt: -1)
-                card(tilt: 1)
-            }
-            .frame(height: cardWidth * 1.8)
-            .accessibilityHidden(true)
-
-            Text("Someone you noticed noticed you back.")
-                .glowFont(.title)
-                .foregroundStyle(.glowTextPrimary)
-                .multilineTextAlignment(.center)
-                .opacity(together ? 1 : 0)
-                .padding(.horizontal, GlowSpacing.screenMargin)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glowHaptic(.mutual, trigger: together)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("Someone you noticed noticed you back."))
-        .task {
-            try? await Task.sleep(for: .milliseconds(reduceMotion ? 100 : 350))
-            withAnimation(GlowMotion.animation(.reveal, reduceMotion: reduceMotion)) {
-                together = true
-            }
-            try? await Task.sleep(for: .milliseconds(1500))
-            onFinished()
+        static func < (lhs: Stage, rhs: Stage) -> Bool {
+            lhs.rawValue < rhs.rawValue
         }
     }
 
-    /// One card. `tilt` is -1 for the left card and 1 for the right one.
-    private func card(tilt: CGFloat) -> some View {
-        let apart = !together && !reduceMotion
-        return RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous)
-            .fill(.glowSurfaceRaised)
-            .overlay {
-                RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous)
-                    .strokeBorder(GlowPalette.accent.color.opacity(together ? 0.9 : 0.35), lineWidth: 1.5)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var stage = Stage.dark
+    @ScaledMetric(relativeTo: .largeTitle) private var orb: CGFloat = 132
+
+    var body: some View {
+        VStack(spacing: GlowSpacing.lg) {
+            Spacer(minLength: 0)
+            GeometryReader { proxy in
+                let reach = proxy.size.width / 2 + orb * 0.2
+                ZStack {
+                    // The bloom where they meet: once, 600 ms, then it settles into the light.
+                    Circle()
+                        .fill(EllipticalGradient(
+                            colors: [GlowPalette.accent.color.opacity(0.55), GlowPalette.accent.color.opacity(0)],
+                            center: .center,
+                            startRadiusFraction: 0,
+                            endRadiusFraction: 0.5,
+                        ))
+                        .frame(width: orb * 4, height: orb * 4)
+                        .scaleEffect(stage >= .together ? 1 : (reduceMotion ? 1 : 0.2))
+                        .opacity(stage >= .together ? 1 : 0)
+                        .animation(reduceMotion ? Moment.fade : Moment.bloom, value: stage)
+
+                    light(side: -1, reach: reach)
+                    light(side: 1, reach: reach)
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
             }
-            .overlay {
-                Image(systemName: "sparkle")
-                    .glowFont(.title)
+            .frame(height: orb * 2.6)
+            .accessibilityHidden(true)
+
+            VStack(spacing: GlowSpacing.sm) {
+                Text("It's mutual")
+                    .momentOverline()
                     .foregroundStyle(.glowAccent)
-                    .opacity(together ? 1 : 0.4)
+                    .momentRise(0, shown: stage >= .spoken)
+                Group {
+                    Text("Someone you noticed")
+                    Text("noticed you back.")
+                        .italic()
+                }
+                .font(Moment.serif(.largeTitle))
+                .foregroundStyle(.glowTextPrimary)
+                .momentRise(1, shown: stage >= .spoken)
             }
-            .frame(width: cardWidth, height: cardWidth * 1.4)
-            .rotationEffect(.degrees(Double(tilt) * (apart ? 14 : 5)))
-            .offset(x: tilt * (apart ? cardWidth * 1.1 : cardWidth * 0.18), y: apart ? 24 : 0)
-            .opacity(reduceMotion && !together ? 0 : 1)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, GlowSpacing.screenMargin)
+            Spacer(minLength: 0)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Someone you noticed noticed you back."))
+        .accessibilityAddTraits(.isHeader)
+        .task { await play() }
+    }
+
+    /// One light. `side` is -1 for the left one and 1 for the right one.
+    private func light(side: CGFloat, reach: CGFloat) -> some View {
+        let offset: CGFloat = switch stage {
+        case .dark, .apart: reduceMotion ? side * orb * 0.04 : side * reach
+        case .together, .spoken: side * orb * 0.04
+        }
+        return MomentLight(core: stage >= .together ? 1 : 0.8)
+            .frame(width: orb, height: orb)
+            .scaleEffect(stage >= .together ? 1.25 : 1)
+            .offset(x: offset)
+            .opacity(stage == .dark ? 0 : 1)
+            .blendMode(.plusLighter)
+            .momentBreathing(stage >= .spoken)
+    }
+
+    private func play() async {
+        if reduceMotion {
+            withAnimation(Moment.fade) { stage = .together }
+            GlowHaptics.shared.play(pattern: Moment.heartbeat)
+            stage = .spoken
+            try? await Task.sleep(for: .milliseconds(1800))
+            onFinished()
+            return
+        }
+        withAnimation(Moment.fade) { stage = .apart }
+        try? await Task.sleep(for: .milliseconds(150))
+        withAnimation(Moment.gentle) { stage = .together }
+        // The lights touch about halfway through the spring: the heartbeat lands there.
+        try? await Task.sleep(for: .milliseconds(520))
+        GlowHaptics.shared.play(pattern: Moment.heartbeat)
+        try? await Task.sleep(for: .milliseconds(260))
+        stage = .spoken
+        try? await Task.sleep(for: .milliseconds(1900))
+        onFinished()
     }
 }
 

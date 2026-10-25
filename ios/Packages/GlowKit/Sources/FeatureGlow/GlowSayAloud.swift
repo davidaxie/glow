@@ -36,31 +36,41 @@ enum GlowSayAloud {
     }
 }
 
-/// The lines, drawn in the glow's ink so they read like the rest of the screen.
+/// The lines, drawn in the glow's ink so they read like the rest of the screen: set as quotes in
+/// New York italic, separated by hairlines, like lines in a script (U3).
 struct GlowSayAloudView: View {
     let lines: [GlowSayAloudLine]
     @Environment(\.glowHue) private var hue
 
     var body: some View {
         if !lines.isEmpty {
-            VStack(spacing: GlowSpacing.xs) {
+            VStack(spacing: GlowSpacing.sm) {
                 Text("Need an excuse?")
-                    .glowFont(.headline)
+                    .glowFont(.footnote)
+                    .fontWeight(.semibold)
+                    .textCase(.uppercase)
+                    .kerning(1.2)
                     .accessibilityAddTraits(.isHeader)
-                ForEach(lines) { line in
-                    Text(line.text)
-                        .glowFont(.body)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, GlowSpacing.md)
-                        .padding(.vertical, GlowSpacing.xs)
-                        .frame(maxWidth: .infinity)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous)
-                                .strokeBorder((hue ?? .pearl).ink.color.opacity(0.5), lineWidth: 1)
+                VStack(spacing: 0) {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        if index > 0 {
+                            Rectangle()
+                                .fill((hue ?? .pearl).ink.color.opacity(0.18))
+                                .frame(height: 1)
+                                .padding(.horizontal, GlowSpacing.xl)
+                                .accessibilityHidden(true)
                         }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(Text("Suggested opener: \(line.text)"))
+                        Text(verbatim: "\u{201C}\(line.text)\u{201D}")
+                            .font(GlowMoment.serif(.title3))
+                            .italic()
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, GlowSpacing.md)
+                            .padding(.vertical, GlowSpacing.sm)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(Text("Suggested opener: \(line.text)"))
+                    }
                 }
             }
             .multilineTextAlignment(.center)

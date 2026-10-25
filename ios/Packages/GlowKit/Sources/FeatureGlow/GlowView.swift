@@ -17,14 +17,20 @@ public struct GlowView: View {
     }
 
     public var body: some View {
-        GlowScreen(
-            model: GlowModel(
-                matchID: matchID,
-                client: LiveGlowClient(api: dependencies.glowAPI()),
-                liveActivities: ActivityKitGlowLiveActivities(),
-                analytics: dependencies.analytics,
-            ),
-            events: dependencies.realtime,
+        GlowScreen(model: model, events: dependencies.realtime)
+    }
+
+    private var model: GlowModel {
+        #if DEBUG
+            if let fixture = GlowLaunchFixture.model(for: matchID, environment: dependencies.config.environment) {
+                return fixture
+            }
+        #endif
+        return GlowModel(
+            matchID: matchID,
+            client: LiveGlowClient(api: dependencies.glowAPI()),
+            liveActivities: ActivityKitGlowLiveActivities(),
+            analytics: dependencies.analytics,
         )
     }
 }
@@ -118,31 +124,120 @@ struct GlowOnView: View {
     let onEnd: () -> Void
     let onHide: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The color has filled the screen.
+    @State private var filled = false
+    /// The surface and its words are on top of the color.
+    @State private var surfaced = false
+    /// The single soft light at the heart of the bloom.
+    @State private var lightOn = false
+
+    /// Snapshot tests hold time still and get the settled glow, with no entrance.
+    private var isStill: Bool {
+        frozenAt != nil
+    }
+
     var body: some View {
-        GlowSurface(session.hue, isPulsing: frozenAt == nil, controlsScreen: controlsScreen) {
-            VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, GlowSpacing.screenMargin)
-                    .padding(.top, GlowSpacing.xs)
-                // The word and the spot scroll at large text sizes; the actions below never do, so
-                // We met is always on screen.
-                GeometryReader { proxy in
-                    ScrollView {
-                        VStack(spacing: GlowSpacing.lg) {
-                            word
-                            spot
-                            GlowSayAloudView(lines: GlowSayAloud.lines(codeWord: session.codeWord, meetingSpot: session.meetingSpot))
-                        }
-                        .padding(.horizontal, GlowSpacing.screenMargin)
-                        .padding(.vertical, GlowSpacing.md)
-                        .frame(minHeight: proxy.size.height)
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                }
-                actions
-                    .padding(.horizontal, GlowSpacing.screenMargin)
-                    .padding(.bottom, GlowSpacing.xs)
+        ZStack {
+            // The dark room the color blooms into.
+            Rectangle().fill(.glowBackground).ignoresSafeArea()
+            colorBloom
+            GlowSurface(session.hue, isPulsing: frozenAt == nil, controlsScreen: controlsScreen) {
+                layout
             }
+            .opacity(surfaced || isStill ? 1 : 0)
+            heartLight
+        }
+        .task { await enter() }
+    }
+
+    // MARK: Entrance
+
+    /// The shared color, growing from the middle of the screen until it fills it.
+    private var colorBloom: some View {
+        GeometryReader { proxy in
+            let diameter = max(proxy.size.width, proxy.size.height) * 2.4
+            Circle()
+                .fill(session.hue.color)
+                .frame(width: diameter, height: diameter)
+                .scaleEffect(filled || isStill || reduceMotion ? 1 : 0.01)
+                .opacity(filled || isStill ? 1 : 0)
+                .position(x: proxy.size.width / 2, y: proxy.size.height * 0.42)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+
+    /// One soft white bloom where the color starts, 600 ms, then it settles. Never repeats.
+    private var heartLight: some View {
+        GeometryReader { proxy in
+            let side = max(proxy.size.width, proxy.size.height)
+            Circle()
+                .fill(EllipticalGradient(
+                    colors: [GlowRGB.white.color.opacity(0.5), GlowRGB.white.color.opacity(0)],
+                    center: .center,
+                    startRadiusFraction: 0,
+                    endRadiusFraction: 0.5,
+                ))
+                .frame(width: side, height: side)
+                .scaleEffect(lightOn || reduceMotion ? 1.2 : 0.2)
+                .opacity(lightOn ? 1 : 0)
+                .position(x: proxy.size.width / 2, y: proxy.size.height * 0.42)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func enter() async {
+        guard !isStill, !filled else { return }
+        if reduceMotion {
+            withAnimation(GlowMoment.fade) { filled = true }
+            withAnimation(GlowMoment.fade.delay(0.15)) { surfaced = true }
+            return
+        }
+        withAnimation(GlowMoment.bloom) { lightOn = true }
+        withAnimation(GlowMoment.gentle) { filled = true }
+        try? await Task.sleep(for: .milliseconds(360))
+        withAnimation(GlowMoment.fade) { surfaced = true }
+        try? await Task.sleep(for: .milliseconds(240))
+        withAnimation(.easeOut(duration: 0.9)) { lightOn = false }
+    }
+
+    private var shown: Bool {
+        surfaced || isStill
+    }
+
+    // MARK: Layout
+
+    private var layout: some View {
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, GlowSpacing.screenMargin)
+                .padding(.top, GlowSpacing.xs)
+                .glowRise(0, shown: shown)
+            // The word and the spot scroll at large text sizes; the actions below never do, so
+            // We met is always on screen.
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: GlowSpacing.xl) {
+                        word
+                        spot
+                            .glowRise(4, shown: shown)
+                        GlowSayAloudView(lines: GlowSayAloud.lines(codeWord: session.codeWord, meetingSpot: session.meetingSpot))
+                            .glowRise(5, shown: shown)
+                    }
+                    .padding(.horizontal, GlowSpacing.screenMargin)
+                    .padding(.vertical, GlowSpacing.lg)
+                    .frame(minHeight: proxy.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.hidden)
+            }
+            actions
+                .padding(.horizontal, GlowSpacing.screenMargin)
+                .padding(.bottom, GlowSpacing.xs)
+                .glowRise(6, shown: shown)
         }
     }
 
@@ -151,7 +246,8 @@ struct GlowOnView: View {
             Button(action: onHide) {
                 Image(systemName: "chevron.down")
                     .font(.glow(.headline))
-                    .frame(minWidth: GlowSize.minimumTapTarget, minHeight: GlowSize.minimumTapTarget)
+                    .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
+                    .background(GlowFrost.fill, in: Circle())
             }
             .accessibilityLabel(Text("Hide glow"))
             .accessibilityHint(Text("The glow keeps going. Find it again in Matches."))
@@ -161,33 +257,52 @@ struct GlowOnView: View {
     }
 
     private var word: some View {
-        VStack(spacing: GlowSpacing.xs) {
+        VStack(spacing: GlowSpacing.sm) {
             Text("Your code word")
-                .glowFont(.callout)
-            GlowCodeWord(session.displayWord)
+                .glowFont(.footnote)
+                .fontWeight(.semibold)
+                .textCase(.uppercase)
+                .kerning(1.6)
+                .glowRise(1, shown: shown)
+            GlowWordmark(word: session.displayWord)
+                .scaleEffect(shown || reduceMotion ? 1 : 0.94)
+                .glowRise(2, shown: shown)
             // The color's name too, for anyone who can't tell the colors apart.
             Text("\(session.hue.name) glow")
                 .glowFont(.headline)
                 .accessibilityLabel(Text("Color: \(session.hue.name)"))
+                .glowRise(3, shown: shown)
         }
         .multilineTextAlignment(.center)
     }
 
     private var spot: some View {
-        VStack(spacing: GlowSpacing.sm) {
+        VStack(spacing: GlowSpacing.xs) {
             if let meetingSpot = session.meetingSpot {
                 Label {
-                    Text("Meet at \(meetingSpot)")
+                    Text("Meet at")
                 } icon: {
                     Image(systemName: "mappin.and.ellipse")
                 }
-                .glowFont(.headline)
+                .glowFont(.footnote)
+                .fontWeight(.semibold)
+                .textCase(.uppercase)
+                .kerning(1.2)
+                Text(verbatim: meetingSpot)
+                    .font(GlowMoment.serif(.title, weight: .medium))
+                    .padding(.bottom, GlowSpacing.xxs)
             }
             Text("Hold your phone up. They're looking for this color too.")
                 .glowFont(.callout)
         }
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, GlowSpacing.lg)
+        .padding(.vertical, GlowSpacing.md)
+        .frame(maxWidth: .infinity)
+        .background(GlowFrost.fill, in: .rect(cornerRadius: GlowFrost.radius, style: .continuous))
+        .overlay { GlowFrost.edge }
+        .accessibilityElement(children: .combine)
     }
 
     private var actions: some View {
@@ -203,12 +318,13 @@ struct GlowOnView: View {
                 Text(session.youMet ? "Waiting for them" : "We met")
             }
             .buttonStyle(.glowOnSurface)
+            .clipShape(Capsule())
             .glowLoading(isSending && !session.youMet)
             .disabled(session.youMet || isSending)
             .accessibilityHint(session.youMet ? Text("") : Text("It counts once you've both tapped it."))
 
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: GlowSpacing.md) { secondaryButtons }
+                HStack(spacing: GlowSpacing.xl) { secondaryButtons }
                 VStack(spacing: GlowSpacing.xs) { secondaryButtons }
             }
         }
@@ -216,11 +332,13 @@ struct GlowOnView: View {
 
     @ViewBuilder private var secondaryButtons: some View {
         Button("Switch to chat", action: onSwitchToChat)
-            .glowFont(.button)
+            .glowFont(.callout)
+            .fontWeight(.semibold)
             .frame(minHeight: GlowSize.minimumTapTarget)
             .disabled(isSending)
         Button("End glow", action: onEnd)
-            .glowFont(.button)
+            .glowFont(.callout)
+            .fontWeight(.semibold)
             .frame(minHeight: GlowSize.minimumTapTarget)
             .disabled(isSending)
     }
@@ -237,12 +355,31 @@ struct GlowOnView: View {
     }
 }
 
+/// Frosted glass on a glow color: white mixed over the color, so the ink on it only gains
+/// contrast (it never darkens the color under text).
+enum GlowFrost {
+    static let radius: CGFloat = 28
+    static let fill = GlowRGB.white.color.opacity(0.2)
+
+    static var edge: some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .strokeBorder(
+                LinearGradient(
+                    colors: [GlowRGB.white.color.opacity(0.55), GlowRGB.white.color.opacity(0.1)],
+                    startPoint: .top,
+                    endPoint: .bottom,
+                ),
+                lineWidth: 1,
+            )
+            .accessibilityHidden(true)
+    }
+}
+
 /// Minutes and seconds left, counting down to the glow's end.
 struct GlowCountdown: View {
     let start: Date
     let end: Date
     let frozenAt: Date?
-    @Environment(\.glowHue) private var hue
 
     var body: some View {
         Label {
@@ -257,9 +394,9 @@ struct GlowCountdown: View {
             Image(systemName: "timer")
         }
         .glowFont(.headline)
-        .padding(.horizontal, GlowSpacing.sm)
-        .padding(.vertical, GlowSpacing.xxs)
-        .background((hue ?? .pearl).ink.color.opacity(0.1), in: Capsule())
+        .padding(.horizontal, GlowSpacing.md)
+        .frame(minHeight: GlowSize.minimumTapTarget)
+        .background(GlowFrost.fill, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Time left"))
     }
@@ -274,10 +411,25 @@ struct GlowCountdown: View {
 // MARK: - Before and after the glow
 
 struct GlowLoadingView: View {
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 140
+
     var body: some View {
-        VStack(spacing: GlowSpacing.md) {
-            ProgressView()
-                .tint(.glowTextSecondary)
+        VStack(spacing: GlowSpacing.lg) {
+            // A breath, not a spinner: the glow is on its way.
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                let wave = GlowMoment.breath(at: context.date)
+                Circle()
+                    .fill(EllipticalGradient(
+                        colors: [GlowRGB.white.color.opacity(0.35), GlowRGB.white.color.opacity(0)],
+                        center: .center,
+                        startRadiusFraction: 0,
+                        endRadiusFraction: 0.5,
+                    ))
+                    .frame(width: size, height: size)
+                    .scaleEffect(1 + 0.03 * wave)
+                    .opacity(0.6 + 0.4 * wave)
+            }
+            .accessibilityHidden(true)
             Text("Getting your glow ready")
                 .glowFont(.callout)
                 .foregroundStyle(.glowTextSecondary)
