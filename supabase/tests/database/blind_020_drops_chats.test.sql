@@ -118,7 +118,8 @@ select is(public.blind_partner_photo_path(tests.id('a'), tests.id('c1'), 0), nul
 
 select is((public.blind_send_message(tests.id('a'), tests.id('c1'), 'hi there') - 'id' - 'at'),
           '{"mine": true, "text": "hi there"}'::jsonb, 'sending answers my own message as mine');
-select is((select side from public.blind_messages where chat_id = tests.id('c1')), 'a'::bpchar,
+select is((select side from public.blind_messages where chat_id = tests.id('c1')),
+          (select case when user_a = tests.id('a') then 'a' else 'b' end::bpchar from public.blind_chats where id = tests.id('c1')),
           'messages store a side, never a sender (B12)');
 select is((select (c -> 'unread')::boolean from jsonb_array_elements(public.blind_chat_list(tests.id('w1')) -> 'chats') c
             where c ->> 'id' = tests.id('c1')::text), true, 'W1 has an unread message');
