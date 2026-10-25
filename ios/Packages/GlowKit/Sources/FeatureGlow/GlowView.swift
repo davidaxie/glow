@@ -65,7 +65,7 @@ struct GlowScreen: View {
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .loading:
-            GlowLoadingView()
+            GlowLoadingView(frozenAt: frozenAt)
         case let .glowing(session):
             GlowOnView(
                 session: session,
@@ -116,23 +116,21 @@ struct GlowScreen: View {
 // MARK: - Before and after the glow
 
 struct GlowLoadingView: View {
+    /// Snapshots hold the breath still at this moment, so the loading screen draws the same every run.
+    var frozenAt: Date?
     @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 140
 
     var body: some View {
         VStack(spacing: GlowSpacing.lg) {
             // A breath, not a spinner: the glow is on its way.
-            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-                let wave = GlowLook.breath(at: context.date)
-                Circle()
-                    .fill(EllipticalGradient(
-                        colors: [GlowRGB.white.color.opacity(0.35), GlowRGB.white.color.opacity(0)],
-                        center: .center,
-                        startRadiusFraction: 0,
-                        endRadiusFraction: 0.5,
-                    ))
-                    .frame(width: size, height: size)
-                    .scaleEffect(1 + 0.03 * wave)
-                    .opacity(0.6 + 0.4 * wave)
+            Group {
+                if let frozenAt {
+                    breath(at: frozenAt)
+                } else {
+                    TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                        breath(at: context.date)
+                    }
+                }
             }
             .accessibilityHidden(true)
             Text("Getting your glow ready")
@@ -141,6 +139,20 @@ struct GlowLoadingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.glowBackground)
+    }
+
+    private func breath(at date: Date) -> some View {
+        let wave = GlowLook.breath(at: date)
+        return Circle()
+            .fill(EllipticalGradient(
+                colors: [GlowRGB.white.color.opacity(0.35), GlowRGB.white.color.opacity(0)],
+                center: .center,
+                startRadiusFraction: 0,
+                endRadiusFraction: 0.5,
+            ))
+            .frame(width: size, height: size)
+            .scaleEffect(1 + 0.03 * wave)
+            .opacity(0.6 + 0.4 * wave)
     }
 }
 
