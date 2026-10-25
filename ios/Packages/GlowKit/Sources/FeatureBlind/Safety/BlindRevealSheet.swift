@@ -270,9 +270,10 @@ struct BlindChatMenu: View {
             case .leave:
                 Text("They'll only see that you left. You can't come back to this chat.")
             case .block:
-                Text(
-                    "This closes the chat. You won't see each other again anywhere in Glow. They only see that you left, and you won't find out who they were.",
-                )
+                Text("""
+                This closes the chat. You won't see each other again anywhere in Glow. \
+                They only see that you left, and you won't find out who they were.
+                """)
             }
         }
         .alert("Couldn't do that", isPresented: Binding(get: { errorText != nil }, set: {

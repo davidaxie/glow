@@ -203,16 +203,24 @@ struct LiveBlindService: BlindService {
                 throw .unexpected
             }
         }
-        switch response.status.code {
+        return try Self.decode(status: response.status.code, data: data)
+    }
+
+    /// A 2xx body as `Output`; a 204 (leaving Blind) has no body and stands for `{ok: true}`.
+    private static func decode<Output: Decodable>(status: Int, data: Data) throws(BlindError) -> Output {
+        switch status {
         case 200 ..< 300:
+            if data.isEmpty, let empty = Wire.Ok(ok: true) as? Output {
+                return empty
+            }
             do {
-                return try Self.decoder.decode(Output.self, from: data)
+                return try decoder.decode(Output.self, from: data)
             } catch {
                 throw .unexpected
             }
         case 400, 422: throw .invalid
         case 409:
-            let code = (try? Self.decoder.decode(Wire.ErrorEnvelope.self, from: data))?.error.code
+            let code = (try? decoder.decode(Wire.ErrorEnvelope.self, from: data))?.error.code
             throw BlindError(conflictCode: code)
         case 503: throw .offline
         default: throw .unexpected
@@ -257,187 +265,5 @@ extension BlindError {
         case "chat_closed", "chat_not_open", "chat_left": self = .chatClosed
         default: self = .unexpected
         }
-    }
-}
-
-/// The JSON on the wire. Only what the app reads; unknown fields are ignored.
-enum Wire {
-    struct Empty: Codable {}
-
-    struct Ok: Decodable {
-        let ok: Bool?
-    }
-
-    struct ErrorEnvelope: Decodable {
-        struct Body: Decodable {
-            let code: String
-        }
-
-        let error: Body
-    }
-
-    struct Me: Decodable {
-        let member: Bool?
-        let isMember: Bool?
-        let joined: Bool?
-        let rightRemaining: Int
-        let rightCount: Int
-        let canDrop: Bool
-
-        var model: BlindMe {
-            BlindMe(
-                isMember: member ?? isMember ?? joined ?? false,
-                rightRemaining: rightRemaining,
-                rightCount: rightCount,
-                canDrop: canDrop,
-            )
-        }
-    }
-
-    struct Card: Decodable {
-        let id: String
-        let photoUrl: String
-
-        var model: BlindCard? {
-            BlindCardID(validating: id).map { BlindCard(id: $0, photo: BlindPhoto(url: photoUrl)) }
-        }
-    }
-
-    struct Cards: Decodable {
-        let cards: [Card]
-    }
-
-    struct SwipeRequest: Encodable {
-        let targetId: String
-        let kind: String
-    }
-
-    struct Counters: Decodable {
-        let rightRemaining: Int
-        let rightCount: Int
-    }
-
-    struct Pool: Decodable {
-        let rightCount: Int
-        let rightRemaining: Int
-        let canDrop: Bool
-    }
-
-    struct DropStatus: Decodable {
-        let ready: Bool
-        let demo: Bool
-        let nextDropAt: Date
-        let rightCount: Int
-        let canDrop: Bool
-    }
-
-    struct DropChat: Decodable {
-        let id: String
-        let codename: String
-    }
-
-    struct DropResult: Decodable {
-        let opened: Int
-        let chats: [DropChat]?
-    }
-
-    struct LastMessage: Decodable {
-        let mine: Bool
-        let text: String
-        let at: Date
-    }
-
-    struct ChatSummary: Decodable {
-        let id: String
-        let codename: String
-        let status: String
-        let lastMessage: LastMessage?
-        let unread: Bool
-
-        var model: BlindChatSummary? {
-            guard let chatID = BlindChatID(validating: id) else { return nil }
-            return BlindChatSummary(
-                id: chatID,
-                codename: codename,
-                status: BlindChatStatus(rawValue: status) ?? .open,
-                lastMessage: lastMessage.map { BlindLastMessage(mine: $0.mine, text: $0.text, at: $0.at) },
-                unread: unread,
-            )
-        }
-    }
-
-    struct ChatList: Decodable {
-        let chats: [ChatSummary]
-    }
-
-    struct Partner: Decodable {
-        let name: String
-        let photos: [String]
-    }
-
-    struct ChatDetail: Decodable {
-        let id: String
-        let codename: String
-        let status: String
-        let iTappedReveal: Bool
-        let theyLeft: Bool
-        let partner: Partner?
-        let guessCorrect: Bool?
-
-        var model: BlindChatDetail? {
-            guard let chatID = BlindChatID(validating: id) else { return nil }
-            let status = BlindChatStatus(rawValue: status) ?? .open
-            return BlindChatDetail(
-                id: chatID,
-                codename: codename,
-                status: status,
-                iTappedReveal: iTappedReveal,
-                theyLeft: theyLeft,
-                // B1, belt and braces: a partner is only ever shown on a revealed chat.
-                partner: status == .revealed ? partner.map { BlindPartner(name: $0.name, photos: $0.photos.map(BlindPhoto.init)) } : nil,
-                guessCorrect: status == .revealed ? guessCorrect : nil,
-            )
-        }
-    }
-
-    struct Message: Decodable {
-        let id: Int
-        let mine: Bool
-        let text: String
-        let at: Date
-
-        var model: BlindMessage {
-            BlindMessage(id: id, mine: mine, text: text, at: at)
-        }
-    }
-
-    struct Messages: Decodable {
-        let messages: [Message]
-    }
-
-    struct SendRequest: Encodable {
-        let text: String
-        let confirm: Bool
-    }
-
-    struct Warning: Decodable {
-        let reason: String
-    }
-
-    struct SendResult: Decodable {
-        let message: Message?
-        let warning: Warning?
-    }
-
-    struct Status: Decodable {
-        let status: String
-    }
-
-    struct GuessRequest: Encodable {
-        let guessId: String
-    }
-
-    struct ReportRequest: Encodable {
-        let reason: String
     }
 }

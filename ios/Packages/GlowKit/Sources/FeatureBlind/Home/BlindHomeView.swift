@@ -291,9 +291,10 @@ struct BlindOptInView: View {
                     Image(systemName: "lock")
                         .foregroundStyle(.glowTextSecondary)
                         .accessibilityHidden(true)
-                    Text(
-                        "Your photos (never your name) are shown to other Blind members. Nothing about rooms or where you are is ever shown.",
-                    )
+                    Text("""
+                    Your photos (never your name) are shown to other Blind members. \
+                    Nothing about rooms or where you are is ever shown.
+                    """)
                     .glowFont(.callout)
                     .foregroundStyle(.glowTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
