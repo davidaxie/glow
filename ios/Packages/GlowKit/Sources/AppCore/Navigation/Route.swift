@@ -75,16 +75,33 @@ public enum Route: Hashable, Sendable {
     /// The report sheet (reporting also blocks).
     case report(SafetyContext)
 
+    // MARK: Blind mode (X2, FeatureBlind)
+
+    /// The Blind tab: the opt-in screen, then the photo-only deck and the blind chats.
+    case blind
+    /// The drop: a countdown, then the waiting chats arrive one codename at a time.
+    case blindDrop
+    /// One blind chat, under its codename. A blind chat ID, never a user ID (B1).
+    case blindChat(BlindChatID)
+    /// After both tapped Reveal: their name and photos.
+    case blindReveal(BlindChatID)
+    /// Guess Who: which of the people I liked is this?
+    case blindGuess(BlindChatID)
+    /// Report (and block) the person behind a blind chat, without learning who they are.
+    case blindReport(BlindChatID)
+
     // MARK: Debug (B6, DesignSystem)
 
     /// Every component in every state. Debug builds only; ignored in Release.
     case gallery
 }
 
-/// The app's three tabs once onboarding is done.
+/// The app's tabs once onboarding is done.
 public enum AppTab: String, Hashable, Sendable, CaseIterable {
     case rooms
     case matches
+    /// Blind mode (X2).
+    case blind
     case settings
 }
 
@@ -120,6 +137,10 @@ extension Route {
         case .settings: .tabRoot(.settings)
         case .editProfile, .editPhotos, .pause, .deleteAccount, .gallery: .push(.settings)
         case .block, .report: .sheet
+        case .blind: .tabRoot(.blind)
+        case .blindChat: .push(.blind)
+        case .blindDrop, .blindReveal: .fullScreen
+        case .blindGuess, .blindReport: .sheet
         }
     }
 
@@ -155,6 +176,12 @@ extension Route {
         case .block: "block"
         case .report: "report"
         case .gallery: "gallery"
+        case .blind: "blind"
+        case .blindDrop: "blind_drop"
+        case .blindChat: "blind_chat"
+        case .blindReveal: "blind_reveal"
+        case .blindGuess: "blind_guess"
+        case .blindReport: "blind_report"
         }
     }
 }
