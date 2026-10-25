@@ -23,17 +23,54 @@ type Db = any;
 
 const COUNT = 20;
 const BUCKET = 'profile-photos';
-const NAMES = ['Ava', 'Ben', 'Cleo', 'Dev', 'Eli', 'Fay', 'Gus', 'Hana', 'Ivo', 'Jade',
-  'Kai', 'Lena', 'Milo', 'Nia', 'Omar', 'Pia', 'Quin', 'Rosa', 'Sam', 'Tess'];
-const COLORS = ['#3b5bdb', '#c2255c', '#2b8a3e', '#e8590c', '#5f3dc4', '#0b7285', '#a61e4d',
-  '#5c940d', '#d9480f', '#364fc7'];
+const NAMES = [
+  'Ava',
+  'Ben',
+  'Cleo',
+  'Dev',
+  'Eli',
+  'Fay',
+  'Gus',
+  'Hana',
+  'Ivo',
+  'Jade',
+  'Kai',
+  'Lena',
+  'Milo',
+  'Nia',
+  'Omar',
+  'Pia',
+  'Quin',
+  'Rosa',
+  'Sam',
+  'Tess',
+];
+const COLORS = [
+  '#3b5bdb',
+  '#c2255c',
+  '#2b8a3e',
+  '#e8590c',
+  '#5f3dc4',
+  '#0b7285',
+  '#a61e4d',
+  '#5c940d',
+  '#d9480f',
+  '#364fc7',
+];
 
 function uuidFrom(text: string): string {
   const h = createHash('sha256').update(text).digest('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-type Member = { id: string; photoId: string; email: string; firstName: string; gender: string; showMe: string[] };
+type Member = {
+  id: string;
+  photoId: string;
+  email: string;
+  firstName: string;
+  gender: string;
+  showMe: string[];
+};
 
 export function members(): Member[] {
   return NAMES.slice(0, COUNT).map((name, i) => {
@@ -82,26 +119,56 @@ async function placeholderJpeg(sharp: Db, i: number): Promise<Buffer> {
 async function ensureMember(db: Db, sharp: Db, m: Member, i: number): Promise<void> {
   const found = await db.auth.admin.getUserById(m.id);
   if (!found.data?.user) {
-    await must('create member', db.auth.admin.createUser({
-      id: m.id, email: m.email, email_confirm: true,
-      app_metadata: { test_data: true }, user_metadata: { test_data: true },
-    }));
+    await must(
+      'create member',
+      db.auth.admin.createUser({
+        id: m.id,
+        email: m.email,
+        email_confirm: true,
+        app_metadata: { test_data: true },
+        user_metadata: { test_data: true },
+      }),
+    );
   } else if (found.data.user.email !== m.email) {
     throw new Error(`User ${m.id} exists with a different email; not touching it.`);
   }
-  await must('set profile', db.from('profiles').update({
-    first_name: m.firstName, birthdate: `${1994 + (i % 8)}-0${1 + (i % 9)}-1${i % 9}`, gender: m.gender,
-    show_me: m.showMe, onboarding_step: 'complete', paused: false,
-  }).eq('id', m.id));
+  await must(
+    'set profile',
+    db
+      .from('profiles')
+      .update({
+        first_name: m.firstName,
+        birthdate: `${1994 + (i % 8)}-0${1 + (i % 9)}-1${i % 9}`,
+        gender: m.gender,
+        show_me: m.showMe,
+        onboarding_step: 'complete',
+        paused: false,
+      })
+      .eq('id', m.id),
+  );
   const path = `${m.id}/${m.photoId}.jpg`;
-  const photo = await must('read photo', db.from('profile_photos').select('id').eq('id', m.photoId).maybeSingle());
+  const photo = await must(
+    'read photo',
+    db.from('profile_photos').select('id').eq('id', m.photoId).maybeSingle(),
+  );
   if (!photo) {
-    await must('upload photo', db.storage.from(BUCKET).upload(path, await placeholderJpeg(sharp, i), {
-      contentType: 'image/jpeg', upsert: true,
-    }));
-    await must('add photo', db.from('profile_photos').insert({
-      id: m.photoId, user_id: m.id, path, position: 0, moderation_status: 'approved',
-    }));
+    await must(
+      'upload photo',
+      db.storage.from(BUCKET).upload(path, await placeholderJpeg(sharp, i), {
+        contentType: 'image/jpeg',
+        upsert: true,
+      }),
+    );
+    await must(
+      'add photo',
+      db.from('profile_photos').insert({
+        id: m.photoId,
+        user_id: m.id,
+        path,
+        position: 0,
+        moderation_status: 'approved',
+      }),
+    );
   }
   await must('join Blind', db.rpc('blind_join', { p_user_id: m.id }));
 }
@@ -110,7 +177,9 @@ async function userIdByEmail(db: Db, email: string): Promise<string> {
   for (let page = 1; page < 50; page++) {
     const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
     if (error) throw new Error(`list users failed: ${error.message}`);
-    const hit = data.users.find((u: { email?: string }) => u.email?.toLowerCase() === email.toLowerCase());
+    const hit = data.users.find(
+      (u: { email?: string }) => u.email?.toLowerCase() === email.toLowerCase(),
+    );
     if (hit) return hit.id;
     if (data.users.length < 200) break;
   }
@@ -119,15 +188,29 @@ async function userIdByEmail(db: Db, email: string): Promise<string> {
 
 /** viewer right-swipes target through viewer's own card for them (the same path as the app). */
 async function like(db: Db, viewer: string, target: string): Promise<'ok' | 'cap'> {
-  const { data: card } = await db.from('blind_cards').select('card_id')
-    .eq('viewer_id', viewer).eq('target_id', target).maybeSingle();
+  const { data: card } = await db
+    .from('blind_cards')
+    .select('card_id')
+    .eq('viewer_id', viewer)
+    .eq('target_id', target)
+    .maybeSingle();
   let cardId = card?.card_id;
   if (!cardId) {
-    const made = await must('make card', db.from('blind_cards').insert({ viewer_id: viewer, target_id: target })
-      .select('card_id').single()) as { card_id: string };
+    const made = (await must(
+      'make card',
+      db
+        .from('blind_cards')
+        .insert({ viewer_id: viewer, target_id: target })
+        .select('card_id')
+        .single(),
+    )) as { card_id: string };
     cardId = made.card_id;
   }
-  const { error } = await db.rpc('blind_record_swipe', { p_swiper_id: viewer, p_card_id: cardId, p_kind: 'like' });
+  const { error } = await db.rpc('blind_record_swipe', {
+    p_swiper_id: viewer,
+    p_card_id: cardId,
+    p_kind: 'like',
+  });
   if (error?.message === 'right_cap_reached') return 'cap';
   if (error) throw new Error(`swipe failed: ${error.message}`);
   return 'ok';
@@ -141,7 +224,9 @@ async function fits(db: Db, a: string, b: string): Promise<boolean> {
 }
 
 async function rightCount(db: Db, user: string): Promise<number> {
-  const me = await must('blind_me', db.rpc('blind_me', { p_user_id: user })) as { rightCount: number };
+  const me = (await must('blind_me', db.rpc('blind_me', { p_user_id: user }))) as {
+    rightCount: number;
+  };
   return me.rightCount;
 }
 
@@ -150,12 +235,15 @@ async function main(): Promise<void> {
   if (existsSync(file) && !process.env.SUPABASE_SERVICE_ROLE_KEY) process.loadEnvFile(file);
   const url = process.env.SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!url || !key) throw new Error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, or run pnpm env:setup.');
+  if (!url || !key)
+    throw new Error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, or run pnpm env:setup.');
   if (!isLocalUrl(url)) throw new Error(`Refusing ${url}: seed-blind only seeds a local Supabase.`);
   const require = createRequire(new URL('../server/package.json', import.meta.url));
   const { createClient } = require('@supabase/supabase-js');
   const sharp = require('sharp');
-  const db: Db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const db: Db = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const [cmd, ...args] = process.argv.slice(2);
   const all = members();
 
@@ -168,22 +256,31 @@ async function main(): Promise<void> {
     return;
   }
   if (cmd === 'likeback' || cmd === 'pair') {
-    if (cmd === 'likeback' && args.length !== 1) throw new Error('usage: seed-blind.ts likeback <email>');
-    if (cmd === 'pair' && args.length !== 2) throw new Error('usage: seed-blind.ts pair <email> <email>');
+    if (cmd === 'likeback' && args.length !== 1)
+      throw new Error('usage: seed-blind.ts likeback <email>');
+    if (cmd === 'pair' && args.length !== 2)
+      throw new Error('usage: seed-blind.ts pair <email> <email>');
     const ids = [];
     for (const email of args) ids.push(await userIdByEmail(db, email));
     for (const id of ids) {
       const { error } = await db.rpc('blind_join', { p_user_id: id });
-      if (error) throw new Error(`${id} can't join Blind (${error.message}): finish the Glow profile first.`);
+      if (error)
+        throw new Error(
+          `${id} can't join Blind (${error.message}): finish the Glow profile first.`,
+        );
     }
     if (cmd === 'likeback') {
       let n = 0;
-      for (const m of all) if ((await fits(db, m.id, ids[0])) && (await like(db, m.id, ids[0])) === 'ok') n++;
-      console.log(`seed-blind: ${n} demo members now like ${args[0]} (their swipes; mutual once they like back)`);
+      for (const m of all)
+        if ((await fits(db, m.id, ids[0])) && (await like(db, m.id, ids[0])) === 'ok') n++;
+      console.log(
+        `seed-blind: ${n} demo members now like ${args[0]} (their swipes; mutual once they like back)`,
+      );
       return;
     }
     const [a, b] = ids as [string, string];
-    if (!(await fits(db, a, b))) console.log('seed-blind: warning, the two accounts don\'t fit each other\'s show me');
+    if (!(await fits(db, a, b)))
+      console.log("seed-blind: warning, the two accounts don't fit each other's show me");
     await like(db, a, b);
     await like(db, b, a);
     for (const id of [a, b]) {
@@ -192,7 +289,9 @@ async function main(): Promise<void> {
         if (await fits(db, id, m.id)) await like(db, id, m.id);
       }
     }
-    console.log(`seed-blind: paired ${args[0]} and ${args[1]} (mutual like, each has ${await rightCount(db, a)} and ${await rightCount(db, b)} right swipes). Open the drop to see the chat.`);
+    console.log(
+      `seed-blind: paired ${args[0]} and ${args[1]} (mutual like, each has ${await rightCount(db, a)} and ${await rightCount(db, b)} right swipes). Open the drop to see the chat.`,
+    );
     return;
   }
   if (cmd) throw new Error(`unknown command ${cmd}`);
