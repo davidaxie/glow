@@ -200,8 +200,8 @@ public struct BlindChatDetail: Hashable, Sendable, Identifiable {
     public var theyLeft: Bool
     /// Only when `status == .revealed`.
     public var partner: BlindPartner?
-    /// Only after the reveal, and only if I guessed.
-    public var guessCorrect: Bool?
+    /// Only after the reveal, and only if I guessed: nil (no guess), right or wrong.
+    public var guessCorrect: Bool? // swiftlint:disable:this discouraged_optional_boolean
 
     public init(
         id: BlindChatID,
@@ -210,7 +210,7 @@ public struct BlindChatDetail: Hashable, Sendable, Identifiable {
         iTappedReveal: Bool,
         theyLeft: Bool,
         partner: BlindPartner? = nil,
-        guessCorrect: Bool? = nil,
+        guessCorrect: Bool? = nil, // swiftlint:disable:this discouraged_optional_boolean
     ) {
         self.id = id
         self.codename = codename

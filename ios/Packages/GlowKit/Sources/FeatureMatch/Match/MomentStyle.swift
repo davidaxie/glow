@@ -40,12 +40,6 @@ enum Moment {
     static func serif(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .serif)
     }
-
-    /// The mutual moment's heartbeat: two soft impacts 120 ms apart.
-    static let heartbeat = GlowHapticPattern(events: [
-        GlowHapticPattern.Event(time: 0, intensity: 0.75, sharpness: 0.2),
-        GlowHapticPattern.Event(time: 0.12, intensity: 0.5, sharpness: 0.15),
-    ])
 }
 
 // MARK: - Light

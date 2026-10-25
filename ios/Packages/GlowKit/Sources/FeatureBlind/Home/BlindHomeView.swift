@@ -280,7 +280,8 @@ struct BlindOptInView: View {
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared || reduceMotion ? 0 : 12)
                         .animation(
-                            BlindMotion.motion(BlindMotion.smooth, reduceMotion: reduceMotion).delay(Double(index) * BlindMotion.staggerSeconds),
+                            BlindMotion.motion(BlindMotion.smooth, reduceMotion: reduceMotion)
+                                .delay(Double(index) * BlindMotion.staggerSeconds),
                             value: appeared,
                         )
                     }
@@ -290,11 +291,14 @@ struct BlindOptInView: View {
                     Image(systemName: "lock")
                         .foregroundStyle(.glowTextSecondary)
                         .accessibilityHidden(true)
-                    Text("Your photos (never your name) are shown to other Blind members. Nothing about rooms or where you are is ever shown.")
-                        .glowFont(.callout)
-                        .foregroundStyle(.glowTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("blind.optin.privacy")
+                    Text("""
+                    Your photos (never your name) are shown to other Blind members. \
+                    Nothing about rooms or where you are is ever shown.
+                    """)
+                    .glowFont(.callout)
+                    .foregroundStyle(.glowTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("blind.optin.privacy")
                 }
                 .padding(GlowSpacing.md)
                 .blindGlass(cornerRadius: 20)

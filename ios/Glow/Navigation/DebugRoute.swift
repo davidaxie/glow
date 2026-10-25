@@ -17,7 +17,8 @@
         /// Blind mode (X2): `blind` and `blindDrop` alone, the rest with a blind chat ID.
         private static let blindScreens: [String: Route] = ["blind": .blind, "blindDrop": .blindDrop]
         private static let blindChatScreens: [String: @Sendable (BlindChatID) -> Route] = [
-            "blindChat": Route.blindChat, "blindReveal": Route.blindReveal, "blindGuess": Route.blindGuess, "blindReport": Route.blindReport,
+            "blindChat": Route.blindChat, "blindReveal": Route.blindReveal, "blindGuess": Route.blindGuess,
+            "blindReport": Route.blindReport,
         ]
 
         static func route(for value: String) -> Route? {

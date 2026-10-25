@@ -163,7 +163,7 @@ struct BlindRevealSheet: View {
         }
     }
 
-    @ViewBuilder private var actions: some View {
+    private var actions: some View {
         VStack(spacing: GlowSpacing.xs) {
             switch model.phase {
             case .ready, .sending, .failed:
@@ -246,15 +246,23 @@ struct BlindChatMenu: View {
         .glowHaptic(.warning, trigger: done)
         .confirmationDialog(
             pending == .block ? "Block this person?" : "Leave this chat?",
-            isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
+            isPresented: Binding(get: { pending != nil }, set: {
+                if !$0 {
+                    pending = nil
+                }
+            }),
             titleVisibility: .visible,
             presenting: pending,
         ) { pending in
             switch pending {
             case .leave:
-                Button("Leave chat", role: .destructive) { Task { await run { () async throws(BlindError) in try await service.leaveChat(chatID) } } }
+                Button("Leave chat", role: .destructive) { Task { await run { () async throws(BlindError) in
+                    try await service.leaveChat(chatID)
+                } } }
             case .block:
-                Button("Block", role: .destructive) { Task { await run { () async throws(BlindError) in try await service.block(chatID) } } }
+                Button("Block", role: .destructive) { Task { await run { () async throws(BlindError) in
+                    try await service.block(chatID)
+                } } }
             }
             Button("Cancel", role: .cancel) {}
         } message: { pending in
@@ -262,10 +270,17 @@ struct BlindChatMenu: View {
             case .leave:
                 Text("They'll only see that you left. You can't come back to this chat.")
             case .block:
-                Text("This closes the chat. You won't see each other again anywhere in Glow. They only see that you left, and you won't find out who they were.")
+                Text("""
+                This closes the chat. You won't see each other again anywhere in Glow. \
+                They only see that you left, and you won't find out who they were.
+                """)
             }
         }
-        .alert("Couldn't do that", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+        .alert("Couldn't do that", isPresented: Binding(get: { errorText != nil }, set: {
+            if !$0 {
+                errorText = nil
+            }
+        })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorText ?? "")

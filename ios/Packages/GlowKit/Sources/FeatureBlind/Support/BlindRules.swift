@@ -116,8 +116,15 @@ enum BlindSwipeGesture {
         return nil
     }
 
+    /// How strongly each stamp shows while dragging, 0 to 1.
+    struct Stamps: Equatable {
+        var pass: Double
+        var like: Double
+        var love: Double
+    }
+
     /// How strongly each stamp (Pass, Like, Love) shows while dragging, 0 to 1.
-    static func stamps(translation: CGSize) -> (pass: Double, like: Double, love: Double) {
+    static func stamps(translation: CGSize) -> Stamps {
         let dx = translation.width
         let dy = translation.height
         let upwards = dy < 0 && abs(dy) > abs(dx) * 1.3
@@ -125,9 +132,9 @@ enum BlindSwipeGesture {
             Double(min(max(value, 0), 1))
         }
         if upwards {
-            return (0, 0, clamp(-dy / commitUp))
+            return Stamps(pass: 0, like: 0, love: clamp(-dy / commitUp))
         }
-        return (clamp(-dx / commitX), clamp(dx / commitX), 0)
+        return Stamps(pass: clamp(-dx / commitX), like: clamp(dx / commitX), love: 0)
     }
 }
 

@@ -153,7 +153,10 @@ public struct BlindReportView: View {
                 Button("Send report") { Task { await send() } }
                     .buttonStyle(.glowPrimary)
                     .glowLoading(working)
-                    .disabled(BlindSafetyRules.reportText(choice: choice, details: String(details.prefix(BlindSafetyRules.maxDetailsLength))) == nil)
+                    .disabled(BlindSafetyRules.reportText(
+                        choice: choice,
+                        details: String(details.prefix(BlindSafetyRules.maxDetailsLength)),
+                    ) == nil)
                     .accessibilityIdentifier("blind.report.send")
             }
             Button(sent ? "Also block them" : "Block and leave") { confirmBlock = true }
@@ -172,7 +175,8 @@ public struct BlindReportView: View {
     }
 
     private func send() async {
-        guard let text = BlindSafetyRules.reportText(choice: choice, details: String(details.prefix(BlindSafetyRules.maxDetailsLength))) else {
+        guard let text = BlindSafetyRules.reportText(choice: choice, details: String(details.prefix(BlindSafetyRules.maxDetailsLength)))
+        else {
             return
         }
         working = true
