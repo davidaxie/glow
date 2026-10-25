@@ -69,6 +69,13 @@ struct GlowA {
         tap(element(identifier), identifier, timeout: timeout, file: file, line: line)
     }
 
+    /// Lets an entrance finish before a screenshot: since the redesign (U3) the glow's code word and
+    /// We met rise in over about 1.5 s after the color fills the screen, and they're already in the
+    /// accessibility tree (at opacity 0) while they rise.
+    func settle(for seconds: TimeInterval = 2.5) {
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "the entrance settles")], timeout: seconds)
+    }
+
     func attachScreen(_ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = name
@@ -95,8 +102,11 @@ struct GlowA {
         tap("room.seeLooks")
         tap("deck.notice.apply")
         let card = expect(element(prefix: "deck.card."), "person B's card in the deck", timeout: 30)
+        attachScreen("deck")
         card.tap()
         tap("deck.detail.thatsThem")
+        expect(element("deck.confirm.tap"), "deck.confirm.tap")
+        attachScreen("confirm tap")
         tap("deck.confirm.tap")
     }
 
