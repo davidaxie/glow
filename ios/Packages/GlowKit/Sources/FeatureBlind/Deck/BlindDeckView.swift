@@ -69,7 +69,8 @@ struct BlindDeckView: View {
     private var header: some View {
         VStack(spacing: GlowSpacing.xs) {
             HStack(spacing: GlowSpacing.sm) {
-                Text(model.capReached ? String(localized: "No right swipes left today") : BlindDeckRules.remainingText(model.rightRemaining))
+                Text(model.capReached ? String(localized: "No right swipes left today") : BlindDeckRules
+                    .remainingText(model.rightRemaining))
                     .glowFont(.footnote)
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -150,7 +151,8 @@ struct BlindDeckView: View {
                     .offset(y: arrived || reduceMotion ? 0 : 60)
                     .opacity(arrived ? 1 : 0)
                     .animation(
-                        BlindMotion.motion(BlindMotion.smooth, reduceMotion: reduceMotion).delay(Double(2 - index) * BlindMotion.staggerSeconds),
+                        BlindMotion.motion(BlindMotion.smooth, reduceMotion: reduceMotion)
+                            .delay(Double(2 - index) * BlindMotion.staggerSeconds),
                         value: arrived,
                     )
                     .zIndex(Double(3 - index))
@@ -232,7 +234,10 @@ struct BlindDeckView: View {
             Text(
                 model.canOpenDrop
                     ? String(localized: "New people appear as more join. Your drop is ready when you are.")
-                    : String(localized: "New people appear as more join. Like \(BlindDeckRules.dropMinimum - model.rightCount) more to open your drop."),
+                    :
+                    String(
+                        localized: "New people appear as more join. Like \(BlindDeckRules.dropMinimum - model.rightCount) more to open your drop.",
+                    ),
             )
             .glowFont(.body)
             .foregroundStyle(.glowTextSecondary)

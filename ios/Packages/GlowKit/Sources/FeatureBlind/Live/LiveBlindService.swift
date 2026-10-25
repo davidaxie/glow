@@ -55,7 +55,13 @@ struct LiveBlindService: BlindService {
 
     func dropStatus() async throws(BlindError) -> BlindDropStatus {
         let wire: Wire.DropStatus = try await call(.get, "/api/blind/drop", operationID: "blindGetDrop")
-        return BlindDropStatus(ready: wire.ready, demo: wire.demo, nextDropAt: wire.nextDropAt, rightCount: wire.rightCount, canDrop: wire.canDrop)
+        return BlindDropStatus(
+            ready: wire.ready,
+            demo: wire.demo,
+            nextDropAt: wire.nextDropAt,
+            rightCount: wire.rightCount,
+            canDrop: wire.canDrop,
+        )
     }
 
     func openDrop() async throws(BlindError) -> BlindDropResult {
@@ -279,7 +285,12 @@ enum Wire {
         let canDrop: Bool
 
         var model: BlindMe {
-            BlindMe(isMember: member ?? isMember ?? joined ?? false, rightRemaining: rightRemaining, rightCount: rightCount, canDrop: canDrop)
+            BlindMe(
+                isMember: member ?? isMember ?? joined ?? false,
+                rightRemaining: rightRemaining,
+                rightCount: rightCount,
+                canDrop: canDrop,
+            )
         }
     }
 

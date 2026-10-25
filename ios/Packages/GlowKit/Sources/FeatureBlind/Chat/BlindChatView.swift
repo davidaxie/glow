@@ -43,7 +43,11 @@ public struct BlindChatView: View {
     }
 
     private func makeModel() -> BlindChatModel {
-        let created = BlindChatModel(chatID: chatID, service: dependencies.blindService(override: override), analytics: dependencies.analytics)
+        let created = BlindChatModel(
+            chatID: chatID,
+            service: dependencies.blindService(override: override),
+            analytics: dependencies.analytics,
+        )
         let navigate = navigate
         let chatID = chatID
         created.onRevealed = { navigate(.blindReveal(chatID)) }
@@ -74,7 +78,11 @@ private struct BlindChatContent: View {
             }
         }
         .glowHaptic(.lightTap, trigger: model.arrivals)
-        .glowSheet(item: Binding(get: { model.warning }, set: { if $0 == nil { model.editWarning() } })) { held in
+        .glowSheet(item: Binding(get: { model.warning }, set: {
+            if $0 == nil {
+                model.editWarning()
+            }
+        })) { held in
             BlindGiveAwaySheet(warning: held, onEdit: { model.editWarning() }, onSendAnyway: { model.confirmWarning() })
         }
         .glowSheet(isPresented: $showReveal) {
@@ -340,7 +348,10 @@ private struct BlindBubble: View {
                 .foregroundStyle(row.mine ? Color.glowOnAccent : Color.glowTextPrimary)
                 .padding(.horizontal, GlowSpacing.md)
                 .padding(.vertical, GlowSpacing.xs + 2)
-                .background(row.mine ? Color.glowAccent : Color.glowSurfaceRaised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(
+                    row.mine ? Color.glowAccent : Color.glowSurfaceRaised,
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous),
+                )
                 .overlay {
                     if row.state == .failed {
                         RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.glowDanger, lineWidth: 1.5)

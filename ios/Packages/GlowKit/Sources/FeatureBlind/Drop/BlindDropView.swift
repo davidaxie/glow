@@ -293,7 +293,8 @@ private struct BlindDropRevealView: View {
                         .opacity(arrived ? 1 : 0)
                         .offset(y: arrived || reduceMotion ? 0 : 24)
                         .animation(
-                            BlindMotion.motion(BlindMotion.smooth, reduceMotion: reduceMotion).delay(Double(index) * BlindMotion.staggerSeconds),
+                            BlindMotion.motion(BlindMotion.smooth, reduceMotion: reduceMotion)
+                                .delay(Double(index) * BlindMotion.staggerSeconds),
                             value: arrived,
                         )
                 }

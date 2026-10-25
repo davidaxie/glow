@@ -196,7 +196,11 @@ struct BlindVeilOrb: View {
             .clipShape(Circle())
             .overlay {
                 Circle().strokeBorder(
-                    LinearGradient(colors: [.glowTextPrimary.opacity(0.3), .glowTextPrimary.opacity(0)], startPoint: .top, endPoint: .bottom),
+                    LinearGradient(
+                        colors: [.glowTextPrimary.opacity(0.3), .glowTextPrimary.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .bottom,
+                    ),
                     lineWidth: 1,
                 )
             }

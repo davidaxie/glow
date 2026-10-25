@@ -572,7 +572,12 @@ struct BlindWorld {
         if autoReply {
             nextMessageID += 1
             conversations[index].messages.append(
-                BlindMessage(id: nextMessageID, mine: false, text: String(localized: "Ha. Tell me more."), at: Date().addingTimeInterval(1)),
+                BlindMessage(
+                    id: nextMessageID,
+                    mine: false,
+                    text: String(localized: "Ha. Tell me more."),
+                    at: Date().addingTimeInterval(1),
+                ),
             )
         }
         return BlindSendResult(message: sent)
