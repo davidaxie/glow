@@ -49,6 +49,8 @@ final class ChatModel {
     private var olderCursor: Date?
     private var isRefreshing = false
     private var refreshAgain = false
+    /// What the last chip put in the composer, to tell it from something the person wrote.
+    private var filledIcebreaker: String?
 
     init(
         matchID: MatchID,
@@ -113,6 +115,27 @@ final class ChatModel {
 
     var canSend: Bool {
         phase == .ready && !outgoingBody.isEmpty && remaining >= 0
+    }
+
+    // MARK: Icebreaker chips (CHIPS-D1)
+
+    /// The tap-to-fill openers: only in an open chat nobody has written in yet. Once either person
+    /// has sent a message (mine on its way or failed, or theirs), the thread has items and the
+    /// chips are gone.
+    var icebreakers: [ChatIcebreakerChip] {
+        guard phase == .ready, items.isEmpty, let header else { return [] }
+        return ChatIcebreaker.chips(roomName: header.roomName, codeWord: header.codeWord, meetingSpot: header.meetingSpot)
+    }
+
+    /// Puts a chip's text in the composer. It never sends: the person edits it, then sends it like
+    /// anything they typed. An empty composer, or one still holding an earlier chip's text as it
+    /// was, is replaced; anything the person wrote themselves is kept, with the chip added after it.
+    func useIcebreaker(_ chip: ChatIcebreakerChip) {
+        guard icebreakers.contains(chip) else { return }
+        draft = ChatIcebreaker.filled(draft: draft, replacing: filledIcebreaker, with: chip)
+        filledIcebreaker = chip.text
+        // The chip's ID only, never its text (AGENTS.md: Analytics and errors).
+        analytics.track(AnalyticsEvent("chat_icebreaker_used", ["chip": chip.icebreaker.analyticsValue]))
     }
 
     // MARK: Loading
@@ -217,6 +240,7 @@ final class ChatModel {
         hasOlder = false
         olderCursor = nil
         draft = ""
+        filledIcebreaker = nil
     }
 
     // MARK: Sending

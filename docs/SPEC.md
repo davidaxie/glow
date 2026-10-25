@@ -13,8 +13,8 @@ This build has one mode: Live Room. Crossed Paths stays on the roadmap.
 5. **Tap** the person you noticed. They aren't told. You get 3 taps per room per day.
 6. **It's mutual** if they tap you too. Both phones buzz, and each of you sees the other's real profile for the first time.
 7. **Choose** Find each other or Just chat. Find only happens if both pick it.
-8. **Glow.** Both screens go to full brightness in the same color, with the same code word and a meeting spot. A Live Activity on the lock screen counts down 15 minutes.
-9. **We met.** Both tap it, and the chat stays open.
+8. **Glow.** Both screens go to full brightness in the same color, with the same code word and a meeting spot. A Live Activity on the lock screen counts down 15 minutes. Under the code word and spot, "Need an excuse?" shows three lines to say aloud, for reading only (CHIPS-D1).
+9. **We met.** Both tap it, and the chat stays open. An empty chat (after Find or Just chat) offers up to three tap-to-fill openers. Tapping one only fills the message box: the person edits it and sends it like any text, and nothing is ever sent for them (CHIPS-D1).
 
 ## Architecture
 
@@ -101,8 +101,8 @@ Each agent owns whole modules, so nobody edits the same Swift files. Feature mod
 | FeatureSafety | Block and report sheets, pause, delete account | B8 |
 | FeatureDeck | What did you notice, the deck, tapping | C1 |
 | FeatureMatch | Mutual takeover, reveal, choice, matches list | C2 |
-| FeatureGlow | Glow screen, starting and ending the Live Activity | C3 |
-| FeatureChat | Thread, composer, report and block from chat | C4 |
+| FeatureGlow | Glow screen, its three say-aloud lines, starting and ending the Live Activity | C3 |
+| FeatureChat | Thread, composer, opener chips, report and block from chat | C4 |
 | GlowLiveActivity (extension) | Lock screen and Dynamic Island views for the glow countdown | C3 |
 
 ## Simulator workflow
@@ -352,6 +352,14 @@ Glow should feel calm, warm and a little magical: a dark, quiet app where the on
 | Empty deck | Nobody fits that yet. Try fewer details. | No results. |
 | After blocking | Done. They won't see you again. | User blocked. |
 | Failed room check | Looks like you're not in this room yet. Try again inside. | Location verification failed. |
+| Starting a chat | Hey, glad we both noticed. What brought you to {room}? (a chip the person taps, edits and sends) | Any line about looks, or any line that sends itself. |
+| Needing an excuse | Are you {word}? We both noticed. Hi. | A pickup line. |
+
+**Icebreaker chips (CHIPS-D1).** Static text, in the app only, on the two screens that exist after a mutual match and a choice: the glow screen and an open chat. The server stores nothing for them. The only pieces filled in are the room's name, the code word and the meeting spot, which both people already see, and a chip whose piece is missing is left out. No emoji, and nothing about looks, gender, outfit or location.
+
+- **Glow screen, "Need an excuse?"** (three lines to say aloud, not tapped): "Are you {word}?", "We both noticed. Hi.", "Found you. Shall we sit by {spot}?"
+- **Empty chat, tap to fill the message box** (hidden once either person has sent a message; never sent for the person): "Hey, glad we both noticed. What brought you to {room}?", "Are you {word}? I'm the other one." (only with a glow word), "Want to find a seat at {spot}?" (only with a meeting spot, so not after Just chat).
+- Using a chat chip logs one key-moment event with the chip's ID (`room`, `word` or `spot`), never its text.
 
 ## Environment and secrets
 

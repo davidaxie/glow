@@ -1,8 +1,8 @@
 import DesignSystem
 import SwiftUI
 
-// Owner: C4. Where people write their own messages. No suggestions, no openers, no AI: an empty
-// field and a send button.
+// Owner: C4. Where people write their own messages: a field and a send button. No AI. Tapping an
+// icebreaker chip (CHIPS-D1) only fills the field; the person still edits it and taps send.
 
 struct ChatComposer: View {
     @Binding var draft: String

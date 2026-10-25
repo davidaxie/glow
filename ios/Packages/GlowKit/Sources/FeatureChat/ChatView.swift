@@ -214,6 +214,14 @@ struct ChatThread: View {
                         )
                         .padding(.top, GlowSpacing.xxl)
                     }
+                    let icebreakers = model.icebreakers
+                    if !icebreakers.isEmpty {
+                        ChatIcebreakerChips(chips: icebreakers) { chip in
+                            model.useIcebreaker(chip)
+                            composerFocused.wrappedValue = true
+                        }
+                        .padding(.top, GlowSpacing.md)
+                    }
                     ForEach(rows) { row in
                         VStack(spacing: GlowSpacing.xxs) {
                             if let label = row.timeLabel {

@@ -9,7 +9,7 @@ final class PreviewChatAPI: ChatAPI, @unchecked Sendable {
     // @unchecked: every property is only touched under `lock`.
     private let lock = NSLock()
     private var thread: [ChatMessage]
-    private let firstName: String?
+    private let header: ChatHeader?
     private let pageSize: Int
     private var failures: [ChatError] = []
     private var pageFailure: ChatError?
@@ -22,11 +22,12 @@ final class PreviewChatAPI: ChatAPI, @unchecked Sendable {
     init(
         thread: [ChatMessage] = PreviewChatAPI.sampleThread,
         firstName: String? = "Sam",
+        header: ChatHeader? = nil,
         pageSize: Int = 50,
         clock: Date = PreviewChatAPI.sampleNow,
     ) {
         self.thread = thread
-        self.firstName = firstName
+        self.header = header ?? firstName.map { ChatHeader(firstName: $0) }
         self.pageSize = pageSize
         self.clock = clock
     }
@@ -145,7 +146,7 @@ final class PreviewChatAPI: ChatAPI, @unchecked Sendable {
     }
 
     func header(_: MatchID) async -> ChatHeader? {
-        lock.withLock { firstName.map(ChatHeader.init(firstName:)) }
+        header
     }
 }
 

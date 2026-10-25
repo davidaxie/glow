@@ -21,6 +21,9 @@ struct ChatSnapshotTests {
         case notOpen
         case ended
         case failedToLoad
+        case icebreakers
+        case icebreakerFilled
+        case icebreakerJustChat
     }
 
     static let calendar: Calendar = {
@@ -31,6 +34,13 @@ struct ChatSnapshotTests {
     }()
 
     static let header = ChatHeader(firstName: "Sam")
+    static let glowHeader = ChatHeader(
+        firstName: "Sam",
+        roomName: "Glow demo room",
+        codeWord: "lantern",
+        meetingSpot: "Water station",
+    )
+    static let justChatHeader = ChatHeader(firstName: "Sam", roomName: "Glow demo room")
 
     static func mine(_ id: String, _ body: String, _ delivery: ChatMessage.Delivery) -> ChatMessage {
         ChatMessage(id: id, clientID: id, body: body, createdAt: PreviewChatAPI.sampleNow, fromMe: true, delivery: delivery)
@@ -67,6 +77,17 @@ struct ChatSnapshotTests {
             return .showing(.ended, header: Self.header, calendar: calendar)
         case .failedToLoad:
             return .showing(.failed, calendar: calendar)
+        case .icebreakers:
+            return .showing(.ready, header: Self.glowHeader, calendar: calendar)
+        case .icebreakerFilled:
+            return .showing(
+                .ready,
+                header: Self.glowHeader,
+                draft: "Are you lantern? I'm the other one.",
+                calendar: calendar,
+            )
+        case .icebreakerJustChat:
+            return .showing(.ready, header: Self.justChatHeader, calendar: calendar)
         }
     }
 

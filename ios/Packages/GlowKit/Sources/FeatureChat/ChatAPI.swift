@@ -47,8 +47,31 @@ struct ChatPage: Hashable, Sendable {
 }
 
 /// What the thread's header shows: the other person's first name, once there's a match (P1).
+///
+/// It also carries the three things the icebreaker chips fill in (CHIPS-D1), all of which both
+/// people already see: the room's name, and the glow's code word and meeting spot if they found
+/// each other. Just chat has no glow, so those two are nil.
 struct ChatHeader: Hashable, Sendable {
     let firstName: String
+    let roomName: String?
+    let codeWord: String?
+    let meetingSpot: String?
+
+    init(firstName: String, roomName: String? = nil, codeWord: String? = nil, meetingSpot: String? = nil) {
+        self.firstName = firstName
+        self.roomName = roomName
+        self.codeWord = codeWord
+        self.meetingSpot = meetingSpot
+    }
+
+    init(_ detail: Components.Schemas.MatchDetail) {
+        self.init(
+            firstName: detail.firstName,
+            roomName: detail.roomName,
+            codeWord: detail.glow?.codeWord,
+            meetingSpot: detail.glow?.meetingSpot?.name,
+        )
+    }
 }
 
 /// How a chat call ended, when it didn't work.
@@ -95,7 +118,7 @@ protocol ChatAPI: Sendable {
     func send(_ match: MatchID, body: String, clientID: String) async throws(ChatError) -> ChatMessage
     /// Ends the match for both people and deletes the thread.
     func unmatch(_ match: MatchID) async throws(ChatError)
-    /// The other person's first name, or nil if it can't be loaded right now.
+    /// The other person's first name and what the chips fill in, or nil if it can't be loaded right now.
     func header(_ match: MatchID) async -> ChatHeader?
 }
 
@@ -176,7 +199,7 @@ struct LiveChatAPI: ChatAPI {
               case let .ok(ok) = output,
               case let .json(detail) = ok.body
         else { return nil }
-        return ChatHeader(firstName: detail.firstName)
+        return ChatHeader(detail)
     }
 
     static func message(_ message: Components.Schemas.Message) -> ChatMessage {
