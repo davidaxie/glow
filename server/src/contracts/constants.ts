@@ -112,6 +112,24 @@ export const PHOTO_MAX_BYTES = 3000000;
 /** Each detected face box grows by this much on every side before blurring. */
 export const FACE_BOX_GROWTH_PERCENT = 30;
 
+/** Blind mode: right swipes (like or love) per person per UTC day. */
+export const BLIND_RIGHT_SWIPES_PER_DAY = 20;
+
+/** Blind mode: a drop opens only for someone with at least this many right swipes ever. */
+export const BLIND_DROP_MIN_RIGHT_SWIPES = 5;
+
+/** Blind mode: most open blind chats a person has at once. Drops never open more. */
+export const BLIND_MAX_OPEN_CHATS = 5;
+
+/** Blind mode: most cards per deck page (10 by default). */
+export const BLIND_DECK_PAGE_MAX = 20;
+
+/** Blind mode: longest report text from a blind chat. */
+export const BLIND_REPORT_MAX_CHARS = 500;
+
+/** Blind mode: a drop shows a chat again for this long after first showing it, so a retry isn't empty. */
+export const BLIND_DROP_REPLAY_WINDOW_SECONDS = 300;
+
 /** Every constant with its unit, keyed by its name in constants.json. */
 export const constants = {
   CHECKIN_TTL: { value: 10800, unit: 'seconds' },
@@ -151,4 +169,10 @@ export const constants = {
   PHOTO_JPEG_QUALITY: { value: 80, unit: 'percent' },
   PHOTO_MAX_BYTES: { value: 3000000, unit: 'bytes' },
   FACE_BOX_GROWTH: { value: 30, unit: 'percent' },
+  BLIND_RIGHT_SWIPES_PER_DAY: { value: 20, unit: 'count' },
+  BLIND_DROP_MIN_RIGHT_SWIPES: { value: 5, unit: 'count' },
+  BLIND_MAX_OPEN_CHATS: { value: 5, unit: 'count' },
+  BLIND_DECK_PAGE_MAX: { value: 20, unit: 'count' },
+  BLIND_REPORT_MAX_CHARS: { value: 500, unit: 'characters' },
+  BLIND_DROP_REPLAY_WINDOW: { value: 300, unit: 'seconds' },
 } as const;

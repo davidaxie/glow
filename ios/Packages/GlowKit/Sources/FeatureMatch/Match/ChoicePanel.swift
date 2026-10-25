@@ -82,7 +82,15 @@ struct WaitingPanel: View {
             .multilineTextAlignment(.center)
             .accessibilityElement(children: .combine)
 
+            // A breathing light behind the clock: waiting, not loading.
             ChoiceCountdown(deadline: snapshot.choiceDeadline, style: .prominent)
+                .padding(.vertical, GlowSpacing.sm)
+                .background {
+                    MomentLight(core: 0.5)
+                        .frame(width: 220, height: 220)
+                        .opacity(0.55)
+                        .momentBreathing()
+                }
 
             Text("If time runs out, the chat opens.")
                 .glowFont(.footnote)
@@ -98,7 +106,27 @@ struct WaitingPanel: View {
         }
         .padding(GlowSpacing.lg)
         .frame(maxWidth: .infinity)
-        .background(.glowSurface, in: .rect(cornerRadius: GlowRadius.card, style: .continuous))
+        .background(.glowSurface, in: .rect(cornerRadius: MomentSurface.radius, style: .continuous))
+        .clipShape(.rect(cornerRadius: MomentSurface.radius, style: .continuous))
+        .overlay { MomentSurface.highlight }
+    }
+}
+
+/// A lifted glass surface: large continuous corners and a 1 pt highlight along the top edge.
+enum MomentSurface {
+    static let radius: CGFloat = 28
+
+    static var highlight: some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .strokeBorder(
+                LinearGradient(
+                    colors: [GlowPalette.textPrimary.color.opacity(0.16), GlowPalette.textPrimary.color.opacity(0)],
+                    startPoint: .top,
+                    endPoint: .center,
+                ),
+                lineWidth: 1,
+            )
+            .accessibilityHidden(true)
     }
 }
 
@@ -170,8 +198,10 @@ struct ChoiceCountdown: View {
             case .prominent:
                 Text(verbatim: clock)
                     .glowFont(.display)
-                    .foregroundStyle(.glowAccent)
+                    .foregroundStyle(.glowTextPrimary)
                     .monospacedDigit()
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(Moment.snappy, value: clock)
             }
         }
         .accessibilityElement(children: .ignore)

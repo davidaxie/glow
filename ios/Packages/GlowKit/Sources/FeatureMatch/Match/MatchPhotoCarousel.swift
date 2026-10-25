@@ -35,7 +35,9 @@ struct MatchPhotoCarousel: View {
         }
         .frame(height: height)
         .frame(maxWidth: .infinity)
-        .clipShape(.rect(cornerRadius: GlowRadius.card, style: .continuous))
+        .clipShape(.rect(cornerRadius: MomentSurface.radius, style: .continuous))
+        .overlay { MomentSurface.highlight }
+        .shadow(color: GlowPalette.background.color.opacity(0.7), radius: 24, y: 12)
     }
 }
 

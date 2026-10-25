@@ -2,9 +2,9 @@
 -- The database's copy of the shared numbers must match contracts/constants.json. If this fails,
 -- add a migration that updates private.constants.
 begin;
-select plan(38);
+select plan(44);
 
-select is((select count(*)::integer from private.constants), 37,
+select is((select count(*)::integer from private.constants), 43,
           'private.constants has exactly the constants in contracts/constants.json');
 select is((select value from private.constants where name = 'CHECKIN_TTL'), 10800::numeric,
           'CHECKIN_TTL is 10800 seconds');
@@ -80,6 +80,18 @@ select is((select value from private.constants where name = 'PHOTO_MAX_BYTES'), 
           'PHOTO_MAX_BYTES is 3000000 bytes');
 select is((select value from private.constants where name = 'FACE_BOX_GROWTH'), 30::numeric,
           'FACE_BOX_GROWTH is 30 percent');
+select is((select value from private.constants where name = 'BLIND_RIGHT_SWIPES_PER_DAY'), 20::numeric,
+          'BLIND_RIGHT_SWIPES_PER_DAY is 20 count');
+select is((select value from private.constants where name = 'BLIND_DROP_MIN_RIGHT_SWIPES'), 5::numeric,
+          'BLIND_DROP_MIN_RIGHT_SWIPES is 5 count');
+select is((select value from private.constants where name = 'BLIND_MAX_OPEN_CHATS'), 5::numeric,
+          'BLIND_MAX_OPEN_CHATS is 5 count');
+select is((select value from private.constants where name = 'BLIND_DECK_PAGE_MAX'), 20::numeric,
+          'BLIND_DECK_PAGE_MAX is 20 count');
+select is((select value from private.constants where name = 'BLIND_REPORT_MAX_CHARS'), 500::numeric,
+          'BLIND_REPORT_MAX_CHARS is 500 characters');
+select is((select value from private.constants where name = 'BLIND_DROP_REPLAY_WINDOW'), 300::numeric,
+          'BLIND_DROP_REPLAY_WINDOW is 300 seconds');
 
 select * from finish();
 rollback;

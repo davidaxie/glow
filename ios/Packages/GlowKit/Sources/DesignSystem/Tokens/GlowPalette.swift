@@ -58,18 +58,21 @@ public struct GlowRGB: Hashable, Sendable, CustomStringConvertible {
 
 /// The app's colors. The app is always dark: there is no light variant.
 public enum GlowPalette {
-    /// App background.
-    public static let background = GlowRGB(0x0B0B10)
+    // The neutrals are warm (U1-D1, docs/design/DIRECTION.md): a warm near-black canvas, never
+    // pure #000, and warm grey text, never blue grey. Same luminance as before, so contrast holds.
+
+    /// App background: a warm near-black.
+    public static let background = GlowRGB(0x0B0A0F)
     /// Cards and sheets.
-    public static let surface = GlowRGB(0x16161D)
+    public static let surface = GlowRGB(0x17151C)
     /// Pressed and raised elements.
-    public static let surfaceRaised = GlowRGB(0x20202A)
-    /// Main text.
-    public static let textPrimary = GlowRGB(0xF4F4F6)
-    /// Secondary text.
-    public static let textSecondary = GlowRGB(0xA1A1AA)
+    public static let surfaceRaised = GlowRGB(0x221F27)
+    /// Main text: a warm white.
+    public static let textPrimary = GlowRGB(0xF5F3F0)
+    /// Secondary text: a warm grey.
+    public static let textSecondary = GlowRGB(0xA9A39D)
     /// Dividers.
-    public static let line = GlowRGB(0x2A2A35)
+    public static let line = GlowRGB(0x2D2931)
     /// Primary buttons and focus.
     public static let accent = GlowRGB(0xFF4FA3)
     /// Block, report and delete.
@@ -109,32 +112,33 @@ public struct GlowColorToken: Hashable, Sendable, Identifiable {
 // MARK: - SwiftUI tokens
 
 extension ShapeStyle where Self == Color {
-    /// App background, #0B0B10.
+    /// App background, #0B0A0F. For full screens prefer `.glowCanvas()`, which adds the gradient
+    /// and grain.
     public static var glowBackground: Color {
         GlowPalette.background.color
     }
 
-    /// Cards and sheets, #16161D.
+    /// Cards and sheets, #17151C. For lifted cards prefer `.glowGlass()`.
     public static var glowSurface: Color {
         GlowPalette.surface.color
     }
 
-    /// Pressed and raised elements, #20202A.
+    /// Pressed and raised elements, #221F27.
     public static var glowSurfaceRaised: Color {
         GlowPalette.surfaceRaised.color
     }
 
-    /// Main text, #F4F4F6.
+    /// Main text, #F5F3F0.
     public static var glowTextPrimary: Color {
         GlowPalette.textPrimary.color
     }
 
-    /// Secondary text, #A1A1AA.
+    /// Secondary text, #A9A39D.
     public static var glowTextSecondary: Color {
         GlowPalette.textSecondary.color
     }
 
-    /// Dividers, #2A2A35.
+    /// Dividers, #2D2931.
     public static var glowLine: Color {
         GlowPalette.line.color
     }
