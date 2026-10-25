@@ -3,7 +3,7 @@ import DesignSystem
 import SwiftUI
 
 // Owner: C4. One message: mine on the right in the accent color, theirs on the left. Text is
-// shown exactly as written (never as Markdown or links), and nothing is suggested.
+// shown exactly as written (never as Markdown or links), with no suggested replies in the thread.
 
 struct ChatBubble: View {
     let row: ChatRow

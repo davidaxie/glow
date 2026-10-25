@@ -131,6 +131,7 @@ struct GlowOnView: View {
                         VStack(spacing: GlowSpacing.lg) {
                             word
                             spot
+                            GlowSayAloudView(lines: GlowSayAloud.lines(codeWord: session.codeWord, meetingSpot: session.meetingSpot))
                         }
                         .padding(.horizontal, GlowSpacing.screenMargin)
                         .padding(.vertical, GlowSpacing.md)

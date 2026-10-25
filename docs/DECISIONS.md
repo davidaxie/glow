@@ -922,6 +922,8 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 
 **Why.** A link preview would make the phone fetch whatever URL the other person sent, which tells that server the reader's IP address and that they opened the chat. Markdown would let a message disguise a link. Suggestions would put words in people's mouths (brief: no AI in chat).
 
+**Superseded in part by CHIPS-D1:** the "no openers" half. Messages still show verbatim, with no Markdown, links or previews, and there is still no AI in chat.
+
 ### C4-D6 · An unmatch sends exactly what a block sends
 
 **Choice.** Unmatch sends `match.ended` to both people and `deck.changed` to every room where either has an open check-in: the same events, to the same people and rooms, as B8's block (B8-D6). A test runs an unmatch and a block side by side and checks that what goes out is identical. The app of the person who unmatched goes to the Matches tab. The other person's open chat refetches on the event, gets 404 and shows "This chat has ended." with no reason (D18).
@@ -1173,3 +1175,36 @@ The journey classes read `TEST_RUNNER_GLOW_E2E_*` from xcodebuild's environment 
 ### D1-D6 · The helpers on the Mac listen on 127.0.0.1 only
 
 A UI test can't send a push or end a check-in from inside the Simulator, so `harness.ts serve` does it on request, and `player-b.ts --control` takes B's next step on request. Both bind to 127.0.0.1, accept a fixed list of requests, never echo tokens, and stop on `POST /quit`. Their state replies carry no user ID or name.
+
+## CHIPS · Icebreaker chips
+
+### CHIPS-D1 · Three tap-to-fill openers, after a mutual match only (supersedes C4-D5's "no openers")
+
+**Question.** C4-D5 (and the spec's voice rules, the pitch and the demo) said Glow suggests no openers: the code word is the only excuse. David approved a small change: give people a few words to start with, without taking the choice away.
+
+**What changed.** Two screens that already exist only after a mutual match and a choice gain static text, in the app only (no endpoint, no contract change, nothing stored):
+
+- **Glow screen** (FeatureGlow): under the code word and the meeting spot, "Need an excuse?" with three lines to say aloud: "Are you {word}?", "We both noticed. Hi.", "Found you. Shall we sit by {spot}?" They are for reading. Nothing on them can be tapped.
+- **Empty chat** (FeatureChat): up to three chips that fill the message box when tapped: "Hey, glad we both noticed. What brought you to {room}?", "Are you {word}? I'm the other one." (only if the glow has a word) and "Want to find a seat at {spot}?" (only if it has a meeting spot, so not in Just chat). They disappear as soon as either person has sent a message.
+
+**What did not change.** A chip never sends. The person can edit or clear what it filled in, and what they send goes through the same rate limit, moderation and storage as typed text, with nothing that marks it as a chip. Messages still show verbatim (C4-D5: no Markdown, links or previews), and there is no AI in chat. The code word stays the headline excuse. The hackathon-only "What are you working on?" chip is not added.
+
+**Rules.** The only pieces ever filled in are the room's name, the code word and the meeting spot, things both people already see. A chip whose piece is missing is left out, never shown with a hole. No emoji, and nothing about looks, gender, outfit or location. Nothing is visible to the other person unless interest is mutual (P5): the chips live only in FeatureGlow and FeatureChat, and a source-level test fails if another module ever mentions a chip type or a chip's words. Using a chat chip logs one event, `chat_icebreaker_used`, with the chip's ID (`room`, `word` or `spot`) and never its text (AGENTS.md: Analytics). The glow lines log nothing, since nothing is tapped.
+
+**Why.** Starting a conversation with a stranger is the hard part, and the code word only gets two people to each other, not past the first sentence. Short, calm lines built from what both already know lower that cost. Keeping them static, tap-to-fill and editable keeps the words the person's own and keeps the server out of it.
+
+### CHIPS-D2 · The two lists are separate, and a chip never overwrites what the person wrote
+
+**Choice.** The glow screen's lines and the chat's chips are different sentences, so each module keeps its own tiny list (`GlowSayAloud` in FeatureGlow, `ChatIcebreaker` in FeatureChat). Feature modules never import each other, and nothing is shared, so there is no second copy to keep equal. In the chat, tapping a chip into an empty message box, or one that still holds an earlier chip's text untouched, replaces it. If the person has already typed or changed something, the chip is added after their words instead of replacing them. The chat's chips are B6-styled but wrap to any number of lines (B6's `GlowChip` stops at two, which would cut an opener off at the largest text sizes).
+
+**Why.** Losing text someone typed is worse than a chip that ends up second.
+
+### CHIPS-D3 · The chat learns the room, word and spot from the match it already fetches
+
+**Choice.** `GET /api/matches/{id}` already returns `roomName` and the glow's `codeWord` and `meetingSpot` for both people, so the chat's header call (which fetches the first name) also reads those. No new call. If that call fails, there are no chips and the rest of the chat works as before. Whichever glow the match reports is used, so a glow that has ended still gives its word and spot: both people saw them.
+
+**Why.** No contract change was needed, and nothing new is learned by anyone.
+
+### CHIPS-D4 · `CHIPS` joins the agent table
+
+**Choice.** `scripts/agent-env.sh` gets one row, `CHIPS 51`: port 3141 and its own Simulators ("Glow A (CHIPS)"), as this task was assigned, so `scripts/ci-local.sh CHIPS` works. It is A1's file, so it is part of this PR's `cross-owner` label.

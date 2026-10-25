@@ -60,7 +60,8 @@ D4 34
 D5 35
 E1 41
 E2 42
-E3 43'
+E3 43
+CHIPS 51'
 
 if [ "${1:-}" = "--list" ]; then
   printf '%-4s %-6s %s\n' agent port own-db-api >&2

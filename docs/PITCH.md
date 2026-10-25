@@ -1,6 +1,6 @@
 # Pitch
 
-The pitch pack for Glow at Cal Hacks: tagline, a 75-second demo script, the narrative, answers to likely judge questions, what is technically impressive, and an honest table of what is real and what is simulated. Decision: PITCH-D1 in [`DECISIONS.md`](DECISIONS.md).
+The pitch pack for Glow at Cal Hacks: tagline, a 75-second demo script, the narrative, answers to likely judge questions, what is technically impressive, and an honest table of what is real and what is simulated. Decisions: PITCH-D1 and CHIPS-D1 in [`DECISIONS.md`](DECISIONS.md).
 
 **Snapshot: 2026-10-24, main `1af3364`.** Everything here comes from the repo's docs ([`SPEC.md`](SPEC.md), [`BUILD_PLAN.md`](BUILD_PLAN.md), [`DEMO.md`](DEMO.md), [`DECISIONS.md`](DECISIONS.md), [`HANDOFFS.md`](HANDOFFS.md), [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md)). Nothing here says something works unless a test or a run in those docs proved it. Anything the repo can't back is marked **[verify]**. Re-read the [real-and-simulated table](#6-what-is-real-and-what-is-simulated) on the day, because it changes every time a PR merges.
 
@@ -35,7 +35,7 @@ Built on the real flow in [`DEMO.md`](DEMO.md#the-75-second-cut) (the same table
 
 **Close (if the slot allows more).** If the attendee room is live and TestFlight is approved: "Scan the poster by the food line." Otherwise say where to follow along. Never promise a public link that isn't approved.
 
-**The excuse is the code word.** The code word is picked to be said aloud across a loud room (a comment in `words.ts` gives "Are you lantern?" as the example). On stage, say the word actually shown on the screen. The server picks it from 300 words, so a rehearsed example may not be the one on the phones.. Words are never romantic, never a first name, never a color (C3-D1). Glow offers no scripted openers. The chat has none either (C4-D5).
+**The excuse is the code word.** The code word is picked to be said aloud across a loud room (a comment in `words.ts` gives "Are you lantern?" as the example). On stage, say the word actually shown on the screen. The server picks it from 300 words, so a rehearsed example may not be the one on the phones.. Words are never romantic, never a first name, never a color (C3-D1). The code word stays the headline excuse. For anyone who needs more, the glow screen shows three lines to say aloud under it, and the empty chat has three tap-to-fill openers. Both exist only after a mutual match; nothing is sent for you (CHIPS-D1).
 
 **Honest notes for the presenters.**
 
@@ -157,7 +157,7 @@ Nothing. There is no rejection, no notification, no count and no "seen". A tap i
 ### Business model
 
 **Q. How does it make money?**
-**Proposed, David to confirm:** Glow is free for attendees. The organizer, venue or event pays per room. The admin web, printable posters, rotating display QR, live numbers and reports already exist for that role (B7). No numbers and no revenue claims: nothing in the repo sets a price, and there is no revenue. What the repo does show: rooms are made and run by organizers (admin web, printable posters, a rotating display QR, live numbers, reports; B7). That fits selling a room to an event organizer, a conference or a venue. It also has real running costs: Vercel Pro (for the 5-minute cleanup), Supabase, Anthropic moderation, Upstash, Apple Developer **[verify: actual costs]**. Don't quote revenue, pricing or user numbers. There are none.
+Not decided. Don't quote revenue, pricing or user numbers. There are none.
 
 ### Why now
 
@@ -218,6 +218,7 @@ Taken from `HANDOFFS.md`, `DEMO.md`, `DECISIONS.md`, and the repo as of main `1a
 | Realtime | Real, merged | Tested against the local Supabase (private channels, can't join another's). | |
 | Sign in with Apple | Built, **untested** | Needs an Apple account. The email 6-digit code path is built; the email template change is an unmerged draft (PR #11). | |
 | Location check | Real, merged | Tested with simulated location on the Simulator. Indoor GPS on a device untested. | Stage phones skip it (admins, demo mode, logged). |
+| Icebreaker chips (CHIPS-D1) | Built (this PR) | Unit and snapshot tests, plus a source-level test that no pre-match screen can show one. Static text, nothing stored on the server, nothing sent for you. Simulator screenshots in `docs/shots/chips-*.png`. | "Three tap-to-fill openers, only after a mutual match." |
 | Live Activity (lock screen countdown) | Built and unit-tested | Not yet shown running in the Simulator. | |
 | Haptics, glow brightness, brightness restore | Built | Brightness restore tested in six ways out. Simulator can't play haptics or change brightness. Untested on a device. | |
 | **Sound** | **None exists** | There is no sound code and no brief for it. Glow has haptics and light only. | Don't promise sound. |
