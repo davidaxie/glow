@@ -130,8 +130,10 @@ struct GlowButtonBody<Label: View>: View {
 
     var body: some View {
         // U1: full capsules, a 1 px highlight along the top edge, and a soft light under filled
-        // buttons. Pressing settles on the snappy spring.
-        let shape = Capsule(style: .continuous)
+        // buttons. Pressing settles on the snappy spring. Circular, not continuous: a continuous
+        // capsule's path doubles back along each straight end, so stroking it (the hairline and the
+        // highlight) drew a thin vertical line just outside both ends of secondary buttons (R1).
+        let shape = Capsule(style: .circular)
         ZStack {
             label
                 .multilineTextAlignment(.center)
