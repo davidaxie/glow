@@ -13,7 +13,8 @@ public enum SessionModule {
     /// - `-GlowSignOutAtLaunch YES`: start signed out.
     /// - `-GlowResetAgeGate YES`: reopen the profile step after an under-18 answer on this phone.
     /// - `-GlowPreviewSession ready|onboarding|signedOut`: no Supabase at all, the AppCore preview
-    ///   session in that state (for other modules' screenshots).
+    ///   session in that state (for other modules' screenshots). `-GlowDebugRoute` or
+    ///   `-GlowDebugDeckFixture` without `-GlowDebugTestLogin` means `ready`.
     public static func live(config: AppConfig, analytics: any Analytics) -> any SessionService {
         #if DEBUG
             if UserDefaults.standard.bool(forKey: "GlowResetAgeGate") {
@@ -42,8 +43,19 @@ public enum SessionModule {
             case "ready": PreviewSessionService(state: .ready)
             case "onboarding": PreviewSessionService(state: .onboarding(.profile))
             case "signedOut": PreviewSessionService(state: .signedOut)
-            default: nil
+            default: fixtureSession()
             }
+        }
+
+        /// UI tests that open a screen on made-up data (`-GlowDebugRoute`, `-GlowDebugDeckFixture`) have
+        /// no backend, so they run on the preview session, signed in. Add `-GlowDebugTestLogin` to
+        /// open the same route as a real signed-in person instead.
+        private static func fixtureSession() -> PreviewSessionService? {
+            let defaults = UserDefaults.standard
+            guard defaults.string(forKey: "GlowDebugTestLogin") == nil,
+                  defaults.string(forKey: "GlowDebugRoute") != nil || defaults.string(forKey: "GlowDebugDeckFixture") != nil
+            else { return nil }
+            return PreviewSessionService(state: .ready)
         }
 
         private static func debugLaunch(_ session: LiveSessionService, backend: SupabaseAuthBackend) async {
