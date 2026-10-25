@@ -121,10 +121,8 @@ describe.skipIf(!LIVE)('chat attack list (live)', () => {
     expect((await list(a, matchId)).status).toBe(200);
   });
 
-  // D2-F4: Postgres text can't hold a NUL byte, so it reached the database and came back as an
-  // unhandled 500. A 4xx is right. `it.fails` keeps this suite green until C4's fix lands;
-  // when it does, this test starts failing: change it to `it`.
-  it.fails('a NUL byte in a message is refused with a 4xx, not a 500 (D2-F4)', async () => {
+  // D2-F4 (fixed by the route helper's NUL check, #49).
+  it('a NUL byte in a message is refused with a 4xx, not a 500 (D2-F4)', async () => {
     const reply = await send(a, matchId, 'before\u0000after');
     expect(reply.status).toBeLessThan(500);
   });

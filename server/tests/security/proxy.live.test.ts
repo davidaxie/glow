@@ -123,7 +123,7 @@ async function api(who: Person & { jwt: string }, method: string, path: string, 
   return {
     status: res.status,
     json: res.headers.get('content-type')?.includes('json')
-      ? (JSON.parse(new TextDecoder().decode(bytes)) as Record<string, any>)
+      ? (JSON.parse(new TextDecoder().decode(bytes)) as Record<string, any>) // eslint-disable-line @typescript-eslint/no-explicit-any
       : null,
     bytes,
   };
