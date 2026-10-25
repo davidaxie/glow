@@ -1,6 +1,6 @@
 # Status
 
-Running note for David and Robin. Updated by the build orchestrator whenever something changes. Last updated 2026-10-24, main `1e40526`.
+Running note for David and Robin. Updated by the build orchestrator whenever something changes. Last updated 2026-10-24, main `c9cb615`.
 
 Nothing here says "works" unless a test or a run proved it. "Proven" means a test ran against the real local database or the app on a Simulator. No part of this has run on a real iPhone.
 
@@ -21,7 +21,7 @@ Two people in one room both tap each other. Both phones buzz, then both screens 
 | Push and realtime | Merged: live realtime channels, push sender, notification routing. | Payload snapshots show no names; one person can't join another's channel. |
 | Design system | Merged: tokens, components, glow surface, takeover, haptics, card tile. | 45 tests; contrast checked for every pairing. |
 | Match, glow and chat screens | Merged, with the icebreaker chips (#55, say-aloud lines on the glow screen, tap-to-fill openers in chat). | Server tests for every choice combination; snapshot and unit tests; Simulator screenshots. |
-| Full loop on the Simulator | Merged (B1 sign-in and the deck are in). Person B is a script, not a second phone. | D1's journey passed 10 of 10 in a row on one warm Simulator (1198 s). The verification pass re-ran it once warm and it passed (64 s). Recording: `docs/shots/d1-e2e-full.mp4`, two Simulators. |
+| Full loop on the Simulator | Merged (B1 sign-in and the deck are in). Person B is a script, not a second phone. | D1's journey passed 10 of 10 in a row on one warm Simulator (1198 s). The verification pass re-ran it once warm and it passed (64 s). After the #58 fix, one cold first run on an erased Simulator also passed (83 s). Recording: `docs/shots/d1-e2e-full.mp4`, two Simulators. |
 | Admin web | Merged: rooms, posters, rotating QR, reports, held photos. | 112 tests; non-admins get 404 everywhere. |
 | Security | One high finding fixed (account takeover through password sign-up), one low fixed. | Live test against the real local auth service. |
 | Demo kit | Merged: seed script, demo script, fallbacks. | Seed script tests. |
@@ -29,13 +29,13 @@ Two people in one room both tap each other. Both phones buzz, then both screens 
 
 ## In progress
 
-- **D1: first run on a fresh Simulator.** The verification pass found the first full run on a brand-new Simulator fails (the location-permission dialog covers the Join screen, because the script grants permission before the app is installed). D1 is fixing the script and re-proving a cold first run.
+- **First run on a fresh Simulator: fixed, proven once.** The verification pass found the first full run on a brand-new Simulator failed (the location-permission dialog covered the Join screen). D1's fix (#58) installs the app before granting permission; D1 reproduced the failure on the old script and passed run 1 from a cold Simulator on the new one (83 s). One cold pass, not ten.
 - **Review of the pitch against what actually ran.** Pitch and demo docs updated in this change; the verification pass's full report is in the orchestrator's notes.
 - **Shared Simulator and build limits** for all projects on this Mac.
 
 ## Not proven yet
 
-- The full loop on a first launch of a fresh Simulator (fails today, fix in progress), and on two real phones.
+- The full loop on two real phones, and 10 cold first runs in a row (one cold run has passed).
 - Timing of the 5-second rules (block, pause), push, haptics, the camera, P3 traffic, P6, P9, P12 on a real run: the verification pass did not check them. What it did check: 465 of 465 database tests, 6 of 6 end-to-end checks, the public keys can read nothing, and no coordinates in the server log.
 - The mutual reveal within 2 seconds, and a message reaching the other phone in under 1 second. Measured only with stand-ins.
 - The lock-screen countdown starting and ending on time.
