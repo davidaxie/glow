@@ -34,7 +34,7 @@ Two people in one room both tap each other. Both phones buzz, then both screens 
 | Area | State | Proof |
 | --- | --- | --- |
 | Builds and lint | iOS build and SwiftLint/SwiftFormat clean after Y1's fixes | `scripts/sim.sh build`, `lint` on `integrate/y1` |
-| Tests | Server Vitest 1019 passed; iOS unit tests pass with 53 Deck, Match, Glow and Chat snapshots re-recorded for the redesign (looked at) | `docs/qa/y1.md` |
+| Tests | Server Vitest 1019 passed; iOS unit tests pass with 53 Deck, Match, Glow and Chat snapshots re-recorded for the redesign (looked at), except one flaky Glow loading snapshot (2 cases); pgTAP 672/672 on a clean stack | `docs/qa/y1.md` |
 | Blind backend | Every `/api/blind/*` route live | X1's stage script 27/27 on Y1's own stack, no leaks before reveal |
 | **Blind on two Simulators, live** | Opt-in, 5 likes, drop, chat both ways, one-sided reveal (the other phone unchanged), mutual reveal | XCUITest on Glow A and Glow B against the real server and database (no mocks); 19 screenshots in `docs/shots/combined/` |
 
