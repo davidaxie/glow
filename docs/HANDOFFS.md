@@ -1431,3 +1431,7 @@ Differences from Double Blind's contract, for X2: absent instead of `null` for `
 ## X2 · Blind mode, iPhone
 
 Branch `blind/x2-ios`. The Blind tab, FeatureBlind and the Blind service protocol, models and mock are in. Every screen runs on the mock (`-GlowPreviewSession ready -GlowDebugRoute blind -GlowDebugBlind swiping|newcomer|dropReady|chatting|revealed|capReached`, plus `-GlowDebugBlindSection chats`, `-GlowDebugBlindAutoOpen YES` and `-GlowDebugBlindDropClosed YES`). `LiveBlindService` is written against X1's `/api/blind/*` contract but not yet run against X1's server. Details and what is left: `docs/qa/x2.md`.
+
+## V1 · Demo video
+
+Branch `video/v1` (from `blind-mode`). The Cal Hacks demo video (1:45) is rendered from Simulator recordings of the real Debug app, framed and captioned by `scripts/video/` (capture, UI-test capture, render, poster, contact sheets). YouTube title, description, chapters and the shot list: `docs/video/DESCRIPTION.md`. No app code changed. **For D1**: `ios/GlowUITests/DemoVideoUITests.swift` plays Blind's tapped moments at a human pace for the recording; it skips itself unless the runner gets `GLOW_DEMO_VIDEO=1` (`ui-capture.py` sets `TEST_RUNNER_GLOW_DEMO_VIDEO=1`), so the regular suite isn't slowed. The skip guard was added after the recorded run and hasn't been run itself.
