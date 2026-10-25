@@ -198,6 +198,7 @@ Up to nine agents build and test on the same Mac at once. Each works in its own 
 5. **Prove iOS work locally while your PR is a draft.** CI skips the macOS job on drafts to save macOS minutes (A1-D2), so run `scripts/sim.sh build`, `test` and `lint` yourself and attach `scripts/sim.sh shot` screenshots to the PR. The macOS job runs once you mark the PR ready for review, if it touches `ios/`, `contracts/`, `scripts/sim.sh` or `scripts/codegen.sh`, and on every push to main.
 6. **Never poll GitHub in a loop.** Every agent shares one GitHub token, and a polling loop trips GitHub's rate limit for everyone. To wait for CI, run one `gh pr checks <n> --watch --interval 60` in the background and let it tell you when it's done, or check once after doing other work. Never more than one watcher at a time.
 7. **Decision IDs carry your agent ID.** In `docs/DECISIONS.md`, add a `## {ID} · {your name}` section and number your decisions inside it: `### B2-D1 · {short title}`, `### B2-D2`, and so on, so parallel PRs never collide. `D1` to `D56` keep their numbers.
+8. **Everything runs in the background. Never use David's desktop:** no `open -a Simulator` (`sim.sh setup` is headless; `GLOW_SHOW_SIMULATOR=1` opens the window behind other apps, for a person), no computer-use, no browser pane, no `osascript` or `screencapture`. Look at the app with `scripts/sim.sh shot` and `record`, which use `simctl`.
 
 | Agents | Server port | Own Supabase API (`--own-db`) |
 | --- | --- | --- |
