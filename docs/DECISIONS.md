@@ -1073,3 +1073,78 @@ It stops the same address and the same Apple ID, and nothing else. A new address
 **Choice.** `docs/PITCH.md` uses the 75-second cut (also in `docs/DEMO.md`): the tension line, one tap, the second tap, both pick Find, then the glow around 0:50 to 1:10 and the code word as the excuse. The seeded test people are named out loud at the first deck. Every claim the repo can't back (competitors, Lovegety, business model, why now, team description, current test counts) is marked `[verify]`, and "faces never leave your phone" is replaced by the accurate wording: outfit-card faces are blurred before upload, and profile photos show only after a mutual match.
 
 **Why.** An audience that has watched the one-sided beat feels the glow more, and a pitch that overclaims loses a judge's trust faster than a modest one.
+## C1 · Deck experience
+
+### C1-D1 · The deck isn't fetched until the person says what they noticed
+
+**Question.** The spec's flow is "pick what you noticed, then scroll a small deck". Should the deck load behind the What did you notice sheet, so it's ready the moment the sheet closes?
+
+**Choice.** No. The deck screen opens on What did you notice and fetches nothing until the person applies it or taps Skip, show everyone. Swiping the sheet away leaves a quiet prompt with the same two buttons.
+
+**Why.** Every new card a fetch returns counts against CARD_VIEWS_PER_ROOM_PER_DAY (D13) and is a look shown to someone who may never need to see it. Fetching only what fits keeps both the views and other people's exposure to a minimum.
+
+### C1-D2 · While the screen is captured, the deck isn't drawn at all
+
+**Question.** P12 says the deck blurs while the screen is recorded or mirrored. A blur still records the shapes and colors of every outfit.
+
+**Choice.** While `isSceneCaptured` is true, the deck screen (grid, enlarged card, tags, everything) is drawn at zero opacity, hidden from VoiceOver and taps, and covered by a soft wash with "Looks are hidden". Each photo is also hidden on its own by B6's `.glowHiddenWhenCaptured()` (inside `GlowCardTile`, and on the enlarged card), so nothing leaks if the cover were ever missing. Any open card closes when a capture starts.
+
+**Why.** Nothing of a hidden deck can be recovered from a recording, which is what the blur is for.
+
+### C1-D3 · Captures are reported once each, as recordings; screenshots each time
+
+**Question.** `/api/abuse/capture` takes `screenshot` or `recording`, but iOS can't tell a recording from mirroring or AirPlay.
+
+**Choice.** While the deck is on screen, the start of any capture is reported once as `recording` (again only after the capture ends and a new one starts), and every screenshot is reported as `screenshot` with a gentle note: "Looks stay in Glow. Screenshots are noted, and every photo carries your code." Reports carry only the kind and the room, never fail the screen, and are never retried.
+
+**Why.** The deck is hidden either way, and B8's review threshold is about repeated attempts; one report per capture keeps innocent mirroring from piling up.
+
+### C1-D4 · The deck is also covered whenever the app isn't active
+
+**Question.** iOS saves a snapshot of the screen for the app switcher when the app goes to the background, and keeps it on disk.
+
+**Choice.** The same cover shows whenever the scene isn't `active` (the app switcher, Control Center, a call), so the system's snapshot never holds anyone's look.
+
+**Why.** Card photos must never be written to the phone (spec: display with caching turned off), and the app switcher snapshot is a file.
+
+### C1-D5 · Live updates: coalesced refetches, plus a safety net
+
+**Question.** P8 wants a departed or paused person gone from every deck within 5 seconds, `deck.changed` can arrive in bursts, and B8 limits the deck to 60 requests a minute per person.
+
+**Choice.** `deck.changed` for this room refetches every page on screen (the order is stable all day). The first event after a quiet spell refetches at once; events during a refetch fold into one more; refetches are spaced at least 1.5 s apart, and 1.2 s per page beyond that, so a burst stays under 50 requests a minute. The deck also refetches when the realtime connection comes back (events sent while it was down are lost), when the app returns to the foreground, and every 30 seconds while it's open. A rate-limited background refetch retries quietly. Photo links that are still good for 15 seconds are kept across refetches, so photos on screen don't reload. If the open card or the card being tapped left the deck, it closes with "That look isn't in the deck anymore."
+
+**Why.** A single event lands in well under a second, and even a constant stream of events with four pages loaded stays inside 5 seconds and inside the rate limit.
+
+### C1-D6 · Blocking or reporting from a card hides it at once
+
+**Question.** B8 asks the deck to drop a blocked card locally at once, but B8's sheets don't tell the deck whether the person went through with it.
+
+**Choice.** Choosing Block or Report on an enlarged card hides that card from this deck for a minute, before the sheet even opens. If the block lands, the server keeps it out for good; if the person cancels, it comes back on the next refetch after the minute.
+
+**Why.** The safer mistake is hiding someone a little too long, not showing someone the person just tried to block.
+
+### C1-D7 · The enlarged card is drawn inside the deck, not presented
+
+**Choice.** Tap to enlarge draws a full-screen card pager over the grid inside the same view (the tab and navigation bars hide), and That's them opens its confirm panel inside it too. Nothing is presented as a separate sheet or cover.
+
+**Why.** One privacy cover (C1-D2) then covers everything, the mutual hand-off (`navigate(.mutual(matchID))`) never collides with a presentation the deck owns, and a card that leaves the deck closes in place.
+
+### C1-D8 · Check in again goes back through the room's code
+
+**Choice.** "Check in again" (room home, and the deck's check-in ended state) opens `.joinRoom(RoomLink(slug:, token: nil))`: B2's code entry, then the location check, then a new photo. The app never checks someone back in from what it remembers.
+
+**Why.** A QR code or room code plus a location check is the only way into a room (spec: Always), and a stale card photo shouldn't come back.
+
+### C1-D9 · Paused is everywhere, and the room home says so
+
+**Choice.** The room home's Visible toggle calls `POST /api/me/pause`, which pauses the person in every room, and says "Paused. Nobody sees you, and you don't see anyone." See today's looks is disabled while paused, and the deck's paused state offers Be visible.
+
+**Why.** It's one flag on the profile (B8), and saying what it really does beats a per-room switch that isn't.
+
+### C1-D10 · The phone draws my viewer code over every card too
+
+**Question.** The brief says the watermark is visible. The server prints the viewer's code faintly into every card photo (spec), but a tile crops the photo, and a screenshot of a tile might miss it.
+
+**Choice.** Every tile and the enlarged card also draw B6's `GlowWatermark` with my own `viewerCode` over the photo, on the phone. The enlarged card shows the whole photo (`.fit`), so the server's watermark shows in full there.
+
+**Why.** A screenshot of any part of the deck carries the code of the person who took it. It's my own code on my own screen, so it reveals nothing about anyone else.
