@@ -194,7 +194,7 @@ run_journey() { # <journey> <run number>
     TEST_RUNNER_GLOW_E2E_PUSH_DIR="$ROOT/ios/fixtures/push" \
     scripts/sim.sh test "GlowUITests/$class" || code=$?
 
-  if [ -n "$rec_pid" ]; then kill -INT "$rec_pid" 2>/dev/null || true; wait "$rec_pid" 2>/dev/null || true; fi
+  if [ -n "$rec_pid" ]; then kill -TERM "$rec_pid" 2>/dev/null || true; wait "$rec_pid" 2>/dev/null || true; fi
   if [ -n "$b_pid" ]; then
     curl -s -X POST --max-time 5 "http://127.0.0.1:$CONTROL_PORT/quit" >/dev/null || true
     local b_code=0

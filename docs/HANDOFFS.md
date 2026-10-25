@@ -786,7 +786,7 @@ _2026-10-24, Wave 3._ PR [#43](https://github.com/davidaxie/glow/pull/43) on `w3
 
 - Tapping any notification crashed the app (SIGABRT in UIKit, from the async `userNotificationCenter(_:didReceive:)`): fixed in #47. `PushTapUITests` passes on all nine fixtures with it.
 
-**Proof**: each journey has passed once, on Glow A (D1) against a local server, with B1's iOS session on main: `full` (61 s), `chat` (64 s), `block` (72 s), `expiry` (51 s) and `push` (87 s, nine banners). The full loop drives the real screens: check in with the test photo, the deck, That's them, the secret tap, mutual, Find each other, the same code word as person B's, We met, and B sees `met`. Person B is another API client, and its privacy watch saw no user ID or name. Not yet run: ten in a row, and the two-Simulator recording (D1 messages the coordinator before either).
+**Proof**: each journey has passed once, on Glow A (D1) against a local server, with B1's iOS session on main: `full` (61 s), `chat` (64 s), `block` (72 s), `expiry` (51 s) and `push` (87 s, nine banners). The full loop drives the real screens: check in with the test photo, the deck, That's them, the secret tap, mutual, Find each other, the same code word as person B's, We met, and B sees `met`. Person B is another API client, and its privacy watch saw no user ID or name. **Ten in a row**: `scripts/e2e/run.sh full --repeat 10` passed 10 of 10 on a fresh build of main 402aaf9 (20 minutes). **Recording**: [`docs/shots/d1-e2e-full.mp4`](shots/d1-e2e-full.mp4), 54 seconds, Glow A (driven by the journey) on the left and Glow B (signed in as person B) on the right, from check-in to the same glow on both phones to We met; recorded headless with `simctl` (`scripts/e2e/record.sh full`).
 
 **Still mocked or blocked**
 
@@ -796,9 +796,9 @@ _2026-10-24, Wave 3._ PR [#43](https://github.com/davidaxie/glow/pull/43) on `w3
 
 **Done when**
 
-- [ ] The full loop passes 10 runs in a row in CI. Locally: not run yet (it passed once). In CI: blocked, Actions is down (A1's `--e2e`, For A1).
-- [ ] No flaky tests. Nothing flaky found yet: the push journey passed every run; journeys wait on conditions, never on time, and each run has its own room and people.
-- [ ] A recording of the two-Simulator run is in `docs/shots/`. Not made yet; `scripts/e2e/record.sh` is ready.
+- [x] The full loop passes 10 runs in a row, locally (10 of 10). In CI: blocked, Actions is down (A1's `--e2e`, For A1).
+- [x] No flaky tests. One flake found and fixed (the third run of a ten-run check got 429 on test sign-in, D1-D7). Journeys wait on conditions, never on time, and each run has its own room and people.
+- [x] A recording of the two-Simulator run is in `docs/shots/d1-e2e-full.mp4`.
 
 **Next wave needs**
 
