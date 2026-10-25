@@ -27,11 +27,13 @@ public struct ChatView: View {
         }
         .onAppear {
             if model == nil {
-                model = ChatModel(
-                    matchID: matchID,
-                    api: LiveChatAPI(api: dependencies.api),
-                    analytics: dependencies.analytics,
-                )
+                var api: any ChatAPI = LiveChatAPI(api: dependencies.api)
+                #if DEBUG
+                    if let fixture = ChatLaunchFixture.api(environment: dependencies.config.environment) {
+                        api = fixture
+                    }
+                #endif
+                model = ChatModel(matchID: matchID, api: api, analytics: dependencies.analytics)
             }
         }
     }
@@ -193,6 +195,7 @@ struct ChatThread: View {
     @Bindable var model: ChatModel
     var composerFocused: FocusState<Bool>.Binding
     @Environment(\.chatHidesScrollEdgeEffect) private var hidesScrollEdgeEffect
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let rows = model.rows
@@ -206,13 +209,12 @@ struct ChatThread: View {
                             .onAppear { loadOlder(keeping: rows.first?.id, proxy: proxy) }
                             .accessibilityLabel(Text("Loading earlier messages"))
                     }
-                    if rows.isEmpty {
-                        GlowEmptyState(
-                            systemImage: "bubble.left.and.bubble.right",
-                            title: "It's just the two of you here.",
-                            message: "Nobody else can read this chat.",
+                    if !model.hasOlder {
+                        ChatThreadIntro(
+                            firstName: model.header?.firstName,
+                            roomName: model.header?.roomName,
+                            breathes: rows.isEmpty && !hidesScrollEdgeEffect,
                         )
-                        .padding(.top, GlowSpacing.xxl)
                     }
                     let icebreakers = model.icebreakers
                     if !icebreakers.isEmpty {
@@ -246,8 +248,17 @@ struct ChatThread: View {
                         }
                         .padding(.top, row.continuesGroup || row.timeLabel != nil ? 0 : GlowSpacing.xs)
                         .id(row.id)
+                        // A new message lands from below and settles, anchored to its side.
+                        .transition(
+                            reduceMotion
+                                ? .opacity
+                                : .scale(scale: 0.92, anchor: row.message.fromMe ? .bottomTrailing : .bottomLeading)
+                                .combined(with: .opacity)
+                                .combined(with: .offset(y: 12)),
+                        )
                     }
                 }
+                .animation(reduceMotion ? ChatStyle.fade : ChatStyle.snappy, value: rows.map(\.id))
                 .padding(.horizontal, GlowSpacing.md)
                 .padding(.vertical, GlowSpacing.sm)
             }

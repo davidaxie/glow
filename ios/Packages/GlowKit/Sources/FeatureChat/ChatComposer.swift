@@ -23,22 +23,26 @@ struct ChatComposer: View {
                     .foregroundStyle(.glowTextPrimary)
                     .tint(.glowAccent)
                     .focused(focus)
-                    .padding(.horizontal, GlowSpacing.sm)
-                    .padding(.vertical, GlowSpacing.xs)
+                    .padding(.horizontal, GlowSpacing.md)
+                    .padding(.vertical, GlowSpacing.xs + 2)
                     .frame(minHeight: GlowSize.minimumTapTarget)
-                    .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous))
+                    .background(.glowSurface, in: RoundedRectangle(cornerRadius: ChatStyle.bubbleRadius, style: .continuous))
                     .overlay {
-                        RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous)
+                        RoundedRectangle(cornerRadius: ChatStyle.bubbleRadius, style: .continuous)
                             .strokeBorder(remaining < 0 ? .glowDanger : .glowLine, lineWidth: 1)
                     }
                     .accessibilityLabel(Text("Message"))
 
                 Button(action: onSend) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.glow(.title))
-                        .foregroundStyle(canSend ? .glowAccent : .glowTextSecondary)
+                    Image(systemName: "arrow.up")
+                        .font(.glow(.headline))
+                        .fontWeight(.bold)
+                        .foregroundStyle(canSend ? .glowOnAccent : .glowTextSecondary)
+                        .frame(width: GlowSize.minimumTapTarget - 6, height: GlowSize.minimumTapTarget - 6)
+                        .background(canSend ? .glowAccent : .glowSurfaceRaised, in: Circle())
                         .frame(minWidth: GlowSize.minimumTapTarget, minHeight: GlowSize.minimumTapTarget)
                         .contentShape(Rectangle())
+                        .animation(ChatStyle.snappy, value: canSend)
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend)
@@ -55,9 +59,9 @@ struct ChatComposer: View {
         }
         .padding(.horizontal, GlowSpacing.md)
         .padding(.vertical, GlowSpacing.xs)
-        .background(.glowBackground)
+        .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
-            Rectangle().fill(.glowLine).frame(height: 1)
+            Rectangle().fill(GlowPalette.line.color.opacity(0.6)).frame(height: 1)
         }
     }
 

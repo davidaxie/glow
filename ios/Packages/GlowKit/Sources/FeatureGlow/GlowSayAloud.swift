@@ -61,7 +61,7 @@ struct GlowSayAloudView: View {
                                 .accessibilityHidden(true)
                         }
                         Text(verbatim: "\u{201C}\(line.text)\u{201D}")
-                            .font(GlowMoment.serif(.title3))
+                            .font(GlowLook.serif(.title3))
                             .italic()
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)

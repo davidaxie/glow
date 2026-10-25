@@ -63,22 +63,58 @@ struct ChatBubble: View {
         }
     }
 
+    /// Large continuous corners, tighter on the sender's side where a run of messages joins (U3).
+    private var shape: UnevenRoundedRectangle {
+        let full = ChatStyle.bubbleRadius
+        let joined = row.continuesGroup ? ChatStyle.joinedRadius : full
+        return UnevenRoundedRectangle(
+            topLeadingRadius: message.fromMe ? full : joined,
+            bottomLeadingRadius: full,
+            bottomTrailingRadius: full,
+            topTrailingRadius: message.fromMe ? joined : full,
+            style: .continuous,
+        )
+    }
+
+    /// Mine: the accent, lit a touch from above. Theirs: a lifted surface. Lightening the accent
+    /// only raises the dark ink's contrast.
+    private var fill: AnyShapeStyle {
+        if message.fromMe {
+            return AnyShapeStyle(LinearGradient(
+                colors: [GlowPalette.accent.mixed(with: .white, amount: 0.12).color, GlowPalette.accent.color],
+                startPoint: .top,
+                endPoint: .bottom,
+            ))
+        }
+        return AnyShapeStyle(GlowPalette.surfaceRaised.color)
+    }
+
     private var bubble: some View {
         Text(verbatim: message.body)
             .glowFont(.body)
             .foregroundStyle(message.fromMe ? .glowOnAccent : .glowTextPrimary)
             .multilineTextAlignment(.leading)
             .textSelection(.enabled)
-            .padding(.horizontal, GlowSpacing.sm)
-            .padding(.vertical, GlowSpacing.xs)
-            .background(
-                message.fromMe ? .glowAccent : .glowSurfaceRaised,
-                in: RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous),
-            )
+            .padding(.horizontal, GlowSpacing.md)
+            .padding(.vertical, GlowSpacing.sm - 2)
+            .background(fill, in: shape)
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            GlowPalette.textPrimary.color.opacity(message.fromMe ? 0.25 : 0.1),
+                            GlowPalette.textPrimary.color.opacity(0),
+                        ],
+                        startPoint: .top,
+                        endPoint: .center,
+                    ),
+                    lineWidth: 1,
+                )
+            }
             // A little quieter while it's on its way. 85% keeps the text at 4.9:1 on the faded
             // accent (WCAG AA); 60% would drop it to 2.9:1.
             .opacity(message.delivery == .sending ? Self.sendingOpacity : 1)
-            .contentShape(RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous))
+            .contentShape(shape)
             .onTapGesture {
                 if isFailed {
                     choosingFix = true
