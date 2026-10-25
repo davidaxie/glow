@@ -1039,3 +1039,13 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** `POST /api/dev/test-login` asks the admin API for a one-time token for the `@glow.test` address (creating the person if needed) and redeems it with `verifyOtp(token_hash, type: email)`, returning a normal session. It answers 404 unless the profile is local and `ALLOW_TEST_LOGIN` is on (checked in the handler as well as `proxy.ts` and `env.ts`). The app's call is hand-written and inside `#if DEBUG`, so a Release binary can't form it; Debug builds also accept `-GlowTestSignIn new@glow.test` at launch for automation.
 
 **Why.** No test passwords to leak, nothing in Mailpit to scrape, and the same session shape as a real sign-in.
+
+## PITCH · Pitch writer
+
+### PITCH-D1 · The pitch opens on the one-sided beat, says the seeded people out loud, and marks what it can't back
+
+**Question.** The brief wanted the glow in the first 30 seconds. The product review asked to open on the tension of a one-sided tap, and the glow can't appear before both taps and both Find choices.
+
+**Choice.** `docs/PITCH.md` uses the 75-second cut (also in `docs/DEMO.md`): the tension line, one tap, the second tap, both pick Find, then the glow around 0:50 to 1:10 and the code word as the excuse. The seeded test people are named out loud at the first deck. Every claim the repo can't back (competitors, Lovegety, business model, why now, team description, current test counts) is marked `[verify]`, and "faces never leave your phone" is replaced by the accurate wording: outfit-card faces are blurred before upload, and profile photos show only after a mutual match.
+
+**Why.** An audience that has watched the one-sided beat feels the glow more, and a pitch that overclaims loses a judge's trust faster than a modest one.
