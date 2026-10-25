@@ -70,14 +70,23 @@ struct MomentLight: View {
 struct MomentBreathing: ViewModifier {
     let isActive: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Snapshot tests hold the clock still, and the breath with it (R1: the waiting snapshot flaked).
+    @Environment(\.matchClockOverride) private var frozenNow
 
     func body(content: Content) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isActive)) { context in
-            let wave = isActive ? Moment.breath(at: context.date) : 1
-            content
-                .scaleEffect(reduceMotion ? 1 : 1 + 0.03 * wave)
-                .opacity(0.6 + 0.4 * wave)
+        if let frozenNow {
+            breathe(content, wave: isActive ? Moment.breath(at: frozenNow) : 1)
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isActive)) { context in
+                breathe(content, wave: isActive ? Moment.breath(at: context.date) : 1)
+            }
         }
+    }
+
+    private func breathe(_ content: Content, wave: Double) -> some View {
+        content
+            .scaleEffect(reduceMotion ? 1 : 1 + 0.03 * wave)
+            .opacity(0.6 + 0.4 * wave)
     }
 }
 
