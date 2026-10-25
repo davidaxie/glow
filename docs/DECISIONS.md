@@ -1215,3 +1215,13 @@ B8's `signIn` policy allows 10 test sign-ins per 10 minutes per client IP, and o
 ### D1-D8 · Install the app, then grant location, on every run
 
 `run.sh` granted location with `simctl privacy` before the app was installed, which does nothing on a new or erased Simulator, and it ended in `|| true`, so nobody saw it. iOS's location dialog then covered the Join screen and run 1 failed ("checkin.debugPhoto never appeared"). My ten runs reused an installed Glow A, which hid it. Now every run installs the built app first, then grants location, and either step failing stops the run with a message. Checked from cold: after `sim.sh reset A`, the old script fails run 1 the same way, and the new one passes run 1. The journeys only exercise the allowed-location path. The denied one ("Don't Allow") has not been run by anyone, so nothing here shows what the app does after a refusal.
+
+## X2 · Blind mode, iPhone
+
+### X2-D1 · LiveBlindService lives in FeatureBlind, not APIClient
+
+The brief puts it in APIClient, but APIClient cannot see AppCore's `BlindService` (AppCore depends on APIClient). It sits in `FeatureBlind/Live/` and is chosen the way FeatureDeck chooses its service: an injected one (`.blindService(_:)`), a Debug mock (`-GlowDebugBlind`), or the live API. `Dependencies` is unchanged.
+
+### X2-D2 · The Blind deck hides while the screen is recorded
+
+P12 is a Rooms rule, but Blind cards are face photos, so the deck uses `.glowHiddenWhenCaptured()` too (the more private choice).
