@@ -109,9 +109,10 @@ if ! curl -s -o /dev/null --max-time 3 "$API/api/me"; then
   wait_for_url "$API/api/me" 90 || die "the server didn't start. See .agent-state/e2e/server.log"
 fi
 probe="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/api/dev/test-login" \
-  -H 'content-type: application/json' --data '{"email":"e2e-probe@glow.test"}')"
+  -H 'content-type: application/json' -H "x-forwarded-for: 10.$((RANDOM % 250)).$((RANDOM % 250)).7" --data '{}')"
+# A bad body answers 400 when test sign-in is on (it checks the body first); 404 when it's off.
 case "$probe" in
-  200 | 501) ;;
+  400 | 401 | 422 | 429) ;;
   *) die "test sign-in answered $probe on $API. Run pnpm env:setup --force --test-login, then restart the server." ;;
 esac
 
@@ -193,7 +194,7 @@ run_journey() { # <journey> <run number>
     TEST_RUNNER_GLOW_E2E_PUSH_DIR="$ROOT/ios/fixtures/push" \
     scripts/sim.sh test "GlowUITests/$class" || code=$?
 
-  if [ -n "$rec_pid" ]; then kill -INT "$rec_pid" 2>/dev/null || true; wait "$rec_pid" 2>/dev/null || true; fi
+  if [ -n "$rec_pid" ]; then kill -TERM "$rec_pid" 2>/dev/null || true; wait "$rec_pid" 2>/dev/null || true; fi
   if [ -n "$b_pid" ]; then
     curl -s -X POST --max-time 5 "http://127.0.0.1:$CONTROL_PORT/quit" >/dev/null || true
     local b_code=0

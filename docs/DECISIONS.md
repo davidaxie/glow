@@ -1208,3 +1208,6 @@ A UI test can't send a push or end a check-in from inside the Simulator, so `har
 ### CHIPS-D4 · `CHIPS` joins the agent table
 
 **Choice.** `scripts/agent-env.sh` gets one row, `CHIPS 51`: port 3141 and its own Simulators ("Glow A (CHIPS)"), as this task was assigned, so `scripts/ci-local.sh CHIPS` works. It is A1's file, so it is part of this PR's `cross-owner` label.
+### D1-D7 · Test sign-in names a made-up client address, so a ten-run check isn't rate limited
+
+B8's `signIn` policy allows 10 test sign-ins per 10 minutes per client IP, and one run signs in about five times (the room's admin, person A, person B, the app) so the third run of a ten-run check got 429. The scripts now send each sign-in with its own made-up private `x-forwarded-for`, as a proxy would, and `run.sh`'s availability check no longer signs anyone in (it posts an empty body and expects the 400 a bad body gets). The rate limit itself is untouched. Vercel overwrites that header with the real client address, and the test sign-in route doesn't exist there (D6), so this opens nothing in production. The app's own sign-in per run still comes from its real address, one per run.
