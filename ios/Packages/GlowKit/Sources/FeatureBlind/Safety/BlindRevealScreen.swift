@@ -28,7 +28,7 @@ final class BlindRevealScreenModel {
 
     func load(_ chatID: BlindChatID, using service: any BlindService) async {
         lastRefresh = Date()
-        do {
+        do throws(BlindError) {
             let chat = try await service.chat(chatID)
             detail = chat
             // The partner only exists on a revealed chat (B1); never trust the status alone.
@@ -243,7 +243,7 @@ public struct BlindRevealScreen: View {
 }
 
 /// The veil: frost and blur that dissolve from the center outward as `progress` goes 0 to 1.
-private struct BlindVeilLift: ViewModifier, Animatable {
+private struct BlindVeilLift: ViewModifier, @MainActor Animatable {
     var progress: Double
 
     var animatableData: Double {

@@ -39,7 +39,7 @@ final class BlindDropModel {
     }
 
     func load() async {
-        do {
+        do throws(BlindError) {
             let fresh = try await service.dropStatus()
             status = fresh
             if phase == .loading {
@@ -62,7 +62,7 @@ final class BlindDropModel {
         errorText = nil
         let clock = ContinuousClock()
         let started = clock.now
-        do {
+        do throws(BlindError) {
             let result = try await service.openDrop()
             let names = BlindDropRules.revealNames(result)
             analytics.track(AnalyticsEvent("blind_drop_opened", ["chats": .int(names.count)]))

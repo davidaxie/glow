@@ -126,6 +126,8 @@ targets:
         product: FeatureGlow
       - package: GlowKit
         product: FeatureChat
+      - package: GlowKit
+        product: FeatureBlind
       - package: PostHog
         product: PostHog
     postBuildScripts:
@@ -246,6 +248,7 @@ schemes:
         - package: GlowKit/FeatureMatchTests
         - package: GlowKit/FeatureGlowTests
         - package: GlowKit/FeatureChatTests
+        - package: GlowKit/FeatureBlindTests
     profile:
       config: Release
     analyze:

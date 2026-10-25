@@ -95,6 +95,8 @@ let modules: [Module] = [
     Module(name: "FeatureMatch", dependencies: feature + ["Imaging"], testDependencies: [snapshotTesting]),
     Module(name: "FeatureGlow", dependencies: feature + ["LiveActivityShared"], testDependencies: [snapshotTesting]),
     Module(name: "FeatureChat", dependencies: feature, testDependencies: [snapshotTesting]),
+    // Blind mode (X2): Double Blind inside Glow.
+    Module(name: "FeatureBlind", dependencies: feature, testDependencies: [snapshotTesting]),
 ]
 
 // MARK: - Package

@@ -1,5 +1,6 @@
 import AppCore
 import DesignSystem
+import FeatureBlind
 import FeatureChat
 import FeatureCheckIn
 import FeatureDeck
@@ -39,6 +40,12 @@ struct RouteDestination: View {
         case let .block(context): BlockSheet(context: context)
         case let .report(context): ReportSheet(context: context)
         case .gallery: GalleryView()
+        case .blind: BlindHomeView()
+        case .blindDrop: BlindDropView()
+        case let .blindChat(chat): BlindChatView(chatID: chat)
+        case let .blindReveal(chat): BlindRevealScreen(chatID: chat)
+        case let .blindGuess(chat): BlindGuessView(chatID: chat)
+        case let .blindReport(chat): BlindReportView(chatID: chat)
         }
     }
 }

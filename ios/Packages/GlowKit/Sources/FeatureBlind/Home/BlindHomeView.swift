@@ -42,7 +42,7 @@ final class BlindHomeModel {
     }
 
     func load() async {
-        do {
+        do throws(BlindError) {
             let me = try await service.me()
             phase = me.isMember ? .member : .notMember
         } catch {
@@ -57,7 +57,7 @@ final class BlindHomeModel {
         isJoining = true
         errorText = nil
         defer { isJoining = false }
-        do {
+        do throws(BlindError) {
             _ = try await service.join()
             analytics.track(AnalyticsEvent("blind_joined"))
             phase = .member
@@ -68,7 +68,7 @@ final class BlindHomeModel {
 
     /// Leaving deletes my Blind swipes, matches and chats.
     func leave() async -> Bool {
-        do {
+        do throws(BlindError) {
             try await service.leaveBlind()
             analytics.track(AnalyticsEvent("blind_left"))
             deck.reset()

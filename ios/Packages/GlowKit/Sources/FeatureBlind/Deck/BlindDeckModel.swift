@@ -132,7 +132,7 @@ final class BlindDeckModel {
         guard !isRefilling, force || entries.count < Self.lowWater, !reachedEnd || force else { return }
         isRefilling = true
         defer { isRefilling = false }
-        do {
+        do throws(BlindError) {
             let fetched = try await service.deck(limit: Self.batch)
             let receivedAt = now()
             let known = Set(entries.map(\.id))
@@ -194,7 +194,7 @@ final class BlindDeckModel {
     }
 
     private func send(_ entry: BlindDeckEntry, _ kind: BlindSwipeKind, sequence mine: Int) async {
-        do {
+        do throws(BlindError) {
             let result = try await service.swipe(entry.id, kind: kind)
             images.evict(entry.card.photo)
             // Answers can arrive out of order; only the newest one may set the counters.

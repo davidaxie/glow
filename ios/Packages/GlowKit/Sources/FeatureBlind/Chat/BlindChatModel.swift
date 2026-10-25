@@ -173,7 +173,7 @@ final class BlindChatModel {
     }
 
     func pollOnce() async {
-        do {
+        do throws(BlindError) {
             let new = try await service.messages(chatID, after: cursor)
             connection = .live
             merge(new)
@@ -187,7 +187,7 @@ final class BlindChatModel {
     }
 
     func refreshDetail() async {
-        do {
+        do throws(BlindError) {
             let fresh = try await service.chat(chatID)
             connection = .live
             detail = fresh
@@ -253,7 +253,7 @@ final class BlindChatModel {
             pending.append(row)
             id = row.id
         }
-        do {
+        do throws(BlindError) {
             let result = try await service.send(chatID, text: text, confirm: confirm)
             if let reason = result.warning {
                 // Held back, nothing was sent: take the bubble back and ask.

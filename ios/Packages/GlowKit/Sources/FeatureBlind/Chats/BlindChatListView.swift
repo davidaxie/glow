@@ -152,7 +152,7 @@ struct BlindChatListView: View {
     }
 
     private func refresh() async {
-        do {
+        do throws(BlindError) {
             let fresh = try await service.chats()
             chats = fresh
             failed = false

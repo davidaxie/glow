@@ -14,7 +14,16 @@
             "mutual": Route.mutual, "match": Route.match, "glow": Route.glow, "chat": Route.chat,
         ]
 
+        /// Blind mode (X2): `blind` and `blindDrop` alone, the rest with a blind chat ID.
+        private static let blindScreens: [String: Route] = ["blind": .blind, "blindDrop": .blindDrop]
+        private static let blindChatScreens: [String: @Sendable (BlindChatID) -> Route] = [
+            "blindChat": Route.blindChat, "blindReveal": Route.blindReveal, "blindGuess": Route.blindGuess, "blindReport": Route.blindReport,
+        ]
+
         static func route(for value: String) -> Route? {
+            if let screen = blindScreens[value] {
+                return screen
+            }
             let parts = value.split(separator: "/", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { return nil }
             if let screen = roomScreens[parts[0]] {
@@ -22,6 +31,9 @@
             }
             if let screen = matchScreens[parts[0]] {
                 return MatchID(validating: parts[1]).map(screen)
+            }
+            if let screen = blindChatScreens[parts[0]] {
+                return BlindChatID(validating: parts[1]).map(screen)
             }
             return nil
         }

@@ -1,4 +1,5 @@
 import AppCore
+import FeatureBlind
 import FeatureMatch
 import FeatureOnboarding
 import FeatureRooms
@@ -53,7 +54,7 @@ struct RootView: View {
     }
 }
 
-/// Rooms, Matches and Settings, each with its own navigation stack.
+/// Rooms, Matches, Blind and Settings, each with its own navigation stack.
 private struct MainTabs: View {
     @Bindable var router: Router
 
@@ -70,6 +71,12 @@ private struct MainTabs: View {
             }
             .tabItem { Label("Matches", systemImage: "sparkles") }
             .tag(AppTab.matches)
+
+            NavigationStack(path: $router.blindPath) {
+                BlindHomeView().routeDestinations()
+            }
+            .tabItem { Label("Blind", systemImage: "eye.slash") }
+            .tag(AppTab.blind)
 
             NavigationStack(path: $router.settingsPath) {
                 SettingsView().routeDestinations()

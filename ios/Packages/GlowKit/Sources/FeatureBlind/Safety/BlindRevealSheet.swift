@@ -20,7 +20,7 @@ final class BlindRevealModel {
         default: return
         }
         phase = .sending
-        do {
+        do throws(BlindError) {
             phase = try await BlindRevealPhase.phase(after: service.reveal(chatID))
         } catch .notFound {
             // The chat is gone for me (they left, or it was closed): the same as "they left".
@@ -33,7 +33,7 @@ final class BlindRevealModel {
     /// Adopts what the server says when the sheet opens. Only moves off `ready`.
     func sync(_ chatID: BlindChatID, using service: any BlindService) async {
         guard phase == .ready else { return }
-        do {
+        do throws(BlindError) {
             let next = try await BlindRevealPhase.phase(for: service.chat(chatID))
             if phase == .ready {
                 phase = next
@@ -50,7 +50,7 @@ final class BlindRevealModel {
     /// Re-reads the chat while waiting, to notice their tap, their leaving, or a block.
     func refresh(_ chatID: BlindChatID, using service: any BlindService) async {
         guard phase == .waiting else { return }
-        do {
+        do throws(BlindError) {
             let next = try await BlindRevealPhase.phase(for: service.chat(chatID))
             if next != .ready {
                 phase = next
@@ -252,9 +252,9 @@ struct BlindChatMenu: View {
         ) { pending in
             switch pending {
             case .leave:
-                Button("Leave chat", role: .destructive) { Task { await run { try await service.leaveChat(chatID) } } }
+                Button("Leave chat", role: .destructive) { Task { await run { () async throws(BlindError) in try await service.leaveChat(chatID) } } }
             case .block:
-                Button("Block", role: .destructive) { Task { await run { try await service.block(chatID) } } }
+                Button("Block", role: .destructive) { Task { await run { () async throws(BlindError) in try await service.block(chatID) } } }
             }
             Button("Cancel", role: .cancel) {}
         } message: { pending in
@@ -273,7 +273,7 @@ struct BlindChatMenu: View {
     }
 
     private func run(_ work: () async throws(BlindError) -> Void) async {
-        do {
+        do throws(BlindError) {
             try await work()
             done += 1
             navigate(.blind)
