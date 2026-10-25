@@ -192,14 +192,16 @@ struct GlowOnView: View {
     private func enter() async {
         guard !isStill, !filled else { return }
         if reduceMotion {
-            withAnimation(GlowMoment.fade) { filled = true }
-            withAnimation(GlowMoment.fade.delay(0.15)) { surfaced = true }
+            withAnimation(GlowLook.fade) { filled = true }
+            withAnimation(GlowLook.fade.delay(0.15)) { surfaced = true }
             return
         }
-        withAnimation(GlowMoment.bloom) { lightOn = true }
-        withAnimation(GlowMoment.gentle) { filled = true }
+        // U1's glow cue: the low airy swell as the color fills the screen.
+        GlowHaptics.shared.play(GlowMoment.glowArrives)
+        withAnimation(GlowLook.bloom) { lightOn = true }
+        withAnimation(GlowLook.gentle) { filled = true }
         try? await Task.sleep(for: .milliseconds(360))
-        withAnimation(GlowMoment.fade) { surfaced = true }
+        withAnimation(GlowLook.fade) { surfaced = true }
         try? await Task.sleep(for: .milliseconds(240))
         withAnimation(.easeOut(duration: 0.9)) { lightOn = false }
     }
@@ -289,7 +291,7 @@ struct GlowOnView: View {
                 .textCase(.uppercase)
                 .kerning(1.2)
                 Text(verbatim: meetingSpot)
-                    .font(GlowMoment.serif(.title, weight: .medium))
+                    .font(GlowLook.serif(.title, weight: .medium))
                     .padding(.bottom, GlowSpacing.xxs)
             }
             Text("Hold your phone up. They're looking for this color too.")
@@ -417,7 +419,7 @@ struct GlowLoadingView: View {
         VStack(spacing: GlowSpacing.lg) {
             // A breath, not a spinner: the glow is on its way.
             TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-                let wave = GlowMoment.breath(at: context.date)
+                let wave = GlowLook.breath(at: context.date)
                 Circle()
                     .fill(EllipticalGradient(
                         colors: [GlowRGB.white.color.opacity(0.35), GlowRGB.white.color.opacity(0)],

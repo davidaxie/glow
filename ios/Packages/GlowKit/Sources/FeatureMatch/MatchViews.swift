@@ -381,7 +381,7 @@ struct MutualIntro: View {
     private func play() async {
         if reduceMotion {
             withAnimation(Moment.fade) { stage = .together }
-            GlowHaptics.shared.play(pattern: Moment.heartbeat)
+            GlowHaptics.shared.play(GlowMoment.mutual)
             stage = .spoken
             try? await Task.sleep(for: .milliseconds(1800))
             onFinished()
@@ -392,7 +392,8 @@ struct MutualIntro: View {
         withAnimation(Moment.gentle) { stage = .together }
         // The lights touch about halfway through the spring: the heartbeat lands there.
         try? await Task.sleep(for: .milliseconds(520))
-        GlowHaptics.shared.play(pattern: Moment.heartbeat)
+        // U1's mutual cue: the two-beat heartbeat and the chime (silent switch and Settings respected).
+        GlowHaptics.shared.play(GlowMoment.mutual)
         try? await Task.sleep(for: .milliseconds(260))
         stage = .spoken
         try? await Task.sleep(for: .milliseconds(1900))

@@ -7,19 +7,19 @@ import SwiftUI
 
 enum Moment {
     /// `Motion.snappy`: small UI changes.
-    static let snappy = Animation.spring(response: 0.35, dampingFraction: 0.86)
+    static let snappy = Motion.snappy
     /// `Motion.smooth`: things arriving.
-    static let smooth = Animation.spring(response: 0.5, dampingFraction: 0.9)
+    static let smooth = Motion.smooth
     /// `Motion.gentle`: big, slow movement, like two lights drifting together.
-    static let gentle = Animation.spring(response: 0.8, dampingFraction: 0.95)
+    static let gentle = Motion.gentle
     /// The calm crossfade every movement turns into under Reduce Motion.
-    static let fade = Animation.easeOut(duration: 0.25)
+    static let fade = Motion.fade
     /// Between items appearing one after another.
-    static let stagger: Double = 0.04
+    static let stagger = Motion.stagger
     /// A bloom of light: 600 ms, then settle.
-    static let bloom = Animation.easeOut(duration: 0.6)
+    static let bloom = Animation.easeOut(duration: Motion.bloomDuration)
     /// One breath of a waiting state, in seconds (a resting heart rate).
-    static let breathPeriod: Double = 4
+    static let breathPeriod = Motion.breathPeriod
 
     static func animation(_ animation: Animation, reduceMotion: Bool) -> Animation {
         reduceMotion ? fade : animation

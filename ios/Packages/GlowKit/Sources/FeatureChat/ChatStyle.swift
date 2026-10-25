@@ -8,9 +8,9 @@ import SwiftUI
 
 enum ChatStyle {
     /// `Motion.snappy`: a message landing.
-    static let snappy = Animation.spring(response: 0.35, dampingFraction: 0.86)
+    static let snappy = Motion.snappy
     /// The calm crossfade every movement turns into under Reduce Motion.
-    static let fade = Animation.easeOut(duration: 0.25)
+    static let fade = Motion.fade
     /// Bubbles: large continuous corners, tighter where a run of messages joins.
     static let bubbleRadius: CGFloat = 22
     static let joinedRadius: CGFloat = 8

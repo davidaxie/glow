@@ -7,19 +7,19 @@ import SwiftUI
 // docs/design/DIRECTION.md. Module-local until U1's DesignSystem `Motion` presets and serif styles
 // land; then these become aliases for them (docs/design/CHANGES.md). Presentation only.
 
-enum GlowMoment {
+enum GlowLook {
     /// `Motion.smooth`: things arriving.
-    static let smooth = Animation.spring(response: 0.5, dampingFraction: 0.9)
+    static let smooth = Motion.smooth
     /// `Motion.gentle`: the color filling the screen from the middle.
-    static let gentle = Animation.spring(response: 0.8, dampingFraction: 0.95)
+    static let gentle = Motion.gentle
     /// The calm crossfade every movement turns into under Reduce Motion.
-    static let fade = Animation.easeOut(duration: 0.25)
+    static let fade = Motion.fade
     /// Between items appearing one after another.
-    static let stagger: Double = 0.04
+    static let stagger = Motion.stagger
     /// The light at the heart of the bloom: 600 ms, then settle.
-    static let bloom = Animation.easeOut(duration: 0.6)
+    static let bloom = Animation.easeOut(duration: Motion.bloomDuration)
     /// One breath of a waiting state, in seconds.
-    static let breathPeriod: Double = 4
+    static let breathPeriod = Motion.breathPeriod
 
     /// 0 → 1 → 0 over one breath.
     static func breath(at date: Date) -> Double {
@@ -46,7 +46,7 @@ struct GlowWordmark: View {
 
     var body: some View {
         Text(verbatim: word)
-            .font(GlowMoment.serif(size: size, weight: .semibold))
+            .font(GlowLook.serif(size: size, weight: .semibold))
             .kerning(size * 0.02)
             .lineLimit(1)
             .minimumScaleFactor(0.3)
@@ -66,7 +66,7 @@ struct GlowRise: ViewModifier {
             .opacity(isShown ? 1 : 0)
             .offset(y: isShown || reduceMotion ? 0 : 18)
             .animation(
-                (reduceMotion ? GlowMoment.fade : GlowMoment.smooth).delay(0.18 + Double(index) * GlowMoment.stagger),
+                (reduceMotion ? GlowLook.fade : GlowLook.smooth).delay(0.18 + Double(index) * GlowLook.stagger),
                 value: isShown,
             )
     }
