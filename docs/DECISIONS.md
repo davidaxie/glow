@@ -943,6 +943,30 @@ Admins (B7) review held photos with `GET /api/admin/photos`, `GET /api/admin/pho
 **Choice.** `0005_d2_no_passwords.sql` refuses the one thing a password is for: a session made with one. Supabase records how each session was made in `auth.mfa_amr_claims`, in the same transaction that issues its tokens, and a trigger refuses `password`. Email codes, magic links, Apple, recovery links and refresh tokens are untouched. "Confirm email" must stay on (now also in local `config.toml`): with it off, Supabase signs a new email-code person in with a password session, so sign-up would fail closed. Local stacks keep password sign-in for `@glow.test` people only, behind `private.settings.allow_test_passwords = 'on'`, which only `seed.sql` sets. The cloud project never loads the seed, so there no password ever works.
 
 **Why.** It closes takeover and persistence in the database, on any Supabase plan, without changing the app or the contract. The other ways to do this are a Password Verification Attempt Auth Hook, which is plan-gated as far as D2 knows, or proxying all sign-in through the API, which doesn't help because the anon key is public.
+
+### D2-D2 · A2's D56: what a banned person can still do, and the smallest fix
+
+**Question.** A2's D56 said a banned person can delete their account, which clears the ban, and come back.
+
+**Choice.** Nothing to build for the delete path: a banned auth user's tokens stop verifying, so `DELETE /api/me` answers 401, and Supabase has no self-delete endpoint (`server/tests/security/ban.live.test.ts` proves it). What stays open is registering again with a different email address or Apple ID. The smallest fix, **not built, because it keeps data about a person who deleted their account and that is David's call**:
+
+- Migration `0006`: `private.banned_identities (hash bytea primary key, banned_at timestamptz)`, closed to clients like every table.
+- When `banPerson` bans someone (B7, `markBanned`), it first stores an HMAC-SHA256 (keyed with a server secret) of their lowercased email and, for Apple sign-ins, of `auth.identities.provider_id`. It is not removed when the account is deleted.
+- A `before insert` trigger on `auth.users` (email) and `auth.identities` (Apple) refuses a sign-up whose HMAC is in the table, with the same generic error as any other failed sign-up.
+- The privacy policy says it: "If we remove someone for breaking our rules, we keep a scrambled fingerprint of their email or Apple ID so they can't sign up again."
+
+It stops the same address and the same Apple ID, and nothing else. A new address or Apple ID still gets in; the stronger answer is Apple's App Attest or DeviceCheck, tying a ban to the device.
+
+**Why not build it now.** It adds retained personal data (a hash is still personal data), and the choice between that and a clean slate for people who delete their account is the kind AGENTS.md says to settle in the privacy-protecting direction until David says otherwise. So the privacy-protecting option stays: nothing retained.
+
+### D2-D3 · Reject NUL characters in the route helper, not in each route
+
+**Question.** NUL in a text field was a 500 (D2-F4). Fix per field, or once?
+
+**Choice.** Once, in `parseBody` and `parseQuery` in A1's route helper: any NUL in a body key, a body value (at any depth) or a query value is a 400, before a handler runs.
+
+**Why.** Every current and future route, and every text field in them, is covered with no owner having to remember. Nothing Glow stores can contain a NUL.
+
 ## C2 · Mutual moment and reveal
 
 ### C2-D1 · Find looks at the fix only while the choice can still matter
