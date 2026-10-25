@@ -66,39 +66,90 @@ struct JoinStateView: View {
     }
 
     var body: some View {
-        switch model.phase {
-        case .idle, .resolving:
-            JoinProgressView(title: "Finding the room", caption: caption)
-        case .checking:
-            JoinProgressView(
-                title: "Checking you're in the room",
-                message: "Glow checks your location once, then forgets it.",
-                caption: caption,
-            )
-        case .passed:
-            JoinMessageView(
-                symbol: "checkmark.circle",
-                title: "You're in the room",
-                message: "Next, a quick photo of today's outfit.",
-                caption: caption,
-                identifier: "rooms.join.passed",
-            ) {
+        JoinStage(
+            warmth: warmth,
+            isCold: failure != nil,
+            symbol: symbol,
+            title: title,
+            message: message,
+            caption: caption,
+            identifier: identifier,
+        ) {
+            switch model.phase {
+            case .idle, .resolving, .checking:
+                EmptyView()
+            case .passed:
                 Button("Continue") { continueToCheckIn() }
                     .buttonStyle(.glowPrimary)
-            }
-        case let .failed(failure):
-            JoinMessageView(
-                symbol: failure.symbol,
-                title: failure.title,
-                message: failure.message,
-                caption: caption,
-                identifier: "rooms.join.failure.\(failure.name)",
-            ) {
+                    .shadow(color: Color.glowAccent.opacity(0.35), radius: 18, y: 6)
+            case let .failed(failure):
                 actionButton(failure.primaryAction, prominent: true)
                 if let secondary = failure.secondaryAction {
                     actionButton(secondary, prominent: false)
                 }
             }
+        }
+        .sensoryFeedback(.success, trigger: isPassed)
+    }
+
+    // MARK: The room warming up (DIRECTION.md "Joining a room")
+
+    private var failure: JoinFailure? {
+        if case let .failed(failure) = model.phase {
+            return failure
+        }
+        return nil
+    }
+
+    private var isPassed: Bool {
+        if case .passed = model.phase {
+            return true
+        }
+        return false
+    }
+
+    /// The light gathers as the join goes: a faint glow while the room is found, warmer while
+    /// Glow checks you're inside, full when you're in. A failure cools it to grey.
+    private var warmth: Double {
+        switch model.phase {
+        case .idle, .resolving: 0.25
+        case .checking: 0.6
+        case .passed: 1
+        case .failed: 0.3
+        }
+    }
+
+    private var symbol: String? {
+        switch model.phase {
+        case .idle, .resolving, .checking: nil
+        case .passed: "checkmark"
+        case let .failed(failure): failure.symbol
+        }
+    }
+
+    private var title: String {
+        switch model.phase {
+        case .idle, .resolving: "Finding the room"
+        case .checking: "Checking you're in the room"
+        case .passed: "You're in the room"
+        case let .failed(failure): failure.title
+        }
+    }
+
+    private var message: String? {
+        switch model.phase {
+        case .idle, .resolving: nil
+        case .checking: "Glow checks your location once, then forgets it."
+        case .passed: "Next, a quick photo of today's outfit."
+        case let .failed(failure): failure.message
+        }
+    }
+
+    private var identifier: String {
+        switch model.phase {
+        case .idle, .resolving, .checking: "rooms.join.progress"
+        case .passed: "rooms.join.passed"
+        case let .failed(failure): "rooms.join.failure.\(failure.name)"
         }
     }
 
@@ -138,42 +189,28 @@ struct JoinStateView: View {
     }
 }
 
-/// A spinner with a title, for the short waits.
+/// A short wait: the room's light, breathing, with a title. No spinner.
 struct JoinProgressView: View {
     let title: String
     var message: String?
     let caption: String
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(.glowAccent)
-                    .padding(.bottom, 8)
-                Text(title)
-                    .glowFont(.title)
-                    .multilineTextAlignment(.center)
-                if let message {
-                    Text(message)
-                        .glowFont(.body)
-                        .foregroundStyle(.glowTextSecondary)
-                        .multilineTextAlignment(.center)
-                }
-                Text(caption)
-                    .glowFont(.footnote)
-                    .foregroundStyle(.glowTextSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(24)
-            .padding(.top, 80)
+        JoinStage(
+            warmth: 0.25,
+            isCold: false,
+            symbol: nil,
+            title: title,
+            message: message,
+            caption: caption,
+            identifier: "rooms.join.progress",
+        ) {
+            EmptyView()
         }
-        .accessibilityIdentifier("rooms.join.progress")
     }
 }
 
-/// An outcome: a symbol, a title, what to do, and buttons.
+/// An outcome: a symbol in a cool light, a title, what to do, and buttons.
 struct JoinMessageView<Actions: View>: View {
     let symbol: String
     let title: String
@@ -183,35 +220,83 @@ struct JoinMessageView<Actions: View>: View {
     @ViewBuilder let actions: Actions
 
     var body: some View {
+        JoinStage(warmth: 0.3, isCold: true, symbol: symbol, title: title, message: message, caption: caption, identifier: identifier) {
+            actions
+        }
+    }
+}
+
+/// One stage of joining: the room's light (one view throughout, so it gathers rather than jumps),
+/// a symbol inside it once there's an outcome, a line in New York, what's happening, the room, and
+/// the one thing to do under the thumb.
+struct JoinStage<Actions: View>: View {
+    let warmth: Double
+    let isCold: Bool
+    let symbol: String?
+    let title: String
+    let message: String?
+    let caption: String
+    let identifier: String
+    @ViewBuilder let actions: Actions
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .largeTitle) private var lightSize: CGFloat = 300
+
+    var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                Image(systemName: symbol)
-                    .glowFont(.display)
-                    .imageScale(.large)
-                    .foregroundStyle(.glowAccent)
-                    .padding(.bottom, 8)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .glowFont(.title)
-                    .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
-                Text(message)
-                    .glowFont(.body)
-                    .foregroundStyle(.glowTextSecondary)
-                    .multilineTextAlignment(.center)
-                Text(caption)
-                    .glowFont(.footnote)
-                    .foregroundStyle(.glowTextSecondary)
-                    .multilineTextAlignment(.center)
-                VStack(spacing: 12) {
-                    actions
+            VStack(spacing: GlowSpacing.md) {
+                ZStack {
+                    RoomWarmth(warmth: warmth, size: lightSize, isCold: isCold)
+                    if let symbol {
+                        Image(systemName: symbol)
+                            .font(.glow(.display))
+                            .fontWeight(.light)
+                            .imageScale(.large)
+                            .foregroundStyle(isCold ? AnyShapeStyle(.glowTextSecondary) : AnyShapeStyle(.glowTextPrimary))
+                            .transition(.scale(scale: 0.7).combined(with: .opacity))
+                            .id(symbol)
+                            .accessibilityHidden(true)
+                    }
                 }
-                .padding(.top, 16)
+                .frame(height: lightSize * 0.75)
+                VStack(spacing: GlowSpacing.sm) {
+                    Text(title)
+                        .font(RoomsLight.titleSerif)
+                        .tracking(-0.4)
+                        .foregroundStyle(.glowTextPrimary)
+                        .multilineTextAlignment(.center)
+                        .contentTransition(.opacity)
+                        .accessibilityAddTraits(.isHeader)
+                    if let message {
+                        Text(message)
+                            .glowFont(.body)
+                            .foregroundStyle(.glowTextSecondary)
+                            .multilineTextAlignment(.center)
+                            .transition(.opacity)
+                    }
+                    Text(caption)
+                        .glowFont(.footnote)
+                        .foregroundStyle(.glowTextSecondary.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, GlowSpacing.xxs)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, GlowSpacing.lg)
             }
             .frame(maxWidth: .infinity)
-            .padding(24)
-            .padding(.top, 48)
+            .padding(.top, GlowSpacing.lg)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: GlowSpacing.sm) {
+                actions
+            }
+            .padding(.horizontal, GlowSpacing.screenMargin)
+            .padding(.bottom, GlowSpacing.sm)
+        }
+        .background { RoomsCanvas(warmth: isCold ? 0.15 : warmth) }
+        .animation(RoomsLight.motion(RoomsLight.smooth, reduceMotion: reduceMotion), value: title)
+        .animation(RoomsLight.motion(RoomsLight.smooth, reduceMotion: reduceMotion), value: symbol)
         .accessibilityIdentifier(identifier)
     }
 }

@@ -15,22 +15,28 @@ struct DeckScreen: View {
     @Environment(\.dependencies) private var dependencies
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Cards rise in once the looks arrive (DIRECTION.md "Joining a room").
+    @State private var risen = false
 
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.glowBackground)
+            .background { DeckCanvas(warmth: model.phase == .loaded ? 0.55 : 0.35) }
             .overlay {
                 if model.enlargedCard != nil {
                     CardDetailView(model: model) { match in
                         navigate(.mutual(match))
                     }
-                    .transition(.opacity)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
                 }
             }
-            .glowAnimation(value: model.enlarged)
+            .animation(DeckLight.motion(DeckLight.smooth, reduceMotion: reduceMotion), value: model.enlarged)
+            .onChange(of: model.phase, initial: true) { _, phase in
+                risen = phase == .loaded
+            }
             .deckPrivacy(model)
-            .glowToast($model.toast)
+            .glowToast(toast)
             .navigationTitle(DeckCopy.deckTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(model.enlarged == nil ? .automatic : .hidden, for: .navigationBar, .tabBar)
@@ -59,6 +65,15 @@ struct DeckScreen: View {
             }
     }
 
+    /// The one-sided tap's "Noted. Only you know." is drawn quietly inside the card, never as a
+    /// banner (DIRECTION.md "One-sided tap"); every other note is a toast.
+    private var toast: Binding<GlowToastMessage?> {
+        Binding(
+            get: { model.toast?.text == DeckCopy.tapSent ? nil : model.toast },
+            set: { model.toast = $0 },
+        )
+    }
+
     /// `deck.changed`: someone here paused, left or blocked. Their card goes within seconds (P8).
     private func listenForDeckChanges() async {
         let realtime = dependencies.realtime
@@ -84,34 +99,32 @@ struct DeckScreen: View {
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .choosing:
-            GlowEmptyState(
-                systemImage: "sparkle.magnifyingglass",
-                title: LocalizedStringKey(DeckCopy.noticeTitle),
-                message: LocalizedStringKey(DeckCopy.noticeSubtitle),
-            ) {
+            DeckQuietState(title: DeckCopy.noticeTitle, message: DeckCopy.noticeSubtitle) {
                 Button(DeckCopy.changeNoticed) { model.isNoticeSheetOpen = true }
                     .buttonStyle(.glowPrimary)
+                    .padding(.top, GlowSpacing.xs)
                 Button(DeckCopy.noticeSkip) { Task { await model.apply(.none) } }
                     .buttonStyle(.glowQuiet)
                     .accessibilityIdentifier("deck.skip")
             }
         case .loading:
-            ProgressView()
-                .tint(.glowTextSecondary)
-                .accessibilityLabel(Text(DeckCopy.loadingLooks))
+            // A breath, not a spinner: the room is gathering its looks.
+            ZStack {
+                DeckBreathingLight(size: 220, intensity: 0.8)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(DeckCopy.loadingLooks))
         case .loaded:
             grid
         case let .empty(reason):
             ScrollView {
                 DeckEmptyView(reason: reason, model: model, checkInAgain: checkInAgain)
-                    .padding(.top, GlowSpacing.xxl)
+                    .padding(.top, GlowSpacing.xl)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .refreshable { await model.refresh() }
         case let .failed(failure):
-            GlowEmptyState(
-                systemImage: failure == .offline ? "wifi.slash" : "exclamationmark.triangle",
-                title: LocalizedStringKey(failure == .offline ? DeckCopy.offline : DeckCopy.deckFailed),
-            ) {
+            DeckQuietState(title: failure == .offline ? DeckCopy.offline : DeckCopy.deckFailed, intensity: 0.45) {
                 Button(DeckCopy.tryAgain) { Task { await model.apply(model.filters) } }
                     .buttonStyle(.glowSecondary)
             }
@@ -120,20 +133,21 @@ struct DeckScreen: View {
 
     private var columns: [GridItem] {
         let count = typeSize.isAccessibilitySize ? 1 : 2
-        return Array(repeating: GridItem(.flexible(), spacing: GlowSpacing.sm, alignment: .top), count: count)
+        return Array(repeating: GridItem(.flexible(), spacing: GlowSpacing.md, alignment: .top), count: count)
     }
 
     private var grid: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: GlowSpacing.md) {
-                LazyVGrid(columns: columns, spacing: GlowSpacing.sm) {
-                    ForEach(model.cards) { card in
+                LazyVGrid(columns: columns, spacing: GlowSpacing.lg) {
+                    ForEach(Array(model.cards.enumerated()), id: \.element.id) { index, card in
                         Button {
                             model.open(card.id)
                         } label: {
                             DeckTile(card: card, viewerCode: model.viewerCode) { model.imageUnavailable(card.id) }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(DeckPressStyle())
+                        .deckRise(index: index, isVisible: risen)
                         .accessibilityIdentifier("deck.card.\(card.id.rawValue)")
                         .onAppear {
                             if card.id == model.cards.last?.id {
@@ -145,8 +159,10 @@ struct DeckScreen: View {
                 footer
             }
             .padding(.horizontal, GlowSpacing.screenMargin)
-            .padding(.vertical, GlowSpacing.sm)
+            .padding(.top, GlowSpacing.sm)
+            .padding(.bottom, GlowSpacing.lg)
         }
+        .scrollIndicators(.hidden)
         .refreshable { await model.refresh() }
         .safeAreaInset(edge: .bottom) { noticeBar }
         .accessibilityElement(children: .contain)
@@ -190,13 +206,40 @@ struct DeckScreen: View {
                         .foregroundStyle(.glowAccent)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .glowFont(.button)
+            .foregroundStyle(.glowTextPrimary)
+            .frame(maxWidth: .infinity, minHeight: GlowSize.buttonHeight)
+            .padding(.horizontal, GlowSpacing.md)
+            .deckGlass(cornerRadius: GlowSize.buttonHeight / 2)
+            .contentShape(Capsule())
         }
-        .buttonStyle(.glowSecondary)
+        .buttonStyle(DeckPressStyle())
         .padding(.horizontal, GlowSpacing.screenMargin)
-        .padding(.vertical, GlowSpacing.xs)
-        .background(.glowBackground)
+        .padding(.top, GlowSpacing.xs)
+        .padding(.bottom, GlowSpacing.xs)
+        .background {
+            // The room fades out under the bar, so cards slip beneath it instead of being cut off.
+            LinearGradient(
+                colors: [Color.glowBackground.opacity(0), Color.glowBackground.opacity(0.9)],
+                startPoint: .top,
+                endPoint: .bottom,
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+        }
         .accessibilityIdentifier("deck.notice.open")
+    }
+}
+
+/// A press that answers the touch: the card dips a little on the snappy spring.
+struct DeckPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(DeckLight.motion(DeckLight.snappy, reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }
 

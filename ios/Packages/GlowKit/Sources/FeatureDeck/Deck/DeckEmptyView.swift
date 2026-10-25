@@ -18,36 +18,20 @@ struct DeckEmptyView: View {
         Group {
             switch reason {
             case .noMatch:
-                GlowEmptyState(
-                    systemImage: "line.3.horizontal.decrease.circle",
-                    title: LocalizedStringKey(DeckCopy.emptyNoMatchTitle),
-                    message: LocalizedStringKey(DeckCopy.emptyNoMatchMessage),
-                ) {
+                DeckQuietState(title: DeckCopy.emptyNoMatchTitle, message: DeckCopy.emptyNoMatchMessage) {
                     Button(DeckCopy.changeNoticed) { model.isNoticeSheetOpen = true }
                         .buttonStyle(.glowSecondary)
                 }
             case .quiet:
-                GlowEmptyState(
-                    systemImage: "moon.stars",
-                    title: LocalizedStringKey(DeckCopy.emptyQuietTitle),
-                    message: LocalizedStringKey(DeckCopy.emptyQuietMessage),
-                )
+                DeckQuietState(title: DeckCopy.emptyQuietTitle, message: DeckCopy.emptyQuietMessage)
             case .checkinEnded:
-                GlowEmptyState(
-                    systemImage: "hourglass",
-                    title: LocalizedStringKey(DeckCopy.emptyCheckinTitle),
-                    message: LocalizedStringKey(DeckCopy.emptyCheckinMessage),
-                ) {
+                DeckQuietState(title: DeckCopy.emptyCheckinTitle, message: DeckCopy.emptyCheckinMessage, intensity: 0.5) {
                     Button(DeckCopy.checkInAgain) { navigate(checkInAgain) }
                         .buttonStyle(.glowPrimary)
                         .accessibilityIdentifier("deck.empty.checkInAgain")
                 }
             case .paused:
-                GlowEmptyState(
-                    systemImage: "pause.circle",
-                    title: LocalizedStringKey(DeckCopy.emptyPausedTitle),
-                    message: LocalizedStringKey(DeckCopy.emptyPausedMessage),
-                ) {
+                DeckQuietState(title: DeckCopy.emptyPausedTitle, message: DeckCopy.emptyPausedMessage, intensity: 0.4) {
                     Button(DeckCopy.emptyPausedAction) {
                         Task {
                             isWorking = true
@@ -62,11 +46,7 @@ struct DeckEmptyView: View {
                     .accessibilityIdentifier("deck.empty.beVisible")
                 }
             case .viewLimitReached:
-                GlowEmptyState(
-                    systemImage: "checkmark.seal",
-                    title: LocalizedStringKey(DeckCopy.emptyViewsTitle),
-                    message: LocalizedStringKey(DeckCopy.emptyViewsMessage),
-                )
+                DeckQuietState(title: DeckCopy.emptyViewsTitle, message: DeckCopy.emptyViewsMessage)
             }
         }
         .accessibilityElement(children: .contain)

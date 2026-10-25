@@ -72,9 +72,38 @@ public struct DeckView: View {
             if let slug = model?.roomSlug {
                 checkInAgain = .joinRoom(RoomLink(slug: slug, token: nil))
             }
+            #if DEBUG
+                if let model {
+                    await DeckAutoplay.run(model)
+                }
+            #endif
         }
     }
 }
+
+#if DEBUG
+    /// Debug builds only, on a fixture room: `-GlowDebugDeckAutoplay skip` skips What did you
+    /// notice; `tap` then opens a look and taps it (one-sided), so the deck's motion can be recorded
+    /// on a headless Simulator. Never touches the live API: it needs `-GlowDebugDeckFixture`.
+    @MainActor
+    enum DeckAutoplay {
+        static func run(_ model: DeckModel) async {
+            let launch = DeckDebugLaunch.shared
+            guard launch.service != nil, let mode = launch.autoplay else { return }
+            try? await Task.sleep(for: .seconds(1.6))
+            await model.apply(.none)
+            guard mode == "tap" else { return }
+            try? await Task.sleep(for: .seconds(2.4))
+            guard let card = model.cards.dropFirst().first(where: { $0.id != FixtureDeckService.mutualCard && !$0.tappedByMe })
+            else { return }
+            model.open(card.id)
+            try? await Task.sleep(for: .seconds(1.6))
+            model.requestTap(card.id)
+            try? await Task.sleep(for: .seconds(1.8))
+            _ = await model.confirmTap()
+        }
+    }
+#endif
 
 /// Debug builds only: `-GlowDebugFakeScreenCapture YES` makes the deck behave as if the screen is
 /// being recorded (the P12 UI test), and `-GlowDebugDeckFixture` draws the made-up room's photos

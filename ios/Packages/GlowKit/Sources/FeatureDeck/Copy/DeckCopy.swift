@@ -8,6 +8,7 @@ enum DeckCopy {
     // MARK: Room home
 
     static let seeLooks = String(localized: "See today's looks")
+    static let roomEyebrow = String(localized: "Room")
     static let checkedIn = String(localized: "You're checked in")
     static let checkinEnded = String(localized: "Your check-in ended")
     static let cardRemoved = String(localized: "Your card is hidden")
@@ -93,7 +94,10 @@ enum DeckCopy {
     static let confirmMessage = String(localized: "They won't know unless they tap you too.")
     static let confirmTap = String(localized: "Tap")
     static let notYet = String(localized: "Not yet")
-    static let tapSent = String(localized: "Sent. It stays secret unless they tap you too.")
+    /// The one-sided tap's quiet acknowledgement, only on my screen (DIRECTION.md, P5).
+    static let tapSent = String(localized: "Noted. Only you know.")
+    static let tapSentDetail = String(localized: "If they tap you too, you'll both glow.")
+    static let noticed = String(localized: "Noticed")
     static let noTapsLeft = String(localized: "You've used today's taps in this room.")
     static let cardGone = String(localized: "That look isn't in the deck anymore.")
     static let tapFailed = String(localized: "Couldn't send that. Try again in a moment.")
