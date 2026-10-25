@@ -352,13 +352,23 @@ export function freshEmail(prefix: string): string {
   return `${prefix.toLowerCase().replace(/[^a-z0-9.+-]/g, '')}-${suffix}@glow.test`;
 }
 
+/** A made-up private IPv4 address, new each call. */
+function fakeClientAddress(): string {
+  const [a = 0, b = 0, c = 0] = crypto.getRandomValues(new Uint8Array(3));
+  return `10.${a}.${b}.${Math.max(1, c)}`;
+}
+
 /** Signs in with B1's test sign-in: `POST /api/dev/test-login` (local servers with ALLOW_TEST_LOGIN). */
 export async function signIn(env: Env, email: string): Promise<Session> {
   if (!email.endsWith('@glow.test'))
     throw new Error('test sign-in takes @glow.test addresses only');
   const res = await fetch(`${env.api}/api/dev/test-login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    // Test sign-in is limited to 10 per 10 minutes per client IP (B8's `signIn` policy), and a
+    // ten-run check signs in far more often than that. Each sign-in names its own made-up client
+    // address, the way a proxy would (D1-D7). On Vercel the header is overwritten, and this route
+    // doesn't exist there.
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': fakeClientAddress() },
     body: JSON.stringify({ email }),
   });
   if (!res.ok) {
