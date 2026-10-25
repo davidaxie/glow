@@ -38,6 +38,12 @@
     "PHOTO_MAX_DIMENSION": { "value": 1920, "unit": "pixels", "description": "Longest side of an uploaded photo." },
     "PHOTO_JPEG_QUALITY": { "value": 80, "unit": "percent", "description": "JPEG quality for uploads (0.8)." },
     "PHOTO_MAX_BYTES": { "value": 3000000, "unit": "bytes", "description": "Largest uploaded JPEG, before base64." },
-    "FACE_BOX_GROWTH": { "value": 30, "unit": "percent", "description": "Each detected face box grows by this much on every side before blurring." }
+    "FACE_BOX_GROWTH": { "value": 30, "unit": "percent", "description": "Each detected face box grows by this much on every side before blurring." },
+    "BLIND_RIGHT_SWIPES_PER_DAY": { "value": 20, "unit": "count", "description": "Blind mode: right swipes (like or love) per person per UTC day." },
+    "BLIND_DROP_MIN_RIGHT_SWIPES": { "value": 5, "unit": "count", "description": "Blind mode: a drop opens only for someone with at least this many right swipes ever." },
+    "BLIND_MAX_OPEN_CHATS": { "value": 5, "unit": "count", "description": "Blind mode: most open blind chats a person has at once. Drops never open more." },
+    "BLIND_DECK_PAGE_MAX": { "value": 20, "unit": "count", "description": "Blind mode: most cards per deck page (10 by default)." },
+    "BLIND_REPORT_MAX_CHARS": { "value": 500, "unit": "characters", "description": "Blind mode: longest report text from a blind chat." },
+    "BLIND_DROP_REPLAY_WINDOW": { "value": 300, "unit": "seconds", "description": "Blind mode: a drop shows a chat again for this long after first showing it, so a retry isn't empty." }
   }
 }

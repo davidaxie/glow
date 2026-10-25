@@ -116,4 +116,22 @@ public enum GlowConstants {
 
     /// Each detected face box grows by this much on every side before blurring. (`FACE_BOX_GROWTH`)
     public static let faceBoxGrowthPercent: Int = 30
+
+    /// Blind mode: right swipes (like or love) per person per UTC day. (`BLIND_RIGHT_SWIPES_PER_DAY`)
+    public static let blindRightSwipesPerDay: Int = 20
+
+    /// Blind mode: a drop opens only for someone with at least this many right swipes ever. (`BLIND_DROP_MIN_RIGHT_SWIPES`)
+    public static let blindDropMinRightSwipes: Int = 5
+
+    /// Blind mode: most open blind chats a person has at once. Drops never open more. (`BLIND_MAX_OPEN_CHATS`)
+    public static let blindMaxOpenChats: Int = 5
+
+    /// Blind mode: most cards per deck page (10 by default). (`BLIND_DECK_PAGE_MAX`)
+    public static let blindDeckPageMax: Int = 20
+
+    /// Blind mode: longest report text from a blind chat. (`BLIND_REPORT_MAX_CHARS`)
+    public static let blindReportMaxChars: Int = 500
+
+    /// Blind mode: a drop shows a chat again for this long after first showing it, so a retry isn't empty. (`BLIND_DROP_REPLAY_WINDOW`)
+    public static let blindDropReplayWindow: TimeInterval = 300
 }
