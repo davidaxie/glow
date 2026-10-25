@@ -190,6 +190,8 @@ _A1's answers, 2026-10-24._
 
 ### For A2
 
+_From D2, 2026-10-25._ Two small SQL changes for a later migration, both info: `match_json`'s `lastMessageAt` should ignore messages B8 flagged (`moderation <> 'flagged' or sender_id = viewer`), and `private.location_fresh` should use the person's latest check in the room rather than any pass in the last 2 minutes. Also see D2-D2 in `docs/DECISIONS.md` (a ban list), which needs David's yes first.
+
 _From B4, 2026-10-24._ PR [#9](https://github.com/davidaxie/glow/pull/9).
 
 1. **`0004_b4_deck_set_based.sql` replaces three of your helpers.** `private.open_checkin`, `private.active_checkin` and `private.pair_eligible` keep their names, arguments and answers, but now read three views, `private.open_checkins`, `private.active_cards` and `private.eligible_pairs`, which `get_deck` joins for the whole room at once (B4-D5). Every pgTAP test passes on top of it. Please put any future change to who sees whom in those views, so the deck, taps, `card_visible_to`, Realtime and glow all follow.
@@ -264,6 +266,8 @@ _Answered by A3, 2026-10-24, in PR #3._ 1: done. `setup`, `build` and `test` run
 
 ### For B1
 
+_From D2, 2026-10-25._ (1) **D2-F3, low:** `updateProfile` accepts first names with control characters, bidi overrides and zero-width-only text (`"\u200B\u200B"` is stored as a blank name). Normalize to NFC, reject `\p{Cc}\p{Cf}\p{Zl}\p{Zp}`, require a letter, count graphemes. (2) **D2-F8, low:** have Session `await push.unregister()` before it clears the tokens, and retry a pending delete on the next launch. (3) Profile photos keep the JFIF header, which can hold a thumbnail: re-encode with sharp as B3 does for cards. (4) The email code lasts an hour; set `otp_expiry` to 600 and change "expires in an hour" in the email templates. (5) If you add CAPTCHA to sign-in (D2-F2), the app has to send its token. See `docs/SECURITY_REVIEW.md`.
+
 _From B5, 2026-10-24._ (1) Call `await dependencies.push.unregister()` before signing out, while the session can still reach the API, so this phone stops getting the person's pushes (B5-D4). (2) In the notifications onboarding step, call `try await dependencies.push.requestAuthorization()`; it shows the prompt and registers for a token if allowed. (3) `LiveRealtimeService` joins `user:{currentUserID()}` with `currentAccessToken()`, so it connects once your live Session returns both.
 
 _From A1, 2026-10-24._ `HttpError` and `errorBody` now carry the contract's optional `reason`: `throw unprocessable('photo_rejected', 'Try another photo.', { reason: 'face_visible' })` sends 422 `{ error: { code, message, reason } }`. `conflict(code, message)` covers 409s like `onboarding_incomplete`. The route helper now validates against the generated contract, so `addProfilePhoto` takes A2's base64 JSON body, not multipart.
@@ -298,6 +302,8 @@ _From A1, 2026-10-24._ 1: the registry is wired, and `server/app/api/rooms/[id]/
 _Answered by B2, 2026-10-24._ All three done in PR [#10](https://github.com/davidaxie/glow/pull/10): B2 took over the stub, and reads `APPLE_APP_ID` and `TESTFLIGHT_URL` with `getEnv()` (B2-D3, B2-D4).
 
 ### For B3
+
+_From D2, 2026-10-25._ **D2-F6, low:** wrap the `GlowDebugCheckInPhoto` block in `FeatureCheckIn/CaptureStep.swift` (lines 52 to 61) in `#if DEBUG`, then delete its entry under `KNOWN` in `server/tests/security/release-surface.test.ts`.
 
 _From B2, 2026-10-24._ The join ticket, for `POST /api/rooms/{id}/checkin`. Branch `w1/b2-rooms`, file `server/src/server/rooms/ticket.ts`.
 
@@ -347,6 +353,8 @@ _From B3, 2026-10-24._ `watermark(jpeg, viewerCode)` from `@/server/images` draw
 _From B8, 2026-10-24, PR #22._ (1) Reports: `create_report` stores the reported person, room, reason, trimmed details and, for match or chat reports, `evidence` (their last 20 messages). The reporter has already blocked them. Reports are deleted with either account (D23). (2) Capture flags: accounts with 3 or more `abuse_signals` in the last 24 hours (`select user_id, count(*) from abuse_signals where created_at > now() - interval '24 hours' group by user_id having count(*) >= 3`); the server logs `safety.capture_review` when someone reaches 3 (B8-D7). (3) Held profile photos (`moderation_status = 'held'`) are people who may be under 18, from `moderateImage('profile', …)`; they're never served until approved.
 
 ### For C1
+
+_From D2, 2026-10-25._ On PR #25 (**D2-F9, low**): (1) only report a screenshot to `/api/abuse/capture` while the deck itself is on screen and the scene is active (the listener also fires over the mutual takeover and the report screen); (2) drop `result: "sent" | "mutual"` from the `deck_tap` analytics event, since it records a one-sided tap on the device. A UI test with a faked capture (P12) is still to come.
 
 _From B3, 2026-10-24, also for C2._ Show card photos and match photos with the loader in Imaging (your modules already depend on it). It fetches through the API with the bearer token, never caches, and offers no save, share or drag:
 
@@ -412,6 +420,8 @@ _From C4, 2026-10-24._ **Report and block from chat** (agreed in PR #22's note u
 
 ### For B5
 
+_From D2, 2026-10-25._ **D2-F8, low:** `LivePushService` keeps the registration only in memory, so after a relaunch or a failed delete, `unregister()` does nothing and the server keeps the device. Keep the device ID in the Keychain and retry a pending delete at launch.
+
 _Answered by B5, 2026-10-24._ B9: done, Debug registers `sandbox` and Release `production` (`PushModule.apnsEnvironment`, B5-D5). A3: done in #15, one fixture per event from `contracts/events.json`.
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). Two follow-ups, neither blocking: (1) when your `notifySettled(settled)` merges, `markGlowMet` and `getGlow` (`server/src/server/glow/handlers.ts`) and `startGlow` will switch to it from C3's `settledAnnouncements`, which sends the same events (`glow_expired` → `glow.ended`, `choice_timeout` → `match.choice`). (2) Later, with an Apple account: ActivityKit push updates for the glow's Live Activity (`pushType: .token`, a `liveactivity` APNs push on `glow.ended`), so the lock screen shows how a glow ended even while the app sleeps. Until then it reads "Time's up" on time from its stale date (C3-D4).
 _From C4, 2026-10-24._
@@ -448,6 +458,30 @@ _From B5, 2026-10-24._ A UI test that taps a notification would let `scripts/sim
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). **`startGlow`: agreed, exactly your signature.** `import { startGlow, type StartGlowOutcome } from '@/server/glow'`, then `await startGlow(db, matchId)`. It calls `start_glow` with the 300 words in `server/src/server/glow/words.ts` and sends every event the result implies: `glow.started` to both on `started`, `match.choice` to both on `chat`, `match.recheck` to each of `staleUserIds` on `waiting` with `location_stale`, and the `settled` entries (`glow.ended` for `glow_expired`, including other pairs' glows in the room, `match.choice` for `choice_timeout`). Events go out after the response (Next's `after()`), and notifying never throws. It throws only `notFound()` (the match ended or doesn't exist) and 503 when the database can't be reached. Swap your stand-in for it when #27 merges.
 
 ## Status
+
+### D2 · Security and privacy red team
+
+_2026-10-25, Wave 3._ PR [#41](https://github.com/davidaxie/glow/pull/41) on `w3/d2-security`. Fix PRs: [#46](https://github.com/davidaxie/glow/pull/46) (D2-F1, merged) and [#49](https://github.com/davidaxie/glow/pull/49) (D2-F4, merged). **The report is [`docs/SECURITY_REVIEW.md`](SECURITY_REVIEW.md)**, for Checkpoint 4.
+
+**Result.** No critical finding. One high (D2-F1, anyone could take over an account before its owner signed up, through Supabase's password sign-up), fixed and retested. Two medium (D2-F2 email enumeration through Supabase Auth, D2-F5 a banned person registering again), one accepted medium (D2-F7 fake GPS), and the rest low or info, each with an owner and a fix.
+
+**Built** (`server/tests/security/`, all in `scripts/ci-local.sh`; the "live" ones use a real Supabase and skip on the shared stack)
+
+- A test for P1 to P11 (P12 waits for C1's deck PR), the attack list, C4's chat attack list, B7's ask (admin routes as a non-admin) and A2's D56. The table of which test holds which invariant is at the top of the review.
+- `proxy.live.test.ts` plus `proxy/addon.py`: a scripted two-person journey through mitmproxy (reverse proxy on localhost, plain HTTP, no certificate installed), with every request, response and Realtime frame scanned. Opt-in: `D2_PROXY=1`, with `brew install mitmproxy`, a running server and your own Supabase (commands in the test's header).
+- `0005_d2_no_passwords.sql` and its pgTAP file (D2-F1); a NUL check in the route helper (D2-F4).
+
+**Still open**
+
+- **The Simulator proxy run.** Needs a free Simulator slot and B1's session code on `main` (only B1's server is). The same scan then runs with Glow A as person A.
+- **P12** (deck blur while recorded) needs C1's PR #25. Two notes for it are in D2-F9.
+- **Fixes waiting for their owners**: see the Requests below. None is high or critical.
+- **Needs David**: item 20 (cloud Auth settings), and the call on D2-D2 (keep a hash of banned people's email and Apple ID, or not).
+
+**Next wave needs**
+
+- **D1:** `server/tests/security/helpers/` has `World` (people, rooms, check-ins, matches on a live stack) and `call(operationId, ...)` (the real route handlers, in process), if a journey needs them. Test sign-in and the dev-token script are unchanged (`@glow.test` people can still use passwords locally).
+- **Everyone:** any new text field is covered by the NUL check, and a new route needs nothing added: `fuzz.live.test.ts` and `admin.live.test.ts` walk the contract's operation list by themselves.
 
 ### B1 · Sign in and onboarding (server)
 
