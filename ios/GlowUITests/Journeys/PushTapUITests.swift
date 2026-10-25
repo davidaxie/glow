@@ -51,17 +51,9 @@ final class PushTapUITests: XCTestCase {
 
     /// The lock screen text a fixture shows (never a name, P6).
     private func alertBody(_ file: URL) throws -> String {
-        struct Payload: Decodable {
-            struct Aps: Decodable {
-                struct Alert: Decodable {
-                    let body: String
-                }
-
-                let alert: Alert
-            }
-
-            let aps: Aps
-        }
-        return try JSONDecoder().decode(Payload.self, from: Data(contentsOf: file)).aps.alert.body
+        let payload = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any]
+        let aps = payload?["aps"] as? [String: Any]
+        let alert = aps?["alert"] as? [String: Any]
+        return try XCTUnwrap(alert?["body"] as? String, "\(file.lastPathComponent) has no alert body")
     }
 }

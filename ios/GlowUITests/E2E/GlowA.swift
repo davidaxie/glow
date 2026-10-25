@@ -12,7 +12,9 @@ struct GlowA {
     static func launch(_ config: E2EConfig, for test: XCTestCase, openRoom: Bool = true) -> GlowA {
         let app = XCUIApplication()
         app.launchArguments += ["-GlowDebugTestLogin", config.emailA, "-GlowDebugCheckInPhoto", config.photo]
-        if openRoom { app.launchArguments += ["-GlowDebugOpenURL", config.roomLink] }
+        if openRoom {
+            app.launchArguments += ["-GlowDebugOpenURL", config.roomLink]
+        }
         // The location prompt, if `simctl privacy grant` didn't already answer it.
         test.addUIInterruptionMonitor(withDescription: "Location") { alert in
             for label in ["Allow While Using App", "Allow Once", "Allow"] where alert.buttons[label].exists {
@@ -57,7 +59,9 @@ struct GlowA {
 
     func tap(_ target: XCUIElement, _ what: String, timeout: TimeInterval = 20, file: StaticString = #filePath, line: UInt = #line) {
         expect(target, what, timeout: timeout, file: file, line: line)
-        if !target.isHittable { app.swipeUp() }
+        if !target.isHittable {
+            app.swipeUp()
+        }
         target.tap()
     }
 

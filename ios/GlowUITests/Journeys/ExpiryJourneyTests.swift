@@ -20,7 +20,9 @@ final class ExpiryJourneyTests: XCTestCase {
         // The deck refetches when it opens, and the server answers emptyReason checkin_ended.
         personA.tap("room.seeLooks")
         let apply = personA.element("deck.notice.apply")
-        if apply.waitForExistence(timeout: 10) { apply.tap() }
+        if apply.waitForExistence(timeout: 10) {
+            apply.tap()
+        }
         let again = personA.app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier IN %@", ["deck.empty.checkInAgain", "room.checkInAgain"])).firstMatch
         personA.expect(again, "Check in again", timeout: 30)

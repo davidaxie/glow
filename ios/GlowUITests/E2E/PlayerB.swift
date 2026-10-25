@@ -29,7 +29,9 @@ struct PlayerB {
     @discardableResult
     func run(_ step: String, text: String? = nil) async throws -> PlayerBState {
         var url = base.appending(path: "do/\(step)")
-        if let text { url.append(queryItems: [URLQueryItem(name: "text", value: text)]) }
+        if let text {
+            url.append(queryItems: [URLQueryItem(name: "text", value: text)])
+        }
         return try await decode(MacHelper.post(url, timeout: 150))
     }
 
