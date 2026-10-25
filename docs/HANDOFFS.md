@@ -786,19 +786,19 @@ _2026-10-24, Wave 3._ PR [#43](https://github.com/davidaxie/glow/pull/43) on `w3
 
 - Tapping any notification crashed the app (SIGABRT in UIKit, from the async `userNotificationCenter(_:didReceive:)`): fixed in #47. `PushTapUITests` passes on all nine fixtures with it.
 
-**Proof so far**: `scripts/e2e/run.sh push` passes (1 test, 9 banners, 69 s). The whole loop through the API alone, two `player-b.ts` instances (one plays A): check in, secret taps (B first, A's reply `mutual`), match, both Find, the same glow for both, both We met, `met`; and the chat path: Just chat, a message each way, A blocks from the chat, B's match gone and 404 (P7). Neither saw the other's user ID or name before the match (P1 watch). Expiry through the harness gives `emptyReason: checkin_ended`.
+**Proof**: each journey has passed once, on Glow A (D1) against a local server, with B1's iOS session on main: `full` (61 s), `chat` (64 s), `block` (72 s), `expiry` (51 s) and `push` (87 s, nine banners). The full loop drives the real screens: check in with the test photo, the deck, That's them, the secret tap, mutual, Find each other, the same code word as person B's, We met, and B sees `met`. Person B is another API client, and its privacy watch saw no user ID or name. Not yet run: ten in a row, and the two-Simulator recording (D1 messages the coordinator before either).
 
 **Still mocked or blocked**
 
-- The full, chat, block and expiry journeys need a signed-in person A in the app: B1's iOS session plus `-GlowDebugTestLogin` (For B1). B1's server routes are on main (#50) and player B already uses them.
-- C1's deck screens (#25, draft) for A's side of the journeys. C2, C3 and C4 are on main.
-- Setup uses only B1's real routes (no fallbacks); the service role is only for the expiry journey's early expiry (D1-D2).
+- Nothing is mocked. Setup uses only B1's real routes; the service role is used only to end a check-in early for the expiry journey (D1-D2).
+- Push taps are judged by `screen.<Module>` identifiers where they exist and by the screen's words where they don't (C2, C3 and C4 haven't added identifiers; For C2, C3 and C4).
+- Actions is down, so nothing runs in CI yet (For A1: `--e2e`).
 
 **Done when**
 
-- [ ] The full loop passes 10 runs in a row in CI. Blocked: B1 (#6) and C1/C2 (#25, #26) aren't on main, and Actions is down (A1's `--e2e`, For A1).
+- [ ] The full loop passes 10 runs in a row in CI. Locally: not run yet (it passed once). In CI: blocked, Actions is down (A1's `--e2e`, For A1).
 - [ ] No flaky tests. Nothing flaky found yet: the push journey passed every run; journeys wait on conditions, never on time, and each run has its own room and people.
-- [ ] A recording of the two-Simulator run is in `docs/shots/`. Blocked on the same as the first box; `scripts/e2e/record.sh` is ready.
+- [ ] A recording of the two-Simulator run is in `docs/shots/`. Not made yet; `scripts/e2e/record.sh` is ready.
 
 **Next wave needs**
 
