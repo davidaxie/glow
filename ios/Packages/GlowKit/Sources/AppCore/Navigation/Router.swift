@@ -25,6 +25,7 @@ public final class Router {
     public var roomsPath: [Route] = []
     public var matchesPath: [Route] = []
     public var settingsPath: [Route] = []
+    public var blindPath: [Route] = []
     public var sheet: Route?
     public var cover: Route?
     public private(set) var pendingRoute: Route?
@@ -107,6 +108,7 @@ public final class Router {
         case .rooms: roomsPath
         case .matches: matchesPath
         case .settings: settingsPath
+        case .blind: blindPath
         }
     }
 
@@ -115,6 +117,7 @@ public final class Router {
         case .rooms: roomsPath = path
         case .matches: matchesPath = path
         case .settings: settingsPath = path
+        case .blind: blindPath = path
         }
     }
 
@@ -157,6 +160,7 @@ public final class Router {
         roomsPath = []
         matchesPath = []
         settingsPath = []
+        blindPath = []
         selectedTab = .rooms
     }
 }

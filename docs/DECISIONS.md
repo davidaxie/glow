@@ -1229,3 +1229,12 @@ Breathing lights, staggered rises and blooms read the clock. Under XCTest and Sw
 ### U1-D3 · Sounds are on by default, ambient, and never needed
 
 The three cues are synthesized in code (`GlowSoundSynth`), play in the `.ambient` session (mixes with other audio, muted by the silent switch) and can be turned off in Settings > Sound. Nothing depends on hearing them.
+## X2 · Blind mode, iPhone
+
+### X2-D1 · LiveBlindService lives in FeatureBlind, not APIClient
+
+The brief puts it in APIClient, but APIClient cannot see AppCore's `BlindService` (AppCore depends on APIClient). It sits in `FeatureBlind/Live/` and is chosen the way FeatureDeck chooses its service: an injected one (`.blindService(_:)`), a Debug mock (`-GlowDebugBlind`), or the live API. `Dependencies` is unchanged.
+
+### X2-D2 · The Blind deck hides while the screen is recorded
+
+P12 is a Rooms rule, but Blind cards are face photos, so the deck uses `.glowHiddenWhenCaptured()` too (the more private choice).

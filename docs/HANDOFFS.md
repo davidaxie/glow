@@ -1427,3 +1427,7 @@ Differences from Double Blind's contract, for X2: absent instead of `null` for `
 
 **For A1**: `scripts/agent-env.sh` gains `X1 61` and `X2 62` (ports 3151, 3152); `scripts/codegen.sh` accepts `X` agent IDs in `x-owner`; AGENTS.md lists the Blind paths (X1 server and database, X2 FeatureBlind).
 **For B7**: `AdminReport.context` is now `AdminReportContext` (ReportContext plus `blind_chat`), so Blind reports show in the queue.
+
+## X2 · Blind mode, iPhone
+
+Branch `blind/x2-ios`. The Blind tab, FeatureBlind and the Blind service protocol, models and mock are in. Every screen runs on the mock (`-GlowPreviewSession ready -GlowDebugRoute blind -GlowDebugBlind swiping|newcomer|dropReady|chatting|revealed|capReached`, plus `-GlowDebugBlindSection chats`, `-GlowDebugBlindAutoOpen YES` and `-GlowDebugBlindDropClosed YES`). `LiveBlindService` is written against X1's `/api/blind/*` contract but not yet run against X1's server. Details and what is left: `docs/qa/x2.md`.
