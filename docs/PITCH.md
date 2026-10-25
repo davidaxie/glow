@@ -27,16 +27,15 @@ Built on the real flow in [`DEMO.md`](DEMO.md#the-75-second-cut) (the same table
 | Time | D (phone A) | R (phone B) | What the judge sees |
 | --- | --- | --- | --- |
 | 0:00 to 0:10 | Holds up phone A. "One of us has tapped the other. Neither of us knows." | Holds up phone B. Nods. | Two phones, nothing on either to give it away. The tension line, with no slide. |
-| 0:10 to 0:30 | The deck is already open and filtered. Says: "This is our stage room, so the other cards are seeded test people. The two real people are us. I noticed Robin's jacket." Taps R's card. Phone A says: "They won't know unless they tap you too." "They weren't told." | Shows phone B to the judge: nothing happened. | The deck on the projector: three to five faceless outfit cards, no names, no faces. The tap confirmation. Phone B unchanged. This is the one-sided beat. |
-| 0:30 to 0:50 | "Now Robin taps me." | Taps D's card. | Both phones buzz. Both show the mutual takeover: "Someone you noticed noticed you back." Then each other's real profile for the first time. |
-| 0:50 to 1:10 | Picks Find each other. "Find only happens if both say yes." | Picks Find each other. | Both screens go to full brightness, the same color, the same code word, the same meeting spot. Hold both up to the room. |
-| 1:10 to 1:15 | "Look for the color. Say the code word. No pickup line needed. The app hands you the excuse." | Says the code word to D: "Are you maple?" | Both phones side by side, glowing the same color. |
+| 0:10 to 0:20 | The deck is already open and filtered. Says: "The other cards are seeded test people. The two real people are us. I tap Robin. They weren't told." Taps R's card. | Flashes phone B to the judge: nothing happened. Then taps D's card at once. | The deck on the projector: three to five faceless outfit cards, no names, no faces. The tap confirmation. Phone B unchanged. This is the one-sided beat. |
+| 0:20 to 0:30 | "Someone you noticed noticed you back." | Holds phone B up. | Both phones buzz about 0:20. Both show the mutual takeover, then each other's real profile for the first time. |
+| 0:30 to 0:40 | Picks Find each other. "Find only happens if both say yes." | Picks Find each other. | Both screens go to full brightness, the same color, the same code word, the same meeting spot (about 0:35 to 0:40). Hold both up to the room. |
+| 0:40 to 0:55 | "Look for the color. Say the word that is actually on the screen. No pickup line needed. The app hands you the excuse." | Says the word shown on the screen to D, as a question. | Both phones side by side, glowing the same color. |
+| 0:55 to 1:15 | "Faces on outfit cards are blurred on your phone before upload. Your profile photos are shown only after a mutual match. Find out, privately, that you noticed each other." | Holds phone B up. | The glow stays up behind the close. |
 
-**Close (5 more seconds, if the slot allows).** Tagline 1. If the attendee room is live and TestFlight is approved: "Scan the poster by the food line." Otherwise say where to follow along. Never promise a public link that isn't approved.
+**Close (if the slot allows more).** If the attendee room is live and TestFlight is approved: "Scan the poster by the food line." Otherwise say where to follow along. Never promise a public link that isn't approved.
 
-**If there are 15 seconds to spare**, before the first tap: "Faces on outfit cards are blurred on your phone before upload. Your profile photos are shown only after a mutual match."
-
-**The excuse is the code word.** The code word is picked to be said aloud across a loud room (a comment in `words.ts` gives "Are you lantern?" as the example). Words are never romantic, never a first name, never a color (C3-D1). Glow offers no scripted openers. The chat has none either (C4-D5).
+**The excuse is the code word.** The code word is picked to be said aloud across a loud room (a comment in `words.ts` gives "Are you lantern?" as the example). On stage, say the word actually shown on the screen. The server picks it from 300 words, so a rehearsed example may not be the one on the phones.. Words are never romantic, never a first name, never a color (C3-D1). Glow offers no scripted openers. The chat has none either (C4-D5).
 
 **Honest notes for the presenters.**
 
@@ -144,7 +143,7 @@ D2's security review found one **high** issue and fixed it: Supabase accepts pas
 **Q. What if only a few people are in the room?**
 The room is the filter, and the organizer's poster QR is the install funnel. The deck only ever holds people who are here now. That is the product's strength and its limit.
 
-With few people, the deck is short. The server says why a page is empty (`emptyReason`), and the C1 deck shows, for `quiet`: "It's quiet here. Nobody else fits you yet. New looks appear as people check in." For filters that match nobody: "Nobody fits that yet. Try fewer details." This is the C1 build in draft PR #25, **not yet on main**. There is **no** "you're one of the first here" state, and with zero or one other person it shows the same "quiet" message **[a gap to add if wanted]**. Gender and show-me rules shrink the visible pool further.
+With few people, the deck is short. The server says why a page is empty (`emptyReason`), and the C1 deck shows, for `quiet`: "It's quiet here. Nobody else fits you yet. New looks appear as people check in." For filters that match nobody: "Nobody fits that yet. Try fewer details." This is the C1 build in draft PR #25, **not yet on main**. There is **no** "you're one of the first here" state, and in a room with zero to two other people that quiet message is what a judge would see. Gender and show-me rules shrink the visible pool further.
 
 Small rooms also weaken anonymity: with very few cards, a card is easier to place. Cards are faceless, but this is a real tradeoff, and no minimum room size is enforced **[verify: none in the repo]**.
 
@@ -158,7 +157,7 @@ Nothing. There is no rejection, no notification, no count and no "seen". A tap i
 ### Business model
 
 **Q. How does it make money?**
-Not decided, and nothing in the repo sets a price **[verify: David to decide]**. What the repo does show: rooms are made and run by organizers (admin web, printable posters, a rotating display QR, live numbers, reports; B7). That fits selling a room to an event organizer, a conference or a venue. It also has real running costs: Vercel Pro (for the 5-minute cleanup), Supabase, Anthropic moderation, Upstash, Apple Developer **[verify: actual costs]**. Don't quote revenue, pricing or user numbers. There are none.
+**Proposed, David to confirm:** Glow is free for attendees. The organizer, venue or event pays per room. The admin web, printable posters, rotating display QR, live numbers and reports already exist for that role (B7). No numbers and no revenue claims: nothing in the repo sets a price, and there is no revenue. What the repo does show: rooms are made and run by organizers (admin web, printable posters, a rotating display QR, live numbers, reports; B7). That fits selling a room to an event organizer, a conference or a venue. It also has real running costs: Vercel Pro (for the 5-minute cleanup), Supabase, Anthropic moderation, Upstash, Apple Developer **[verify: actual costs]**. Don't quote revenue, pricing or user numbers. There are none.
 
 ### Why now
 

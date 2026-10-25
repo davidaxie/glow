@@ -80,23 +80,22 @@ Two presenters: **D** (David, phone A) and **R** (Robin, phone B), both admins, 
 | 0:40 to 1:05 | D | Phone A: outfit photo, the blur preview | "Check in with a photo of today's outfit. Any face in this photo is blurred on the phone, before anything is uploaded. This is what others will see." (Show the preview. If it's already checked in, show the preview and cancel: the existing card stays.) |
 | 1:05 to 1:35 | D | Phone A: What did you notice, then the deck | "I noticed someone in [R's outfit]. No names, no faces, no distances: just today's look. I tap. They aren't told. Nobody ever finds out about a tap that isn't mutual. Not them, not the room, not us on the dashboard." Tap R's card. |
 | 1:35 to 1:50 | R, D | Both phones: the mutual takeover | R taps D's card. "If they tap me too..." both phones buzz. "Someone you noticed noticed you back. Only now do we see each other's real profile." |
-| 1:50 to 2:20 | R, D | Both phones held up: same color, code word, meeting spot | Both pick Find each other. "Find only happens if both say yes. Now both screens glow the same color with the same code word, and Glow picks a meeting spot." Hold both phones up to the room. "In a crowded hall, you look for the color. Then you walk up and say the code word: 'Are you maple?' No pickup line needed. The app hands you the excuse." |
+| 1:50 to 2:20 | R, D | Both phones held up: same color, code word, meeting spot | Both pick Find each other. "Find only happens if both say yes. Now both screens glow the same color with the same code word, and Glow picks a meeting spot." Hold both phones up to the room. "In a crowded hall, you look for the color. Then you walk up and say the code word: Say the word that's actually on the screen. No pickup line needed. The app hands you the excuse." |
 | 2:20 to 2:35 | R, D | Both tap We met; the chat | "We met. The chat stays open." |
 | 2:35 to 3:00 | D | Laptop: live numbers for the attendee room | "Everything you saw is real and running now. [Number] people are checked in to this room. You'll notice there's no tap count, on purpose. Scan the poster by the food line to join." |
 
 ## The 75-second cut
 
-For a judging table or a short slot. Same two phones and the same stage room as the 3-minute demo, with the check-in already done during setup (see [Stage setup](#stage-setup)). It opens on the one-sided beat, not on history, and it leaves the Lovegety line out. The glow lands in the last third, so keep the opening tight. Timings are estimates until the first dry run [verify].
+For a judging table or a short slot. Same two phones and the same stage room as the 3-minute demo, with the check-in already done during setup (see [Stage setup](#stage-setup)). It opens on the one-sided beat, not on history, and it leaves the Lovegety line out. The buzz lands about 0:20 and the glow about 0:35 to 0:40, so keep the opening tight. Timings are estimates until the first dry run [verify].
 
 | Time | Who | On screen | Say (roughly) |
 | --- | --- | --- | --- |
 | 0:00 to 0:10 | D, R | Both phones held up, screens dark or on the room home | "One of us has tapped the other. Neither of us knows which." |
-| 0:10 to 0:30 | D | Phone A on the document camera: the deck is already open, filtered to what D noticed, with R's card and a few seeded cards. D taps R's card: "They won't know unless they tap you too." | "This is our stage room, so the other cards are seeded test people. The two real people are us. I noticed Robin's jacket. I tap. They weren't told." R holds up phone B: nothing has happened. |
-| 0:30 to 0:50 | R, D | R taps D's card. Both phones buzz. Both show the takeover, then each other's real profile. | "Now Robin taps me. Someone you noticed noticed you back. Only now do we see each other." |
-| 0:50 to 1:10 | R, D | Both pick Find each other. Both screens go to full brightness, the same color, the same code word, a meeting spot. Hold both phones up to the room. | "Find only happens if both say yes." |
-| 1:10 to 1:15 | D | Both phones up | "Look for the color, say the code word. No pickup line needed. The app hands you the excuse." |
-
-**If there is a second or two to spare**, add one line before the first tap: "Faces on outfit cards are blurred on your phone before upload. Your profile photos are shown only after a mutual match."
+| 0:10 to 0:20 | D, R | Phone A on the document camera: the deck is already open and filtered, with R's card and a few seeded cards. D taps R's card: "They won't know unless they tap you too." R flashes phone B (nothing happened), then taps D's card at once. | D: "The other cards are seeded test people. The two real people are us. I tap Robin. They weren't told." |
+| 0:20 to 0:30 | R, D | Both phones buzz about 0:20. Both show the takeover, then each other's real profile. | "Someone you noticed noticed you back." |
+| 0:30 to 0:40 | R, D | Both pick Find each other. Both screens go to full brightness, the same color, the same code word, a meeting spot (about 0:35 to 0:40). Hold both phones up to the room. | "Find only happens if both say yes." |
+| 0:40 to 0:55 | D, R | Both phones up | "Look for the color. Say the word that is actually on the screen. No pickup line needed. The app hands you the excuse." R says the word shown to D, as a question. |
+| 0:55 to 1:15 | D | Both phones up | "Faces on outfit cards are blurred on your phone before upload. Your profile photos are shown only after a mutual match. Find out, privately, that you noticed each other." |
 
 **Rules.** The "Rules on stage" below apply to this cut too. The stage phones skip the location check because they are admins in a demo-mode room (each skip is logged); don't say the location was verified on stage.
 
@@ -206,7 +205,7 @@ The goal is 50 real people checked in to the attendee room on the first day, mea
 - **We check you're in the room, then forget where you are.** Only pass or fail is kept, never coordinates (P2).
 - **It disappears.** Cards and check-ins are deleted within 10 minutes of expiring, after 3 hours (P9).
 - **Safety is built in.** Blocks apply both ways within 5 seconds (P7), pausing or leaving takes you out of every deck within 5 seconds (P8), 18+ only (P10), the lock screen never shows a name (P6), asking for something you can't see looks exactly like asking for something that doesn't exist (P11), and the deck hides itself when the screen is recorded or shared (P12).
-- **The app is the excuse.** Both screens show the same code word, so you walk up and say it ("Are you maple?"). No pickup line needed. Glow suggests no openers (C4-D5 for chat).
+- **The app is the excuse.** Both screens show the same code word, so you walk up and say the word on the screen. No pickup line needed. Glow suggests no openers (C4-D5 for chat).
 - **Find only happens if both say yes.** After a match, each picks Find each other or Just chat. Find needs both, plus a fresh location check.
 
 **Why it's different.** Dating apps show you strangers far away. Glow only works for people in the same room right now, and the room is the filter. It's the opposite of swiping: you've already seen them.
