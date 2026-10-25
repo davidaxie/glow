@@ -33,6 +33,7 @@ final class FullLoopJourneyTests: XCTestCase {
 
         // The same code word on both phones (and the same color, by the same glow ID).
         personA.expect(personA.label(glow.codeWord), "the code word \(glow.codeWord)", timeout: 30)
+        personA.settle()
         personA.attachScreen("glowing \(glow.color)")
 
         personA.tap(personA.app.buttons["We met"], "We met")
