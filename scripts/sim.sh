@@ -363,7 +363,9 @@ cmd_setup() {
       --cellularBars 4 --wifiBars 3 >/dev/null 2>&1 || true
     say "$name is ready."
   done < <(targets "${1:-both}")
-  if ! on_ci; then open -a Simulator; fi
+  # Headless by default: never put a Simulator window on David's screen. Set GLOW_SHOW_SIMULATOR=1
+  # to watch a run yourself.
+  if [ -n "${GLOW_SHOW_SIMULATOR:-}" ] && ! on_ci; then open -g -a Simulator; fi
 }
 
 # Shuts down and deletes this agent's Simulators. The shared default names need --yes.
