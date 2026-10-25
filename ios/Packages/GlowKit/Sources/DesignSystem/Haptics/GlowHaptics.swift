@@ -23,6 +23,50 @@ public enum GlowHaptic: String, CaseIterable, Sendable {
     case mutual
     /// Three soft heartbeats in time with the glow's pulse.
     case glowPulse
+
+    // U1 (docs/design/DIRECTION.md): haptics choreographed with motion, never random.
+
+    /// The mutual moment's two-beat heartbeat: two soft impacts 120 ms apart.
+    case heartbeat
+    /// A card leaving (sent away, swiped, dropped): one soft impact.
+    case cardLeave
+    /// A reveal: the success notification.
+    case reveal
+}
+
+/// A choreographed moment: the haptic and the sound that belong together, played at once.
+///
+///     .glowMoment(.mutual, trigger: match?.id)
+public enum GlowMoment: String, CaseIterable, Sendable {
+    /// Both people tapped: the heartbeat and the chime.
+    case mutual
+    /// The glow fills the screen: the swell (the heartbeat already played at `mutual`).
+    case glowArrives
+    /// Blind mode's reveal: success, then the swell.
+    case reveal
+    /// A message sent: a light tick of both.
+    case messageSent
+    /// A card leaves the deck: a soft impact, no sound.
+    case cardLeaves
+
+    public var haptic: GlowHaptic? {
+        switch self {
+        case .mutual: .heartbeat
+        case .glowArrives: nil
+        case .reveal: .reveal
+        case .messageSent: .lightTap
+        case .cardLeaves: .cardLeave
+        }
+    }
+
+    public var sound: GlowSound? {
+        switch self {
+        case .mutual: .chime
+        case .glowArrives, .reveal: .swell
+        case .messageSent: .tick
+        case .cardLeaves: nil
+        }
+    }
 }
 
 /// A Core Haptics pattern as plain data, so its shape can be tested without hardware.
@@ -79,6 +123,13 @@ public struct GlowHapticPattern: Equatable, Sendable {
 
     public static let glowPulse = heartbeat()
 
+    /// The mutual moment (U1): two soft, round impacts, `Motion.heartbeatGap` apart, the second a
+    /// little quieter, like a pulse.
+    public static let heartbeatPair = GlowHapticPattern(events: [
+        Event(time: 0, intensity: 0.75, sharpness: 0.2),
+        Event(time: Motion.heartbeatGap, intensity: 0.5, sharpness: 0.15),
+    ])
+
     /// The Core Haptics pattern.
     public func makePattern() throws -> CHHapticPattern {
         let events = events.map { event in
@@ -116,7 +167,19 @@ public final class GlowHaptics {
         switch haptic {
         case .mutual: play(pattern: .mutual)
         case .glowPulse: play(pattern: .glowPulse)
-        case .lightTap, .selection, .success, .warning: break
+        case .heartbeat: play(pattern: .heartbeatPair)
+        case .lightTap, .selection, .success, .warning, .cardLeave, .reveal: break
+        }
+    }
+
+    /// Plays a moment's haptic and sound together. The simple haptics need a view
+    /// (`glowMoment(_:trigger:)`); from code, only the custom patterns and the sound play.
+    public func play(_ moment: GlowMoment) {
+        if let haptic = moment.haptic {
+            play(haptic)
+        }
+        if let sound = moment.sound {
+            GlowSounds.shared.play(sound)
         }
     }
 
@@ -166,8 +229,43 @@ private struct GlowHapticModifier<Trigger: Equatable>: ViewModifier {
             content.sensoryFeedback(.success, trigger: trigger)
         case .warning:
             content.sensoryFeedback(.warning, trigger: trigger)
-        case .mutual, .glowPulse:
+        case .cardLeave:
+            content.sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: trigger)
+        case .reveal:
+            content.sensoryFeedback(.success, trigger: trigger)
+        case .mutual, .glowPulse, .heartbeat:
             content.onChange(of: trigger) { GlowHaptics.shared.play(haptic) }
+        }
+    }
+}
+
+extension View {
+    /// Plays a choreographed moment (its haptic and its sound) each time `trigger` changes.
+    public func glowMoment(_ moment: GlowMoment, trigger: some Equatable) -> some View {
+        modifier(GlowMomentModifier(moment: moment, trigger: trigger))
+    }
+}
+
+private struct GlowMomentModifier<Trigger: Equatable>: ViewModifier {
+    let moment: GlowMoment
+    let trigger: Trigger
+
+    func body(content: Content) -> some View {
+        let sound = moment.sound
+        if let haptic = moment.haptic {
+            content
+                .glowHaptic(haptic, trigger: trigger)
+                .onChange(of: trigger) {
+                    if let sound {
+                        GlowSounds.shared.play(sound)
+                    }
+                }
+        } else {
+            content.onChange(of: trigger) {
+                if let sound {
+                    GlowSounds.shared.play(sound)
+                }
+            }
         }
     }
 }

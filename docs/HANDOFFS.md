@@ -952,6 +952,22 @@ _2026-10-24, Wave 2._ PR [#25](https://github.com/davidaxie/glow/pull/25) on `w2
 - **C2**: a mutual tap sends `navigate(.mutual(matchID))` after closing the enlarged card. If FeatureMatch also opens the takeover on `match.created`, both land on the same cover.
 - **D4**: every string FeatureDeck shows is in `Copy/DeckCopy.swift`, grouped by screen (room home, What did you notice, deck, enlarged card and tapping, empty states, privacy, tag names, VoiceOver descriptions). Card descriptions for VoiceOver are built from tags only ("Green top, short blonde hair, glasses, headphones"). Plurals are hand-made (`tapsLeft`, `viewsLeft`, `timeLeft`) and want a string catalog with plural variants. `GlowCardTile`'s "Noticed" badge is B6's string.
 
+### U1 · Design foundation (design wave)
+
+_2026-10-25._ Branch `design/u1-foundation` (from `blind-mode`). The shared vision is [`docs/design/DIRECTION.md`](design/DIRECTION.md); this is its foundation. **U2, U3 and X2/U4: merge `design/u1-foundation` now** for the motion presets and tokens; every older DesignSystem name still works.
+
+**Merge this first (additive, in the first commit)**
+
+- `Motion` (`Tokens/Motion.swift`), DIRECTION's exact numbers: `Motion.snappy` (0.35/0.86), `Motion.smooth` (0.5/0.9), `Motion.gentle` (0.8/0.95), `Motion.fade` (easeOut 0.25, also every preset under Reduce Motion), `Motion.stagger` (40 ms), `breathPeriod` 4 s, `breathScale` 1.0...1.03, `breathOpacity` 0.6...1.0, `bloomDuration` 0.6, `heartbeatGap` 0.12, `veilLiftDuration` 1.2. Helpers that follow Reduce Motion by themselves: `.glowMotion(.smooth, value: x)`, `Motion.animate(.snappy) { … }` (from actions), `.glowRise(index: i, isVisible: shown)` (staggered rise), `.glowBreathing()` (waiting states), `Motion.rise(reduceMotion:)` (a transition), `GlowBreath.at(t)` (the numbers).
+- Canvas and glass (`Glow/GlowCanvas.swift`): `.glowCanvas()` on every full screen (warm gradient plus 2.5 % film grain; `light: .accent` or `.hue(h)` adds a faint light at the top), `.glowGlass()` for lifted cards (28 pt continuous corners, 1 px top highlight, hairline, soft shadow; `isRaised:` and `tint:` a hue).
+- Tokens: `.glowCanvasTop`, `.glowGlass`, `.glowGlassRaised`, `.glowTextTertiary` (hints, still 4.5:1), `GlowRadius.sheet` (20), `.tile` (24), `.panel` (28), `GlowSpacing.screenMarginWide` (24). The neutral ramp is warmer (U1-D1): same names and luminance, a warm near-black `#0B0A0F` and warm greys instead of blue greys, so every screen warms up without code changes.
+- Type: `.display` and `.codeWord` are now New York (serif); new `.hero` (serif, regular, for one big quiet sentence), `.titleSerif`, `.codename` (serif italic, Blind), `.numeric` (monospaced digits; add `.contentTransition(.numericText())`), `.eyebrow` (use `.glowEyebrow()`). `.glowFont` applies tight tracking to the display styles.
+- Haptics and sound, choreographed: `.glowMoment(.mutual, trigger:)` (two soft beats 120 ms apart plus the chime), `.glowArrives` (the swell), `.reveal` (success plus swell), `.messageSent` (tick), `.cardLeaves` (soft impact). Single pieces: `.glowHaptic(.heartbeat | .cardLeave | .reveal, trigger:)`, `.glowSound(.chime | .swell | .tick, trigger:)`, `GlowSounds.shared.play(_:)`. Sounds are synthesized in code (`GlowSoundSynth`), play in the `.ambient` session (the silent switch mutes them) and follow Settings > Sound (`GlowSounds.isEnabledKey`, on by default).
+
+**Snapshots**: the warmer neutrals and restyled components change every module's snapshots a little. U1 re-records them on this branch; when you merge and a PNG conflicts, take either side and re-record your own module (`scripts/sim.sh test <Module>` twice, or `TEST_RUNNER_SNAPSHOT_TESTING_RECORD=failed`).
+
+**For B7 (admin CSS)**: the neutral hex values changed (`GlowPalette.tokens`): background `#0B0A0F`, surface `#17151C`, surfaceRaised `#221F27`, textPrimary `#F5F3F0`, textSecondary `#A9A39D`, line `#2D2931`. Accent, danger and the glow hues are unchanged.
+
 ### B6 · Design system
 
 _2026-10-24, Wave 1._ Three PRs: [#20](https://github.com/davidaxie/glow/pull/20) on `w1/b6-design-tokens` (tokens and basic components, merged first so everyone can use them), [#21](https://github.com/davidaxie/glow/pull/21) on `w1/b6-lint` (`cross-owner` for A1: the SwiftLint rule) and the full module on `w1/b6-design`. **How to use everything is in [`ios/Packages/GlowKit/Sources/DesignSystem/README.md`](../ios/Packages/GlowKit/Sources/DesignSystem/README.md)**, one page.

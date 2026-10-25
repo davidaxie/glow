@@ -5,12 +5,48 @@ import Testing
 
 /// The tokens match docs/SPEC.md and the contract, so B7's CSS and the API agree with the app.
 struct TokenTests {
+    /// The spec's tokens, with the neutrals warmed by the design wave (U1-D1): the same names and
+    /// luminance, a warm near-black and warm greys instead of blue greys.
     @Test func colorTokensMatchTheSpec() {
         let spec: [String: String] = [
-            "background": "#0B0B10", "surface": "#16161D", "surfaceRaised": "#20202A", "textPrimary": "#F4F4F6",
-            "textSecondary": "#A1A1AA", "line": "#2A2A35", "accent": "#FF4FA3", "danger": "#FF5A5F",
+            "background": "#0B0A0F", "surface": "#17151C", "surfaceRaised": "#221F27", "textPrimary": "#F5F3F0",
+            "textSecondary": "#A9A39D", "line": "#2D2931", "accent": "#FF4FA3", "danger": "#FF5A5F",
         ]
         #expect(Dictionary(uniqueKeysWithValues: GlowPalette.tokens.map { ($0.name, $0.rgb.hex) }) == spec)
+    }
+
+    /// docs/design/DIRECTION.md's motion numbers, exactly: the contract between design agents.
+    @Test func motionPresetsMatchTheDirection() {
+        #expect(Motion.Spring.snappy == Motion.Spring(response: 0.35, dampingFraction: 0.86))
+        #expect(Motion.Spring.smooth == Motion.Spring(response: 0.5, dampingFraction: 0.9))
+        #expect(Motion.Spring.gentle == Motion.Spring(response: 0.8, dampingFraction: 0.95))
+        #expect(Motion.fadeDuration == 0.25)
+        #expect(Motion.stagger == 0.04)
+        #expect(Motion.breathPeriod == 4)
+        #expect(Motion.breathScale == 1.0 ... 1.03)
+        #expect(Motion.breathOpacity == 0.6 ... 1.0)
+        #expect(Motion.bloomDuration == 0.6)
+        #expect(Motion.heartbeatGap == 0.12)
+        #expect(Motion.veilLiftDuration == 1.2)
+    }
+
+    @Test func aBreathRisesAndFallsWithinItsRange() {
+        let rest = GlowBreath.at(0)
+        let full = GlowBreath.at(Motion.breathPeriod / 2)
+        #expect(abs(rest.scale - 1) < 0.0001)
+        #expect(abs(rest.opacity - 0.6) < 0.0001)
+        #expect(abs(full.scale - 1.03) < 0.0001)
+        #expect(abs(full.opacity - 1) < 0.0001)
+        // Reduce Motion: light only, never scale.
+        #expect(GlowBreath.at(3, reduceMotion: true).scale == 1)
+    }
+
+    @Test func glassAndCanvasStayDarkAndWarm() {
+        #expect(GlowContrast.relativeLuminance(GlowPalette.canvasTop) < 0.01)
+        #expect(GlowPalette.canvasTop.red > GlowPalette.canvasTop.green)
+        #expect(GlowPalette.grainOpacity >= 0.02 && GlowPalette.grainOpacity <= 0.03)
+        #expect(GlowRadius.panel >= 24 && GlowRadius.panel <= 32)
+        #expect(GlowRadius.sheet == 20)
     }
 
     @Test func glowColorsMatchTheSpec() {
