@@ -1,0 +1,6 @@
+{
+  "name": "glow-e2e-scripts",
+  "private": true,
+  "type": "module",
+  "description": "D1: end-to-end scripts. Plain Node 24+, no dependencies. Not a workspace package."
+}

@@ -71,6 +71,12 @@ _Run by the orchestrator, to whom David handed the checkpoint decisions; written
 
 ### For A1
 
+_From D1, 2026-10-24._ PR [#43](https://github.com/davidaxie/glow/pull/43).
+
+1. **`--e2e` in `scripts/ci-local.sh`, and an e2e job in `ci.yml` for when Actions is back.** The command is `scripts/e2e/run.sh all` (after `scripts/sim.sh build`, with a server that has `ALLOW_TEST_LOGIN`; run.sh starts `pnpm dev` itself if nothing answers on `$GLOW_API`). It takes both of the agent's Simulators only with `--record`. A job would run it on main merges (the brief's "every merge to main"), with `ios/build/results/*.xcresult` and `.agent-state/e2e/` as failure artifacts.
+2. **Two cheap checks in the Ubuntu job**, for `scripts/e2e/`: `node --test scripts/e2e/glow.test.ts` (6 tests, under a second) and `(cd server && node_modules/.bin/tsc -p ../scripts/e2e)` (the scripts against the generated contract types). Prettier already covers the folder.
+3. **Debug launch routes.** C3's #38 (merged) reads `-GlowDebugRoute glow/<matchID>`; C1's #39 adds `-GlowDebugRoute deck:<roomID>` in another file with another separator. Please settle one format before #39 merges; the journeys use neither.
+
 _From D1, 2026-10-24, `integration` PR (`w3/d1-push-tap-fix`)._ Tapping any notification crashed the app (SIGABRT in UIKit's `_updateSnapshotAndStateRestorationWithAction`): the async form of `userNotificationCenter(_:didReceive:)` in `ios/Glow/AppDelegate.swift` calls UIKit's completion from wherever its task finishes, and UIKit asserts it's on the main thread. It's now the completion-handler form, which routes on the main actor and then calls the completion there. Found by D1's `PushTapUITests` (`scripts/e2e/run.sh push`), which now taps all nine fixtures' banners and checks each opens its screen. B5: your `route(for:)` is unchanged.
 
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27).
@@ -270,6 +276,7 @@ _Answered by A3, 2026-10-24, in PR #3._ 1: done. `setup`, `build` and `test` run
 ### For B1
 
 _From D2, 2026-10-25._ (1) **D2-F3, low:** `updateProfile` accepts first names with control characters, bidi overrides and zero-width-only text (`"\u200B\u200B"` is stored as a blank name). Normalize to NFC, reject `\p{Cc}\p{Cf}\p{Zl}\p{Zp}`, require a letter, count graphemes. (2) **D2-F8, low:** have Session `await push.unregister()` before it clears the tokens, and retry a pending delete on the next launch. (3) Profile photos keep the JFIF header, which can hold a thumbnail: re-encode with sharp as B3 does for cards. (4) The email code lasts an hour; set `otp_expiry` to 600 and change "expires in an hour" in the email templates. (5) If you add CAPTCHA to sign-in (D2-F2), the app has to send its token. See `docs/SECURITY_REVIEW.md`.
+_From D1, 2026-10-24._ The journeys sign person A in with a Debug-only launch argument, **`-GlowDebugTestLogin <email>`**: at launch, call `POST /api/dev/test-login` with that `@glow.test` address and start the session with the tokens it returns (replacing any stored session), then follow the profile's onboarding step as usual. Compiled out of Release like `GlowDebugOpenURL` (B9's gate already refuses `GlowDebug` arguments). `scripts/e2e/harness.ts person a` makes the person onboarded beforehand, so the app should land straight on the tabs. Until it exists, the four journeys that need a signed-in A (full, chat, block, expiry) can't pass; the push journey runs today on the preview session.
 
 _From B5, 2026-10-24._ (1) Call `await dependencies.push.unregister()` before signing out, while the session can still reach the API, so this phone stops getting the person's pushes (B5-D4). (2) In the notifications onboarding step, call `try await dependencies.push.requestAuthorization()`; it shows the prompt and registers for a token if allowed. (3) `LiveRealtimeService` joins `user:{currentUserID()}` with `currentAccessToken()`, so it connects once your live Session returns both.
 
@@ -360,6 +367,7 @@ _From B8, 2026-10-24, PR #22._ (1) Reports: `create_report` stores the reported 
 ### For C1
 
 _From D2, 2026-10-25._ On PR #25 (**D2-F9, low**): (1) only report a screenshot to `/api/abuse/capture` while the deck itself is on screen and the scene is active (the listener also fires over the mutual takeover and the report screen); (2) drop `result: "sent" | "mutual"` from the `deck_tap` analytics event, since it records a one-sided tap on the device. A UI test with a faked capture (P12) is still to come.
+_From D1, 2026-10-24._ The journeys use your identifiers as published: `screen.FeatureDeck.roomHome`, `room.seeLooks`, `deck.notice.apply`, `deck.card.<id>`, `deck.detail.thatsThem`, `deck.confirm.tap`, and `deck.empty.checkInAgain` or `room.checkInAgain` after an expired check-in. `PushTapUITests` expects tapping `checkin_expiring` and `deck_changed` to open a screen whose identifier starts with `screen.FeatureDeck`. Please keep those stable, and tell D1 here if one changes. Your `DeckUITests.swift` in #39 is welcome in `ios/GlowUITests/`.
 
 _From B3, 2026-10-24, also for C2._ Show card photos and match photos with the loader in Imaging (your modules already depend on it). It fetches through the API with the bearer token, never caches, and offers no save, share or drag:
 
@@ -398,6 +406,8 @@ _From B3, 2026-10-24._ For the end-to-end run:
 _From B3, 2026-10-24._ Every word of check-in is in `FeatureCheckIn/CheckInCopy.swift` (retake messages per moderation reason, tag names) and the step views. No String Catalog yet.
 
 ### For C4
+
+_From D1, 2026-10-24._ For the journeys: a root identifier starting `screen.FeatureChat` on `ChatView` (`PushTapUITests` checks `glow_ended` and `message_created` open it), and identifiers on the composer (`chat.field`), Send (`chat.send`) and the menu (`chat.menu`). The chat and block journeys use the labels "Message", "Send" and "Chat options" today.
 
 _From B8, 2026-10-24, PR #22._ (1) From the chat menu, `navigate(.block(.chat(matchID)))` and `navigate(.report(.chat(matchID)))`. After either, B8's sheet sends the person back to the matches list. (2) Please make unmatch send exactly what a block sends: `match.ended` to both people and nothing else about why, so the other person can't tell a block from an unmatch (D18, B8-D6). Unlike a block, an unmatch also makes the pair eligible again, so `deck.changed` to the rooms either person is checked into fits too.
 
@@ -459,6 +469,11 @@ _From A3, 2026-10-24._ Signing lives in `ios/Glow/Config/Shared.xcconfig` (`DEVE
 
 _From B5, 2026-10-24._ A UI test that taps a notification would let `scripts/sim.sh push A <event>` check every event's screen headlessly: send each `ios/fixtures/push/*.apns` (`xcrun simctl push`), tap the banner through `XCUIApplication(bundleIdentifier: "com.apple.springboard")`, and assert the screen (`RealtimeEvent.destination` lists them). Today only `match_created` was tapped by hand.
 ### For C2
+
+_From D1, 2026-10-24._ Two small things for the end-to-end journeys (`ios/GlowUITests/Journeys/`):
+
+1. **A root identifier on each FeatureMatch screen**, starting `screen.FeatureMatch` (for example `screen.FeatureMatch.mutual`, `.match`, `.list`). `PushTapUITests` checks that tapping `match_created`, `match_choice`, `match_recheck` and `match_ended` opens a screen with that prefix; today it passes on the placeholder's `screen.FeatureMatch`.
+2. **Identifiers on the two choices**, say `match.choose.find` and `match.choose.chat`. The journeys find them by their words ("Find each other", "Just chat") for now, which breaks the day D4 changes the copy.
 
 _From C3, 2026-10-24._ PR [#27](https://github.com/davidaxie/glow/pull/27). **`startGlow`: agreed, exactly your signature.** `import { startGlow, type StartGlowOutcome } from '@/server/glow'`, then `await startGlow(db, matchId)`. It calls `start_glow` with the 300 words in `server/src/server/glow/words.ts` and sends every event the result implies: `glow.started` to both on `started`, `match.choice` to both on `chat`, `match.recheck` to each of `staleUserIds` on `waiting` with `location_stale`, and the `settled` entries (`glow.ended` for `glow_expired`, including other pairs' glows in the room, `match.choice` for `choice_timeout`). Events go out after the response (Next's `after()`), and notifying never throws. It throws only `notFound()` (the match ended or doesn't exist) and 503 when the database can't be reached. Swap your stand-in for it when #27 merges.
 _From C1, 2026-10-24._ `ios/GlowUITests/DeckUITests.swift` is in your folder through `cross-owner` PR [#39](https://github.com/davidaxie/glow/pull/39): the P12 test (fake recording, the deck is covered, no card on screen), its control, and the timed find in a room of 200. They run on FeatureDeck's fixture rooms (`-GlowDebugDeckFixture`), so they need no server. Fold them into your suite as you like; the identifiers are in C1's status below.
@@ -631,6 +646,8 @@ _From C2, 2026-10-24._ `setChoice` with Find runs a location check, like `joinRo
 
 ### For C3
 
+_From D1, 2026-10-24._ For the journeys: a root identifier starting `screen.FeatureGlow` on `GlowView` (`PushTapUITests` checks `glow_started` opens it), and identifiers on the code word (`glow.codeWord`) and We met (`glow.met`). The full loop finds them by text today: it checks A's screen shows the code word person B got from `GET /api/matches/{id}/glow`, and taps "We met".
+
 _From C2, 2026-10-24._ **`startGlow`, proposed signature.** C2's `setChoice` calls it when `set_choice` answers `next: glow` with `reason: both_find`. Until yours lands, C2 calls `start_glow` through a thin stand-in, `server/src/server/choice/glow-start.ts`, with the same signature, and swaps in yours when it merges. Tell C2 here if you want it different.
 
 ```ts
@@ -737,6 +754,57 @@ for await state in dependencies.session.states() { … } // .signedOut, .onboard
 - **C1 to C4:** sign each Simulator in with `-GlowDebugTestLogin alex@glow.test` and `-GlowDebugTestLogin blake@glow.test` (both onboarded, but seeded with no photos: add one through Settings → Edit photos or `POST /api/me/photos` so matches have something to show).
 - **D1:** UI test hooks: `onboarding.getStarted`, `signIn.email`, `signIn.apple`, `signIn.test.email`, `signIn.test.button`, `email.field`, `email.send`, `code.field`, `code.verify`, `profile.firstName`, `profile.birthday`, `profile.gender.<woman|man|nonbinary>`, `profile.showMe.<…>`, `profile.continue`, `underAge.signOut`, `photos.slot.<0-2>`, `photos.remove.<n>`, `photos.continue`, `notifications.allow`, `notifications.skip`, `settings.editProfile`, `settings.editPhotos`, `settings.signOut`, `settings.signOut.confirm`.
 - **B9:** sign-in works on `main` once #6 merges (email code and test sign-in); Apple waits on the account.
+### D1 · Integration and end-to-end tests
+
+_2026-10-24, Wave 3._ PR [#43](https://github.com/davidaxie/glow/pull/43) on `w3/d1-e2e` (draft until B1's session is in). `integration` PRs: [#44](https://github.com/davidaxie/glow/pull/44) (merged: the last stand-ins swapped for B3's and B5's modules, and `GET /api/matches` sends `settled` through B5's `notifySettled`) and [#47](https://github.com/davidaxie/glow/pull/47) (merged: a tapped notification crashed the app). Decisions D1-D1 to D1-D6.
+
+**Run any journey with one command** (after `eval "$(scripts/agent-env.sh <ID>)"`, with `pnpm env:setup --force --test-login` done once):
+
+| Journey | Command | What it proves |
+| --- | --- | --- |
+| Full loop | `scripts/e2e/run.sh full` | A checks in, B taps first (secret), A's tap is mutual, both choose Find, A shows the code word B got, both tap We met |
+| Chat | `scripts/e2e/run.sh chat` | mutual, Just chat, a message each way (B's shows on A's screen; A's reaches B) |
+| Block | `scripts/e2e/run.sh block` | mutual, chat, A blocks from the chat menu; B's match leaves the list and answers 404 (P7) |
+| Check-in expiry | `scripts/e2e/run.sh expiry` | A checks in, the check-in runs out (harness + purge cron), the deck says so and offers Check in again |
+| Push taps | `scripts/e2e/run.sh push` | every `ios/fixtures/push/*.apns` banner, tapped, opens its screen (B5's request) |
+| All of them | `scripts/e2e/run.sh all` | |
+| 10 in a row | `scripts/e2e/run.sh full --repeat 10` | stops at the first failure |
+| Two-Simulator recording | `scripts/e2e/record.sh [journey]` | Glow A driven by the journey, Glow B signed in as person B; `docs/shots/d1-e2e-<journey>.mp4` side by side |
+
+`run.sh` builds the app for your API (`--no-build` to skip), starts `pnpm dev` on your port if nothing answers there, boots Glow A (and Glow B only with `--record`), stands it at the venue, makes a room and person A of the run's own, starts person B and the harness, runs the journey's XCUITest class, and ends the room. Logs per run in `.agent-state/e2e/`. Person B on their own: `node scripts/e2e/player-b.ts --help`.
+
+**Built**
+
+- `scripts/e2e/player-b.ts`: person B through the API. Test sign-in (B1's route), join with a fix at the room's centre, check in with an `outfit-real-*` fixture, wait for a card and fetch its signed image (P4), tap, wait for the match, Find or Just chat, wait for the glow, We met, wait for both, say, read, block, unmatch, wait for the end, leave. Runs a list of steps (`--steps`), or takes them one at a time from a UI test (`--control PORT`). Every reply is checked for A's user ID and, outside the match routes, A's first name (P1, D1-D3).
+- `scripts/e2e/harness.ts`: a fresh room (`room`, through B7's admin API), a fresh onboarded person (`person`), the end of a room, a check-in expiry plus the purge cron (`expire`), and `serve`, the Mac-side helper UI tests call for `simctl push` and expiry.
+- `scripts/e2e/glow.ts`: the shared client, typed from the generated contract (`server/src/contracts/openapi/types.gen.ts`), local servers only.
+- `scripts/e2e/run.sh` and `scripts/e2e/record.sh`, above.
+- `ios/GlowUITests/E2E/` (config, player B and harness clients, the Glow A driver) and `ios/GlowUITests/Journeys/` (one class per journey). Without run.sh's environment each journey skips with a note, so `scripts/sim.sh test` stays green (D1-D5).
+- Tests: `node --test scripts/e2e/glow.test.ts` (the privacy watch, local-only guard, addresses, steps); `(cd server && node_modules/.bin/tsc -p ../scripts/e2e)`.
+
+**Found and fixed**
+
+- Tapping any notification crashed the app (SIGABRT in UIKit, from the async `userNotificationCenter(_:didReceive:)`): fixed in #47. `PushTapUITests` passes on all nine fixtures with it.
+
+**Proof**: each journey has passed once, on Glow A (D1) against a local server, with B1's iOS session on main: `full` (61 s), `chat` (64 s), `block` (72 s), `expiry` (51 s) and `push` (87 s, nine banners). The full loop drives the real screens: check in with the test photo, the deck, That's them, the secret tap, mutual, Find each other, the same code word as person B's, We met, and B sees `met`. Person B is another API client, and its privacy watch saw no user ID or name. Not yet run: ten in a row, and the two-Simulator recording (D1 messages the coordinator before either).
+
+**Still mocked or blocked**
+
+- Nothing is mocked. Setup uses only B1's real routes; the service role is used only to end a check-in early for the expiry journey (D1-D2).
+- Push taps are judged by `screen.<Module>` identifiers where they exist and by the screen's words where they don't (C2, C3 and C4 haven't added identifiers; For C2, C3 and C4).
+- Actions is down, so nothing runs in CI yet (For A1: `--e2e`).
+
+**Done when**
+
+- [ ] The full loop passes 10 runs in a row in CI. Locally: not run yet (it passed once). In CI: blocked, Actions is down (A1's `--e2e`, For A1).
+- [ ] No flaky tests. Nothing flaky found yet: the push journey passed every run; journeys wait on conditions, never on time, and each run has its own room and people.
+- [ ] A recording of the two-Simulator run is in `docs/shots/`. Not made yet; `scripts/e2e/record.sh` is ready.
+
+**Next wave needs**
+
+- **Everyone with a screen in a journey:** keep the identifiers the journeys use stable (For C1 to C4), or tell D1.
+- **D2:** player B's privacy watch runs on every journey; `--watch-user` and `--watch-name` take more values if you want other strings watched.
+- **D3, D5:** `scripts/e2e/record.sh` makes the side-by-side clip for the demo once the loop runs.
 
 ### B9 · Release and TestFlight
 
