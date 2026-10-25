@@ -286,6 +286,185 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/abuse/capture`.
     /// - Remark: Generated from `#/paths//api/abuse/capture/post(logCapture)`.
     func logCapture(_ input: Operations.LogCapture.Input) async throws -> Operations.LogCapture.Output
+    /// My Blind membership and right-swipe counters
+    ///
+    /// Works for everyone signed in, member or not. `member` false means show the opt-in screen.
+    /// `hasPhoto` says whether I have an approved profile photo, which is what other members see
+    /// on my card (without one I am not in anyone's deck).
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/me`.
+    /// - Remark: Generated from `#/paths//api/blind/me/get(blindGetMe)`.
+    func blindGetMe(_ input: Operations.BlindGetMe.Input) async throws -> Operations.BlindGetMe.Output
+    /// Opt in to Blind mode
+    ///
+    /// Idempotent. Needs a finished Glow profile (409 `onboarding_incomplete` otherwise). From
+    /// now on my first approved photo (never my name) is shown to other Blind members who fit
+    /// me both ways. Nothing about rooms or where I am is ever shown.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/join`.
+    /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)`.
+    func blindJoin(_ input: Operations.BlindJoin.Input) async throws -> Operations.BlindJoin.Output
+    /// Leave Blind mode
+    ///
+    /// Idempotent. Deletes my Blind swipes, matches, chats and cards. The other person in any of
+    /// my chats sees only "they left", never who it was.
+    ///
+    ///
+    /// - Remark: HTTP `DELETE /api/blind/join`.
+    /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)`.
+    func blindLeave(_ input: Operations.BlindLeave.Input) async throws -> Operations.BlindLeave.Output
+    /// Photo-only cards of other members I haven't swiped yet
+    ///
+    /// No names, ages or anything else. Card IDs are opaque and mine alone (never a user ID).
+    /// Excludes myself, people I swiped, blocked either way, paused, banned, without an approved
+    /// photo, and anyone whose gender or show me doesn't fit mine both ways. Random order.
+    /// Not a member is 404.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/deck`.
+    /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)`.
+    func blindGetDeck(_ input: Operations.BlindGetDeck.Input) async throws -> Operations.BlindGetDeck.Output
+    /// Swipe a card. Says nothing about matches
+    ///
+    /// `targetId` is a card ID from my deck. A right swipe (like or love) beyond
+    /// BLIND_RIGHT_SWIPES_PER_DAY per UTC day is 409 `right_cap_reached`. A swipe on someone
+    /// no longer eligible is silently ignored and answers the same. Repeating a swipe changes
+    /// nothing. The answer never says whether it was mutual (B2). An unknown card is 404.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/swipe`.
+    /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)`.
+    func blindSwipe(_ input: Operations.BlindSwipe.Input) async throws -> Operations.BlindSwipe.Output
+    /// My right-swipe count, swipes left today and whether I can open a drop
+    ///
+    /// - Remark: HTTP `GET /api/blind/pool`.
+    /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)`.
+    func blindGetPool(_ input: Operations.BlindGetPool.Input) async throws -> Operations.BlindGetPool.Output
+    /// Guess Who cards, my own right swipes as photo-only cards
+    ///
+    /// Same shape as the deck, newest first. Never filtered by blocks, pauses or chats, so it
+    /// can't tell me who a chat partner is (B1).
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/pool/cards`.
+    /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)`.
+    func blindGetPoolCards(_ input: Operations.BlindGetPoolCards.Input) async throws -> Operations.BlindGetPoolCards.Output
+    /// A Blind card photo, through a signed 60-second link
+    ///
+    /// Use a card's `photoUrl` as is. Only the viewer the card was made for can open it (the
+    /// viewer comes from the bearer token). Watermarked with the viewer's code, `no-store`.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/cards/{cardId}/image`.
+    /// - Remark: Generated from `#/paths//api/blind/cards/{cardId}/image/get(blindGetCardImage)`.
+    func blindGetCardImage(_ input: Operations.BlindGetCardImage.Input) async throws -> Operations.BlindGetCardImage.Output
+    /// Whether I can open a drop now, and when the next one is
+    ///
+    /// Deliberately nothing about waiting matches (B2). `ready` is true in demo mode
+    /// (`demo: true`, stage only) or from the nightly drop time (8pm Pacific) until midnight.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/drop`.
+    /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)`.
+    func blindGetDrop(_ input: Operations.BlindGetDrop.Input) async throws -> Operations.BlindGetDrop.Output
+    /// Open my drop, my waiting matches as new blind chats
+    ///
+    /// Answers the open chats that are new to me (whoever's drop opened them), oldest first, at
+    /// most BLIND_MAX_OPEN_CHATS, and empty below BLIND_DROP_MIN_RIGHT_SWIPES right swipes (B3).
+    /// A retry within BLIND_DROP_REPLAY_WINDOW shows the same chats. Outside demo mode only
+    /// matches made before today's drop time open (Double Blind F-01). Before the drop time:
+    /// 409 `drop_not_ready`.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/drop`.
+    /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)`.
+    func blindOpenDrop(_ input: Operations.BlindOpenDrop.Input) async throws -> Operations.BlindOpenDrop.Output
+    /// My blind chats, codename and last message only
+    ///
+    /// Newest activity first. Chats I left or blocked are gone from my list.
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)`.
+    func blindListChats(_ input: Operations.BlindListChats.Input) async throws -> Operations.BlindListChats.Output
+    /// One blind chat. The partner only after both tapped Reveal
+    ///
+    /// `partner` (name and photo links) is present only when `status` is `revealed` (B1), and
+    /// `guessCorrect` only then too (when I made a guess). `theyLeft` is true only with status
+    /// `left`. A chat I'm not in, or left, is 404.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)`.
+    func blindGetChat(_ input: Operations.BlindGetChat.Input) async throws -> Operations.BlindGetChat.Output
+    /// Messages after a message ID, oldest first
+    ///
+    /// Each message says `mine`, never who sent it (B12). Marks them read.
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}/messages`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)`.
+    func blindListMessages(_ input: Operations.BlindListMessages.Input) async throws -> Operations.BlindListMessages.Output
+    /// Send a message, unless it looks like it gives me away
+    ///
+    /// If the text looks like it reveals who I am (a handle, phone number, email, my name, ...),
+    /// the answer is 200 with `warning` and no `message`, and nothing is sent, unless the request
+    /// says `confirm: true`. A chat that ended is 409 `chat_closed`. The text is never logged.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/messages`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)`.
+    func blindSendMessage(_ input: Operations.BlindSendMessage.Input) async throws -> Operations.BlindSendMessage.Output
+    /// Tap Reveal
+    ///
+    /// `status` stays `open` until both tapped, whether or not the other person did (B5). Then
+    /// it's `revealed` and the chat shows the partner.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/reveal`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)`.
+    func blindReveal(_ input: Operations.BlindReveal.Input) async throws -> Operations.BlindReveal.Output
+    /// Leave a blind chat without being revealed
+    ///
+    /// Idempotent. The other person sees only that they left (B6). Afterwards the chat is 404 for me.
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/leave`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)`.
+    func blindLeaveChat(_ input: Operations.BlindLeaveChat.Input) async throws -> Operations.BlindLeaveChat.Output
+    /// Guess Who, pick which of my pool cards this chat partner is
+    ///
+    /// `guessId` is a card ID from my pool cards. The answer never says whether the guess is
+    /// right; after reveal the chat says `guessCorrect`. A card not in my pool is 404.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/guess`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)`.
+    func blindGuess(_ input: Operations.BlindGuess.Input) async throws -> Operations.BlindGuess.Output
+    /// Block the person behind this chat, everywhere, without learning who
+    ///
+    /// A Glow block (`public.blocks`): both ways, in Blind and in Rooms (P7). Ends the chat and
+    /// any Glow match between us. Afterwards the chat is 404 for me.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/block`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)`.
+    func blindBlock(_ input: Operations.BlindBlock.Input) async throws -> Operations.BlindBlock.Output
+    /// Report the person behind this chat (this also blocks them)
+    ///
+    /// Goes into Glow's reports queue with context `blind_chat`, keeping their last messages in
+    /// this chat as evidence. Works on a chat I already left or blocked.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/report`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)`.
+    func blindReport(_ input: Operations.BlindReport.Input) async throws -> Operations.BlindReport.Output
+    /// The revealed partner's photo, through a signed 60-second link
+    ///
+    /// Use a URL from `partner.photos` as is. 404 unless the chat is revealed (B1).
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}/photos/{n}`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/photos/{n}/get(blindGetPartnerPhoto)`.
+    func blindGetPartnerPhoto(_ input: Operations.BlindGetPartnerPhoto.Input) async throws -> Operations.BlindGetPartnerPhoto.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -810,6 +989,309 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// My Blind membership and right-swipe counters
+    ///
+    /// Works for everyone signed in, member or not. `member` false means show the opt-in screen.
+    /// `hasPhoto` says whether I have an approved profile photo, which is what other members see
+    /// on my card (without one I am not in anyone's deck).
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/me`.
+    /// - Remark: Generated from `#/paths//api/blind/me/get(blindGetMe)`.
+    public func blindGetMe(headers: Operations.BlindGetMe.Input.Headers = .init()) async throws -> Operations.BlindGetMe.Output {
+        try await blindGetMe(Operations.BlindGetMe.Input(headers: headers))
+    }
+    /// Opt in to Blind mode
+    ///
+    /// Idempotent. Needs a finished Glow profile (409 `onboarding_incomplete` otherwise). From
+    /// now on my first approved photo (never my name) is shown to other Blind members who fit
+    /// me both ways. Nothing about rooms or where I am is ever shown.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/join`.
+    /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)`.
+    public func blindJoin(headers: Operations.BlindJoin.Input.Headers = .init()) async throws -> Operations.BlindJoin.Output {
+        try await blindJoin(Operations.BlindJoin.Input(headers: headers))
+    }
+    /// Leave Blind mode
+    ///
+    /// Idempotent. Deletes my Blind swipes, matches, chats and cards. The other person in any of
+    /// my chats sees only "they left", never who it was.
+    ///
+    ///
+    /// - Remark: HTTP `DELETE /api/blind/join`.
+    /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)`.
+    public func blindLeave(headers: Operations.BlindLeave.Input.Headers = .init()) async throws -> Operations.BlindLeave.Output {
+        try await blindLeave(Operations.BlindLeave.Input(headers: headers))
+    }
+    /// Photo-only cards of other members I haven't swiped yet
+    ///
+    /// No names, ages or anything else. Card IDs are opaque and mine alone (never a user ID).
+    /// Excludes myself, people I swiped, blocked either way, paused, banned, without an approved
+    /// photo, and anyone whose gender or show me doesn't fit mine both ways. Random order.
+    /// Not a member is 404.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/deck`.
+    /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)`.
+    public func blindGetDeck(
+        query: Operations.BlindGetDeck.Input.Query = .init(),
+        headers: Operations.BlindGetDeck.Input.Headers = .init()
+    ) async throws -> Operations.BlindGetDeck.Output {
+        try await blindGetDeck(Operations.BlindGetDeck.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Swipe a card. Says nothing about matches
+    ///
+    /// `targetId` is a card ID from my deck. A right swipe (like or love) beyond
+    /// BLIND_RIGHT_SWIPES_PER_DAY per UTC day is 409 `right_cap_reached`. A swipe on someone
+    /// no longer eligible is silently ignored and answers the same. Repeating a swipe changes
+    /// nothing. The answer never says whether it was mutual (B2). An unknown card is 404.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/swipe`.
+    /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)`.
+    public func blindSwipe(
+        headers: Operations.BlindSwipe.Input.Headers = .init(),
+        body: Operations.BlindSwipe.Input.Body
+    ) async throws -> Operations.BlindSwipe.Output {
+        try await blindSwipe(Operations.BlindSwipe.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// My right-swipe count, swipes left today and whether I can open a drop
+    ///
+    /// - Remark: HTTP `GET /api/blind/pool`.
+    /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)`.
+    public func blindGetPool(headers: Operations.BlindGetPool.Input.Headers = .init()) async throws -> Operations.BlindGetPool.Output {
+        try await blindGetPool(Operations.BlindGetPool.Input(headers: headers))
+    }
+    /// Guess Who cards, my own right swipes as photo-only cards
+    ///
+    /// Same shape as the deck, newest first. Never filtered by blocks, pauses or chats, so it
+    /// can't tell me who a chat partner is (B1).
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/pool/cards`.
+    /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)`.
+    public func blindGetPoolCards(headers: Operations.BlindGetPoolCards.Input.Headers = .init()) async throws -> Operations.BlindGetPoolCards.Output {
+        try await blindGetPoolCards(Operations.BlindGetPoolCards.Input(headers: headers))
+    }
+    /// A Blind card photo, through a signed 60-second link
+    ///
+    /// Use a card's `photoUrl` as is. Only the viewer the card was made for can open it (the
+    /// viewer comes from the bearer token). Watermarked with the viewer's code, `no-store`.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/cards/{cardId}/image`.
+    /// - Remark: Generated from `#/paths//api/blind/cards/{cardId}/image/get(blindGetCardImage)`.
+    public func blindGetCardImage(
+        path: Operations.BlindGetCardImage.Input.Path,
+        query: Operations.BlindGetCardImage.Input.Query,
+        headers: Operations.BlindGetCardImage.Input.Headers = .init()
+    ) async throws -> Operations.BlindGetCardImage.Output {
+        try await blindGetCardImage(Operations.BlindGetCardImage.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Whether I can open a drop now, and when the next one is
+    ///
+    /// Deliberately nothing about waiting matches (B2). `ready` is true in demo mode
+    /// (`demo: true`, stage only) or from the nightly drop time (8pm Pacific) until midnight.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/drop`.
+    /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)`.
+    public func blindGetDrop(headers: Operations.BlindGetDrop.Input.Headers = .init()) async throws -> Operations.BlindGetDrop.Output {
+        try await blindGetDrop(Operations.BlindGetDrop.Input(headers: headers))
+    }
+    /// Open my drop, my waiting matches as new blind chats
+    ///
+    /// Answers the open chats that are new to me (whoever's drop opened them), oldest first, at
+    /// most BLIND_MAX_OPEN_CHATS, and empty below BLIND_DROP_MIN_RIGHT_SWIPES right swipes (B3).
+    /// A retry within BLIND_DROP_REPLAY_WINDOW shows the same chats. Outside demo mode only
+    /// matches made before today's drop time open (Double Blind F-01). Before the drop time:
+    /// 409 `drop_not_ready`.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/drop`.
+    /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)`.
+    public func blindOpenDrop(headers: Operations.BlindOpenDrop.Input.Headers = .init()) async throws -> Operations.BlindOpenDrop.Output {
+        try await blindOpenDrop(Operations.BlindOpenDrop.Input(headers: headers))
+    }
+    /// My blind chats, codename and last message only
+    ///
+    /// Newest activity first. Chats I left or blocked are gone from my list.
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)`.
+    public func blindListChats(headers: Operations.BlindListChats.Input.Headers = .init()) async throws -> Operations.BlindListChats.Output {
+        try await blindListChats(Operations.BlindListChats.Input(headers: headers))
+    }
+    /// One blind chat. The partner only after both tapped Reveal
+    ///
+    /// `partner` (name and photo links) is present only when `status` is `revealed` (B1), and
+    /// `guessCorrect` only then too (when I made a guess). `theyLeft` is true only with status
+    /// `left`. A chat I'm not in, or left, is 404.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)`.
+    public func blindGetChat(
+        path: Operations.BlindGetChat.Input.Path,
+        headers: Operations.BlindGetChat.Input.Headers = .init()
+    ) async throws -> Operations.BlindGetChat.Output {
+        try await blindGetChat(Operations.BlindGetChat.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Messages after a message ID, oldest first
+    ///
+    /// Each message says `mine`, never who sent it (B12). Marks them read.
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}/messages`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)`.
+    public func blindListMessages(
+        path: Operations.BlindListMessages.Input.Path,
+        query: Operations.BlindListMessages.Input.Query = .init(),
+        headers: Operations.BlindListMessages.Input.Headers = .init()
+    ) async throws -> Operations.BlindListMessages.Output {
+        try await blindListMessages(Operations.BlindListMessages.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Send a message, unless it looks like it gives me away
+    ///
+    /// If the text looks like it reveals who I am (a handle, phone number, email, my name, ...),
+    /// the answer is 200 with `warning` and no `message`, and nothing is sent, unless the request
+    /// says `confirm: true`. A chat that ended is 409 `chat_closed`. The text is never logged.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/messages`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)`.
+    public func blindSendMessage(
+        path: Operations.BlindSendMessage.Input.Path,
+        headers: Operations.BlindSendMessage.Input.Headers = .init(),
+        body: Operations.BlindSendMessage.Input.Body
+    ) async throws -> Operations.BlindSendMessage.Output {
+        try await blindSendMessage(Operations.BlindSendMessage.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Tap Reveal
+    ///
+    /// `status` stays `open` until both tapped, whether or not the other person did (B5). Then
+    /// it's `revealed` and the chat shows the partner.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/reveal`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)`.
+    public func blindReveal(
+        path: Operations.BlindReveal.Input.Path,
+        headers: Operations.BlindReveal.Input.Headers = .init()
+    ) async throws -> Operations.BlindReveal.Output {
+        try await blindReveal(Operations.BlindReveal.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Leave a blind chat without being revealed
+    ///
+    /// Idempotent. The other person sees only that they left (B6). Afterwards the chat is 404 for me.
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/leave`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)`.
+    public func blindLeaveChat(
+        path: Operations.BlindLeaveChat.Input.Path,
+        headers: Operations.BlindLeaveChat.Input.Headers = .init()
+    ) async throws -> Operations.BlindLeaveChat.Output {
+        try await blindLeaveChat(Operations.BlindLeaveChat.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Guess Who, pick which of my pool cards this chat partner is
+    ///
+    /// `guessId` is a card ID from my pool cards. The answer never says whether the guess is
+    /// right; after reveal the chat says `guessCorrect`. A card not in my pool is 404.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/guess`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)`.
+    public func blindGuess(
+        path: Operations.BlindGuess.Input.Path,
+        headers: Operations.BlindGuess.Input.Headers = .init(),
+        body: Operations.BlindGuess.Input.Body
+    ) async throws -> Operations.BlindGuess.Output {
+        try await blindGuess(Operations.BlindGuess.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Block the person behind this chat, everywhere, without learning who
+    ///
+    /// A Glow block (`public.blocks`): both ways, in Blind and in Rooms (P7). Ends the chat and
+    /// any Glow match between us. Afterwards the chat is 404 for me.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/block`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)`.
+    public func blindBlock(
+        path: Operations.BlindBlock.Input.Path,
+        headers: Operations.BlindBlock.Input.Headers = .init()
+    ) async throws -> Operations.BlindBlock.Output {
+        try await blindBlock(Operations.BlindBlock.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Report the person behind this chat (this also blocks them)
+    ///
+    /// Goes into Glow's reports queue with context `blind_chat`, keeping their last messages in
+    /// this chat as evidence. Works on a chat I already left or blocked.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/report`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)`.
+    public func blindReport(
+        path: Operations.BlindReport.Input.Path,
+        headers: Operations.BlindReport.Input.Headers = .init(),
+        body: Operations.BlindReport.Input.Body
+    ) async throws -> Operations.BlindReport.Output {
+        try await blindReport(Operations.BlindReport.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// The revealed partner's photo, through a signed 60-second link
+    ///
+    /// Use a URL from `partner.photos` as is. 404 unless the chat is revealed (B1).
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}/photos/{n}`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/photos/{n}/get(blindGetPartnerPhoto)`.
+    public func blindGetPartnerPhoto(
+        path: Operations.BlindGetPartnerPhoto.Input.Path,
+        query: Operations.BlindGetPartnerPhoto.Input.Query,
+        headers: Operations.BlindGetPartnerPhoto.Input.Headers = .init()
+    ) async throws -> Operations.BlindGetPartnerPhoto.Output {
+        try await blindGetPartnerPhoto(Operations.BlindGetPartnerPhoto.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
 }
 
 /// Server URLs defined in the OpenAPI document.
@@ -1018,7 +1500,7 @@ extension Components {
         }
         /// 400 bad_request · 401 unauthorized · 404 not_found (also for anything not allowed, P11) ·
         /// 409 conflict, onboarding_incomplete, room_not_live, tap_limit_reached, chat_not_open,
-        /// last_photo, slug_taken · 413 payload_too_large · 415 unsupported_media_type ·
+        /// last_photo, slug_taken, right_cap_reached, drop_not_ready, chat_closed · 413 payload_too_large · 415 unsupported_media_type ·
         /// 422 under_18, not_in_room, location_inaccurate, location_required, join_ticket_invalid,
         /// photo_rejected, message_rejected · 429 rate_limited · 500 internal ·
         /// 501 not_implemented · 503 unavailable. There is never a 403.
@@ -1036,6 +1518,9 @@ extension Components {
             case chatNotOpen = "chat_not_open"
             case lastPhoto = "last_photo"
             case slugTaken = "slug_taken"
+            case rightCapReached = "right_cap_reached"
+            case dropNotReady = "drop_not_ready"
+            case chatClosed = "chat_closed"
             case payloadTooLarge = "payload_too_large"
             case unsupportedMediaType = "unsupported_media_type"
             case under18 = "under_18"
@@ -3517,6 +4002,1063 @@ extension Components {
                 ])
             }
         }
+        /// pass is a left swipe; like and love are right swipes (love is a stronger like).
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindSwipeKind`.
+        @frozen public enum BlindSwipeKind: String, Codable, Hashable, Sendable, CaseIterable {
+            case pass = "pass"
+            case like = "like"
+            case love = "love"
+        }
+        /// open until both tap Reveal (then revealed), or left once either person left or blocked.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindChatStatus`.
+        @frozen public enum BlindChatStatus: String, Codable, Hashable, Sendable, CaseIterable {
+            case open = "open"
+            case left = "left"
+            case revealed = "revealed"
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindMe`.
+        public struct BlindMe: Codable, Hashable, Sendable {
+            /// I opted in to Blind mode.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindMe/member`.
+            public var member: Swift.Bool
+            /// I have an approved profile photo, the one other members see on my card.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindMe/hasPhoto`.
+            public var hasPhoto: Swift.Bool
+            /// Right swipes left today (UTC day).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindMe/rightRemaining`.
+            public var rightRemaining: Swift.Int
+            /// My right swipes ever
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindMe/rightCount`.
+            public var rightCount: Swift.Int
+            /// rightCount is at least BLIND_DROP_MIN_RIGHT_SWIPES.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindMe/canDrop`.
+            public var canDrop: Swift.Bool
+            /// Creates a new `BlindMe`.
+            ///
+            /// - Parameters:
+            ///   - member: I opted in to Blind mode.
+            ///   - hasPhoto: I have an approved profile photo, the one other members see on my card.
+            ///   - rightRemaining: Right swipes left today (UTC day).
+            ///   - rightCount: My right swipes ever
+            ///   - canDrop: rightCount is at least BLIND_DROP_MIN_RIGHT_SWIPES.
+            public init(
+                member: Swift.Bool,
+                hasPhoto: Swift.Bool,
+                rightRemaining: Swift.Int,
+                rightCount: Swift.Int,
+                canDrop: Swift.Bool
+            ) {
+                self.member = member
+                self.hasPhoto = hasPhoto
+                self.rightRemaining = rightRemaining
+                self.rightCount = rightCount
+                self.canDrop = canDrop
+            }
+            public enum CodingKeys: String, CodingKey {
+                case member
+                case hasPhoto
+                case rightRemaining
+                case rightCount
+                case canDrop
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.member = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .member
+                )
+                self.hasPhoto = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .hasPhoto
+                )
+                self.rightRemaining = try container.decode(
+                    Swift.Int.self,
+                    forKey: .rightRemaining
+                )
+                self.rightCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .rightCount
+                )
+                self.canDrop = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .canDrop
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "member",
+                    "hasPhoto",
+                    "rightRemaining",
+                    "rightCount",
+                    "canDrop"
+                ])
+            }
+        }
+        /// A photo-only card. No name, age or anything else.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindCard`.
+        public struct BlindCard: Codable, Hashable, Sendable {
+            /// Opaque, made for me only. Never a user ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindCard/id`.
+            public var id: Swift.String
+            /// A signed link, relative to the API base URL. Fetch it with the bearer token within CARD_URL_TTL.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindCard/photoUrl`.
+            public var photoUrl: Swift.String
+            /// Creates a new `BlindCard`.
+            ///
+            /// - Parameters:
+            ///   - id: Opaque, made for me only. Never a user ID.
+            ///   - photoUrl: A signed link, relative to the API base URL. Fetch it with the bearer token within CARD_URL_TTL.
+            public init(
+                id: Swift.String,
+                photoUrl: Swift.String
+            ) {
+                self.id = id
+                self.photoUrl = photoUrl
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case photoUrl
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.photoUrl = try container.decode(
+                    Swift.String.self,
+                    forKey: .photoUrl
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "photoUrl"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindDeck`.
+        public struct BlindDeck: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindDeck/cards`.
+            public var cards: [Components.Schemas.BlindCard]
+            /// Creates a new `BlindDeck`.
+            ///
+            /// - Parameters:
+            ///   - cards:
+            public init(cards: [Components.Schemas.BlindCard]) {
+                self.cards = cards
+            }
+            public enum CodingKeys: String, CodingKey {
+                case cards
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.cards = try container.decode(
+                    [Components.Schemas.BlindCard].self,
+                    forKey: .cards
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "cards"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindSwipeRequest`.
+        public struct BlindSwipeRequest: Codable, Hashable, Sendable {
+            /// A card ID from my deck.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindSwipeRequest/targetId`.
+            public var targetId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindSwipeRequest/kind`.
+            public var kind: Components.Schemas.BlindSwipeKind
+            /// Creates a new `BlindSwipeRequest`.
+            ///
+            /// - Parameters:
+            ///   - targetId: A card ID from my deck.
+            ///   - kind:
+            public init(
+                targetId: Swift.String,
+                kind: Components.Schemas.BlindSwipeKind
+            ) {
+                self.targetId = targetId
+                self.kind = kind
+            }
+            public enum CodingKeys: String, CodingKey {
+                case targetId
+                case kind
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.targetId = try container.decode(
+                    Swift.String.self,
+                    forKey: .targetId
+                )
+                self.kind = try container.decode(
+                    Components.Schemas.BlindSwipeKind.self,
+                    forKey: .kind
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "targetId",
+                    "kind"
+                ])
+            }
+        }
+        /// Nothing about matches (B2).
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindSwipeResult`.
+        public struct BlindSwipeResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindSwipeResult/rightRemaining`.
+            public var rightRemaining: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BlindSwipeResult/rightCount`.
+            public var rightCount: Swift.Int
+            /// Creates a new `BlindSwipeResult`.
+            ///
+            /// - Parameters:
+            ///   - rightRemaining:
+            ///   - rightCount:
+            public init(
+                rightRemaining: Swift.Int,
+                rightCount: Swift.Int
+            ) {
+                self.rightRemaining = rightRemaining
+                self.rightCount = rightCount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case rightRemaining
+                case rightCount
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.rightRemaining = try container.decode(
+                    Swift.Int.self,
+                    forKey: .rightRemaining
+                )
+                self.rightCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .rightCount
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "rightRemaining",
+                    "rightCount"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindPool`.
+        public struct BlindPool: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindPool/rightCount`.
+            public var rightCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BlindPool/rightRemaining`.
+            public var rightRemaining: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BlindPool/canDrop`.
+            public var canDrop: Swift.Bool
+            /// Creates a new `BlindPool`.
+            ///
+            /// - Parameters:
+            ///   - rightCount:
+            ///   - rightRemaining:
+            ///   - canDrop:
+            public init(
+                rightCount: Swift.Int,
+                rightRemaining: Swift.Int,
+                canDrop: Swift.Bool
+            ) {
+                self.rightCount = rightCount
+                self.rightRemaining = rightRemaining
+                self.canDrop = canDrop
+            }
+            public enum CodingKeys: String, CodingKey {
+                case rightCount
+                case rightRemaining
+                case canDrop
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.rightCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .rightCount
+                )
+                self.rightRemaining = try container.decode(
+                    Swift.Int.self,
+                    forKey: .rightRemaining
+                )
+                self.canDrop = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .canDrop
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "rightCount",
+                    "rightRemaining",
+                    "canDrop"
+                ])
+            }
+        }
+        /// Nothing about waiting matches (B2).
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindDropStatus`.
+        public struct BlindDropStatus: Codable, Hashable, Sendable {
+            /// POST /api/blind/drop would open now.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindDropStatus/ready`.
+            public var ready: Swift.Bool
+            /// Demo mode (stage only) opens drops at any time.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindDropStatus/demo`.
+            public var demo: Swift.Bool
+            /// The next nightly drop (8pm Pacific).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindDropStatus/nextDropAt`.
+            public var nextDropAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/BlindDropStatus/rightCount`.
+            public var rightCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BlindDropStatus/canDrop`.
+            public var canDrop: Swift.Bool
+            /// Creates a new `BlindDropStatus`.
+            ///
+            /// - Parameters:
+            ///   - ready: POST /api/blind/drop would open now.
+            ///   - demo: Demo mode (stage only) opens drops at any time.
+            ///   - nextDropAt: The next nightly drop (8pm Pacific).
+            ///   - rightCount:
+            ///   - canDrop:
+            public init(
+                ready: Swift.Bool,
+                demo: Swift.Bool,
+                nextDropAt: Foundation.Date,
+                rightCount: Swift.Int,
+                canDrop: Swift.Bool
+            ) {
+                self.ready = ready
+                self.demo = demo
+                self.nextDropAt = nextDropAt
+                self.rightCount = rightCount
+                self.canDrop = canDrop
+            }
+            public enum CodingKeys: String, CodingKey {
+                case ready
+                case demo
+                case nextDropAt
+                case rightCount
+                case canDrop
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.ready = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .ready
+                )
+                self.demo = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .demo
+                )
+                self.nextDropAt = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .nextDropAt
+                )
+                self.rightCount = try container.decode(
+                    Swift.Int.self,
+                    forKey: .rightCount
+                )
+                self.canDrop = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .canDrop
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "ready",
+                    "demo",
+                    "nextDropAt",
+                    "rightCount",
+                    "canDrop"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindDropChat`.
+        public struct BlindDropChat: Codable, Hashable, Sendable {
+            /// The blind chat ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindDropChat/id`.
+            public var id: Swift.String
+            /// What I call the other person in this chat.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindDropChat/codename`.
+            public var codename: Swift.String
+            /// Creates a new `BlindDropChat`.
+            ///
+            /// - Parameters:
+            ///   - id: The blind chat ID.
+            ///   - codename: What I call the other person in this chat.
+            public init(
+                id: Swift.String,
+                codename: Swift.String
+            ) {
+                self.id = id
+                self.codename = codename
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case codename
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.codename = try container.decode(
+                    Swift.String.self,
+                    forKey: .codename
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "codename"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindDropResult`.
+        public struct BlindDropResult: Codable, Hashable, Sendable {
+            /// How many chats this drop shows me (chats.length).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindDropResult/opened`.
+            public var opened: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BlindDropResult/chats`.
+            public var chats: [Components.Schemas.BlindDropChat]
+            /// Creates a new `BlindDropResult`.
+            ///
+            /// - Parameters:
+            ///   - opened: How many chats this drop shows me (chats.length).
+            ///   - chats:
+            public init(
+                opened: Swift.Int,
+                chats: [Components.Schemas.BlindDropChat]
+            ) {
+                self.opened = opened
+                self.chats = chats
+            }
+            public enum CodingKeys: String, CodingKey {
+                case opened
+                case chats
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.opened = try container.decode(
+                    Swift.Int.self,
+                    forKey: .opened
+                )
+                self.chats = try container.decode(
+                    [Components.Schemas.BlindDropChat].self,
+                    forKey: .chats
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "opened",
+                    "chats"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindLastMessage`.
+        public struct BlindLastMessage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindLastMessage/mine`.
+            public var mine: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BlindLastMessage/text`.
+            public var text: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindLastMessage/at`.
+            public var at: Foundation.Date
+            /// Creates a new `BlindLastMessage`.
+            ///
+            /// - Parameters:
+            ///   - mine:
+            ///   - text:
+            ///   - at:
+            public init(
+                mine: Swift.Bool,
+                text: Swift.String,
+                at: Foundation.Date
+            ) {
+                self.mine = mine
+                self.text = text
+                self.at = at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mine
+                case text
+                case at
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.mine = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .mine
+                )
+                self.text = try container.decode(
+                    Swift.String.self,
+                    forKey: .text
+                )
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "mine",
+                    "text",
+                    "at"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindChatSummary`.
+        public struct BlindChatSummary: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindChatSummary/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindChatSummary/codename`.
+            public var codename: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindChatSummary/status`.
+            public var status: Components.Schemas.BlindChatStatus
+            /// Absent when nobody has written yet.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindChatSummary/lastMessage`.
+            public var lastMessage: Components.Schemas.BlindLastMessage?
+            /// The other person wrote something I haven't read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindChatSummary/unread`.
+            public var unread: Swift.Bool
+            /// Creates a new `BlindChatSummary`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - codename:
+            ///   - status:
+            ///   - lastMessage: Absent when nobody has written yet.
+            ///   - unread: The other person wrote something I haven't read.
+            public init(
+                id: Swift.String,
+                codename: Swift.String,
+                status: Components.Schemas.BlindChatStatus,
+                lastMessage: Components.Schemas.BlindLastMessage? = nil,
+                unread: Swift.Bool
+            ) {
+                self.id = id
+                self.codename = codename
+                self.status = status
+                self.lastMessage = lastMessage
+                self.unread = unread
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case codename
+                case status
+                case lastMessage
+                case unread
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.codename = try container.decode(
+                    Swift.String.self,
+                    forKey: .codename
+                )
+                self.status = try container.decode(
+                    Components.Schemas.BlindChatStatus.self,
+                    forKey: .status
+                )
+                self.lastMessage = try container.decodeIfPresent(
+                    Components.Schemas.BlindLastMessage.self,
+                    forKey: .lastMessage
+                )
+                self.unread = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .unread
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "codename",
+                    "status",
+                    "lastMessage",
+                    "unread"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindChatList`.
+        public struct BlindChatList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindChatList/chats`.
+            public var chats: [Components.Schemas.BlindChatSummary]
+            /// Creates a new `BlindChatList`.
+            ///
+            /// - Parameters:
+            ///   - chats:
+            public init(chats: [Components.Schemas.BlindChatSummary]) {
+                self.chats = chats
+            }
+            public enum CodingKeys: String, CodingKey {
+                case chats
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.chats = try container.decode(
+                    [Components.Schemas.BlindChatSummary].self,
+                    forKey: .chats
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "chats"
+                ])
+            }
+        }
+        /// Only after both tapped Reveal (B1).
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindPartner`.
+        public struct BlindPartner: Codable, Hashable, Sendable {
+            /// Their first name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindPartner/name`.
+            public var name: Swift.String
+            /// Signed links (relative, CARD_URL_TTL) to their approved photos.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindPartner/photos`.
+            public var photos: [Swift.String]
+            /// Creates a new `BlindPartner`.
+            ///
+            /// - Parameters:
+            ///   - name: Their first name.
+            ///   - photos: Signed links (relative, CARD_URL_TTL) to their approved photos.
+            public init(
+                name: Swift.String,
+                photos: [Swift.String]
+            ) {
+                self.name = name
+                self.photos = photos
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case photos
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.name = try container.decode(
+                    Swift.String.self,
+                    forKey: .name
+                )
+                self.photos = try container.decode(
+                    [Swift.String].self,
+                    forKey: .photos
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "name",
+                    "photos"
+                ])
+            }
+        }
+        /// `partner` is present only when status is revealed, and then always. `guessCorrect` only
+        /// when revealed and I guessed. `theyLeft` only with status left.
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindChat`.
+        public struct BlindChat: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindChat/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindChat/codename`.
+            public var codename: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindChat/status`.
+            public var status: Components.Schemas.BlindChatStatus
+            /// - Remark: Generated from `#/components/schemas/BlindChat/iTappedReveal`.
+            public var iTappedReveal: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BlindChat/theyLeft`.
+            public var theyLeft: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BlindChat/partner`.
+            public var partner: Components.Schemas.BlindPartner?
+            /// - Remark: Generated from `#/components/schemas/BlindChat/guessCorrect`.
+            public var guessCorrect: Swift.Bool?
+            /// Creates a new `BlindChat`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - codename:
+            ///   - status:
+            ///   - iTappedReveal:
+            ///   - theyLeft:
+            ///   - partner:
+            ///   - guessCorrect:
+            public init(
+                id: Swift.String,
+                codename: Swift.String,
+                status: Components.Schemas.BlindChatStatus,
+                iTappedReveal: Swift.Bool,
+                theyLeft: Swift.Bool,
+                partner: Components.Schemas.BlindPartner? = nil,
+                guessCorrect: Swift.Bool? = nil
+            ) {
+                self.id = id
+                self.codename = codename
+                self.status = status
+                self.iTappedReveal = iTappedReveal
+                self.theyLeft = theyLeft
+                self.partner = partner
+                self.guessCorrect = guessCorrect
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case codename
+                case status
+                case iTappedReveal
+                case theyLeft
+                case partner
+                case guessCorrect
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.codename = try container.decode(
+                    Swift.String.self,
+                    forKey: .codename
+                )
+                self.status = try container.decode(
+                    Components.Schemas.BlindChatStatus.self,
+                    forKey: .status
+                )
+                self.iTappedReveal = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .iTappedReveal
+                )
+                self.theyLeft = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .theyLeft
+                )
+                self.partner = try container.decodeIfPresent(
+                    Components.Schemas.BlindPartner.self,
+                    forKey: .partner
+                )
+                self.guessCorrect = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .guessCorrect
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "codename",
+                    "status",
+                    "iTappedReveal",
+                    "theyLeft",
+                    "partner",
+                    "guessCorrect"
+                ])
+            }
+        }
+        /// A message as I see it, `mine` instead of a sender (B12).
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindMessage`.
+        public struct BlindMessage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindMessage/id`.
+            public var id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BlindMessage/mine`.
+            public var mine: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BlindMessage/text`.
+            public var text: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindMessage/at`.
+            public var at: Foundation.Date
+            /// Creates a new `BlindMessage`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - mine:
+            ///   - text:
+            ///   - at:
+            public init(
+                id: Swift.Int,
+                mine: Swift.Bool,
+                text: Swift.String,
+                at: Foundation.Date
+            ) {
+                self.id = id
+                self.mine = mine
+                self.text = text
+                self.at = at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case mine
+                case text
+                case at
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.id = try container.decode(
+                    Swift.Int.self,
+                    forKey: .id
+                )
+                self.mine = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .mine
+                )
+                self.text = try container.decode(
+                    Swift.String.self,
+                    forKey: .text
+                )
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "id",
+                    "mine",
+                    "text",
+                    "at"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindMessageList`.
+        public struct BlindMessageList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindMessageList/messages`.
+            public var messages: [Components.Schemas.BlindMessage]
+            /// Creates a new `BlindMessageList`.
+            ///
+            /// - Parameters:
+            ///   - messages:
+            public init(messages: [Components.Schemas.BlindMessage]) {
+                self.messages = messages
+            }
+            public enum CodingKeys: String, CodingKey {
+                case messages
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.messages = try container.decode(
+                    [Components.Schemas.BlindMessage].self,
+                    forKey: .messages
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "messages"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindNewMessage`.
+        public struct BlindNewMessage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindNewMessage/text`.
+            public var text: Swift.String
+            /// Send even though it may give me away (after a warning).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindNewMessage/confirm`.
+            public var confirm: Swift.Bool?
+            /// Creates a new `BlindNewMessage`.
+            ///
+            /// - Parameters:
+            ///   - text:
+            ///   - confirm: Send even though it may give me away (after a warning).
+            public init(
+                text: Swift.String,
+                confirm: Swift.Bool? = nil
+            ) {
+                self.text = text
+                self.confirm = confirm
+            }
+            public enum CodingKeys: String, CodingKey {
+                case text
+                case confirm
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.text = try container.decode(
+                    Swift.String.self,
+                    forKey: .text
+                )
+                self.confirm = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .confirm
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "text",
+                    "confirm"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindWarning`.
+        public struct BlindWarning: Codable, Hashable, Sendable {
+            /// Why it may give me away
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindWarning/reason`.
+            public var reason: Swift.String
+            /// Creates a new `BlindWarning`.
+            ///
+            /// - Parameters:
+            ///   - reason: Why it may give me away
+            public init(reason: Swift.String) {
+                self.reason = reason
+            }
+            public enum CodingKeys: String, CodingKey {
+                case reason
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.reason = try container.decode(
+                    Swift.String.self,
+                    forKey: .reason
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "reason"
+                ])
+            }
+        }
+        /// Exactly one of `message` (sent) or `warning` (held back, nothing sent).
+        ///
+        /// - Remark: Generated from `#/components/schemas/BlindSendResult`.
+        public struct BlindSendResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindSendResult/message`.
+            public var message: Components.Schemas.BlindMessage?
+            /// - Remark: Generated from `#/components/schemas/BlindSendResult/warning`.
+            public var warning: Components.Schemas.BlindWarning?
+            /// Creates a new `BlindSendResult`.
+            ///
+            /// - Parameters:
+            ///   - message:
+            ///   - warning:
+            public init(
+                message: Components.Schemas.BlindMessage? = nil,
+                warning: Components.Schemas.BlindWarning? = nil
+            ) {
+                self.message = message
+                self.warning = warning
+            }
+            public enum CodingKeys: String, CodingKey {
+                case message
+                case warning
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.message = try container.decodeIfPresent(
+                    Components.Schemas.BlindMessage.self,
+                    forKey: .message
+                )
+                self.warning = try container.decodeIfPresent(
+                    Components.Schemas.BlindWarning.self,
+                    forKey: .warning
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "message",
+                    "warning"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindRevealResult`.
+        public struct BlindRevealResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindRevealResult/status`.
+            public var status: Components.Schemas.BlindChatStatus
+            /// Creates a new `BlindRevealResult`.
+            ///
+            /// - Parameters:
+            ///   - status:
+            public init(status: Components.Schemas.BlindChatStatus) {
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case status
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.status = try container.decode(
+                    Components.Schemas.BlindChatStatus.self,
+                    forKey: .status
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "status"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindOk`.
+        public struct BlindOk: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BlindOk/ok`.
+            public var ok: Swift.Bool
+            /// Creates a new `BlindOk`.
+            ///
+            /// - Parameters:
+            ///   - ok:
+            public init(ok: Swift.Bool) {
+                self.ok = ok
+            }
+            public enum CodingKeys: String, CodingKey {
+                case ok
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.ok = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .ok
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "ok"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindGuessRequest`.
+        public struct BlindGuessRequest: Codable, Hashable, Sendable {
+            /// A card ID from my pool cards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindGuessRequest/guessId`.
+            public var guessId: Swift.String
+            /// Creates a new `BlindGuessRequest`.
+            ///
+            /// - Parameters:
+            ///   - guessId: A card ID from my pool cards.
+            public init(guessId: Swift.String) {
+                self.guessId = guessId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case guessId
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.guessId = try container.decode(
+                    Swift.String.self,
+                    forKey: .guessId
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "guessId"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BlindReportRequest`.
+        public struct BlindReportRequest: Codable, Hashable, Sendable {
+            /// What happened, in my words.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BlindReportRequest/reason`.
+            public var reason: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BlindReportRequest/category`.
+            public var category: Components.Schemas.ReportReason?
+            /// Creates a new `BlindReportRequest`.
+            ///
+            /// - Parameters:
+            ///   - reason: What happened, in my words.
+            ///   - category:
+            public init(
+                reason: Swift.String,
+                category: Components.Schemas.ReportReason? = nil
+            ) {
+                self.reason = reason
+                self.category = category
+            }
+            public enum CodingKeys: String, CodingKey {
+                case reason
+                case category
+            }
+            public init(from decoder: any Swift.Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.reason = try container.decode(
+                    Swift.String.self,
+                    forKey: .reason
+                )
+                self.category = try container.decodeIfPresent(
+                    Components.Schemas.ReportReason.self,
+                    forKey: .category
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "reason",
+                    "category"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/GlowEventType`.
         @frozen public enum GlowEventType: String, Codable, Hashable, Sendable, CaseIterable {
             case match_created = "match.created"
@@ -4008,6 +5550,14 @@ extension Components {
         public typealias PhotoId = Swift.String
         /// - Remark: Generated from `#/components/parameters/DeviceId`.
         public typealias DeviceId = Swift.String
+        /// A blind chat ID. Never a user ID.
+        ///
+        /// - Remark: Generated from `#/components/parameters/BlindChatId`.
+        public typealias BlindChatId = Swift.String
+        /// An opaque Blind card ID, made for one viewer. Never a user ID.
+        ///
+        /// - Remark: Generated from `#/components/parameters/BlindCardId`.
+        public typealias BlindCardId = Swift.String
     }
 }
 
@@ -5549,7 +7099,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/me/photos/{id}/delete(deleteProfilePhoto)/responses/409`.
@@ -5946,7 +7496,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/me/onboarding/complete/post(completeOnboarding)/responses/409`.
@@ -6599,7 +8149,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/rooms/resolve/post(resolveRoom)/responses/409`.
@@ -7075,7 +8625,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/rooms/{id}/join/post(joinRoom)/responses/409`.
@@ -7585,7 +9135,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/rooms/{id}/checkin/post(createCheckin)/responses/409`.
@@ -8377,7 +9927,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/rooms/{id}/taps/post(createTap)/responses/409`.
@@ -10272,7 +11822,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/matches/{id}/messages/get(listMessages)/responses/409`.
@@ -10529,7 +12079,7 @@ public enum Operations {
             }
             /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
             /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-            /// the generic `conflict`.
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
             ///
             ///
             /// - Remark: Generated from `#/paths//api/matches/{id}/messages/post(sendMessage)/responses/409`.
@@ -11281,6 +12831,4451 @@ public enum Operations {
             }
             public static var allCases: [Self] {
                 [
+                    .json
+                ]
+            }
+        }
+    }
+    /// My Blind membership and right-swipe counters
+    ///
+    /// Works for everyone signed in, member or not. `member` false means show the opt-in screen.
+    /// `hasPhoto` says whether I have an approved profile photo, which is what other members see
+    /// on my card (without one I am not in anyone's deck).
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/me`.
+    /// - Remark: Generated from `#/paths//api/blind/me/get(blindGetMe)`.
+    public enum BlindGetMe {
+        public static let id: Swift.String = "blindGetMe"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/me/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetMe.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetMe.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetMe.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindGetMe.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/me/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/me/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindMe)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindMe {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindGetMe.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindGetMe.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// My Blind state.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/me/get(blindGetMe)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindGetMe.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindGetMe.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/me/get(blindGetMe)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/me/get(blindGetMe)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/me/get(blindGetMe)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Opt in to Blind mode
+    ///
+    /// Idempotent. Needs a finished Glow profile (409 `onboarding_incomplete` otherwise). From
+    /// now on my first approved photo (never my name) is shown to other Blind members who fit
+    /// me both ways. Nothing about rooms or where I am is ever shown.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/join`.
+    /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)`.
+    public enum BlindJoin {
+        public static let id: Swift.String = "blindJoin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/join/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindJoin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindJoin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindJoin.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindJoin.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/join/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/join/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindMe)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindMe {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindJoin.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindJoin.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// My Blind state after joining.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindJoin.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindJoin.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+            /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+            ///
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/post(blindJoin)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Leave Blind mode
+    ///
+    /// Idempotent. Deletes my Blind swipes, matches, chats and cards. The other person in any of
+    /// my chats sees only "they left", never who it was.
+    ///
+    ///
+    /// - Remark: HTTP `DELETE /api/blind/join`.
+    /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)`.
+    public enum BlindLeave {
+        public static let id: Swift.String = "blindLeave"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/join/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindLeave.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindLeave.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindLeave.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindLeave.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Left.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.BlindLeave.Output.NoContent)
+            /// Left.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.BlindLeave.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/join/delete(blindLeave)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Photo-only cards of other members I haven't swiped yet
+    ///
+    /// No names, ages or anything else. Card IDs are opaque and mine alone (never a user ID).
+    /// Excludes myself, people I swiped, blocked either way, paused, banned, without an approved
+    /// photo, and anyone whose gender or show me doesn't fit mine both ways. Random order.
+    /// Not a member is 404.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/deck`.
+    /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)`.
+    public enum BlindGetDeck {
+        public static let id: Swift.String = "blindGetDeck"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/deck/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Cards to return, default 10.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/deck/GET/query/limit`.
+                public var limit: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - limit: Cards to return, default 10.
+                public init(limit: Swift.Int? = nil) {
+                    self.limit = limit
+                }
+            }
+            public var query: Operations.BlindGetDeck.Input.Query
+            /// - Remark: Generated from `#/paths/api/blind/deck/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetDeck.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetDeck.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetDeck.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.BlindGetDeck.Input.Query = .init(),
+                headers: Operations.BlindGetDeck.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/deck/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/deck/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindDeck)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindDeck {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindGetDeck.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindGetDeck.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Cards.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindGetDeck.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindGetDeck.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request doesn't match the contract (`bad_request`, with `issues`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/deck/get(blindGetDeck)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Swipe a card. Says nothing about matches
+    ///
+    /// `targetId` is a card ID from my deck. A right swipe (like or love) beyond
+    /// BLIND_RIGHT_SWIPES_PER_DAY per UTC day is 409 `right_cap_reached`. A swipe on someone
+    /// no longer eligible is silently ignored and answers the same. Repeating a swipe changes
+    /// nothing. The answer never says whether it was mutual (B2). An unknown card is 404.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/swipe`.
+    /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)`.
+    public enum BlindSwipe {
+        public static let id: Swift.String = "blindSwipe"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/swipe/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindSwipe.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindSwipe.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindSwipe.Input.Headers
+            /// - Remark: Generated from `#/paths/api/blind/swipe/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/swipe/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BlindSwipeRequest)
+            }
+            public var body: Operations.BlindSwipe.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.BlindSwipe.Input.Headers = .init(),
+                body: Operations.BlindSwipe.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/swipe/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/swipe/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindSwipeResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindSwipeResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindSwipe.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindSwipe.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Counters after the swipe.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindSwipe.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindSwipe.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request doesn't match the contract (`bad_request`, with `issues`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+            /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+            ///
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/swipe/post(blindSwipe)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// My right-swipe count, swipes left today and whether I can open a drop
+    ///
+    /// - Remark: HTTP `GET /api/blind/pool`.
+    /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)`.
+    public enum BlindGetPool {
+        public static let id: Swift.String = "blindGetPool"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/pool/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetPool.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetPool.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetPool.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindGetPool.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/pool/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/pool/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindPool)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindPool {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindGetPool.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindGetPool.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// My pool.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindGetPool.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindGetPool.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/get(blindGetPool)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Guess Who cards, my own right swipes as photo-only cards
+    ///
+    /// Same shape as the deck, newest first. Never filtered by blocks, pauses or chats, so it
+    /// can't tell me who a chat partner is (B1).
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/pool/cards`.
+    /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)`.
+    public enum BlindGetPoolCards {
+        public static let id: Swift.String = "blindGetPoolCards"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/pool/cards/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetPoolCards.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetPoolCards.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetPoolCards.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindGetPoolCards.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/pool/cards/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/pool/cards/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindDeck)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindDeck {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindGetPoolCards.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindGetPoolCards.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Cards.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindGetPoolCards.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindGetPoolCards.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/pool/cards/get(blindGetPoolCards)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// A Blind card photo, through a signed 60-second link
+    ///
+    /// Use a card's `photoUrl` as is. Only the viewer the card was made for can open it (the
+    /// viewer comes from the bearer token). Watermarked with the viewer's code, `no-store`.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/cards/{cardId}/image`.
+    /// - Remark: Generated from `#/paths//api/blind/cards/{cardId}/image/get(blindGetCardImage)`.
+    public enum BlindGetCardImage {
+        public static let id: Swift.String = "blindGetCardImage"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/cards/{cardId}/image/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// An opaque Blind card ID, made for one viewer. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/cards/{cardId}/image/GET/path/cardId`.
+                public var cardId: Components.Parameters.BlindCardId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - cardId: An opaque Blind card ID, made for one viewer. Never a user ID.
+                public init(cardId: Components.Parameters.BlindCardId) {
+                    self.cardId = cardId
+                }
+            }
+            public var path: Operations.BlindGetCardImage.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/cards/{cardId}/image/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/cards/{cardId}/image/GET/query/exp`.
+                public var exp: Swift.Int
+                /// base64url HMAC-SHA256 (CARD_URL_SECRET) over the card, the viewer and `exp`.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/cards/{cardId}/image/GET/query/sig`.
+                public var sig: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - exp: When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+                ///   - sig: base64url HMAC-SHA256 (CARD_URL_SECRET) over the card, the viewer and `exp`.
+                public init(
+                    exp: Swift.Int,
+                    sig: Swift.String
+                ) {
+                    self.exp = exp
+                    self.sig = sig
+                }
+            }
+            public var query: Operations.BlindGetCardImage.Input.Query
+            /// - Remark: Generated from `#/paths/api/blind/cards/{cardId}/image/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetCardImage.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetCardImage.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetCardImage.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.BlindGetCardImage.Input.Path,
+                query: Operations.BlindGetCardImage.Input.Query,
+                headers: Operations.BlindGetCardImage.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            /// A JPEG with no metadata, never cached.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/cards/{cardId}/image/get(blindGetCardImage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Components.Responses.JpegImage)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Components.Responses.JpegImage {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/cards/{cardId}/image/get(blindGetCardImage)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/cards/{cardId}/image/get(blindGetCardImage)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/cards/{cardId}/image/get(blindGetCardImage)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case jpeg
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "image/jpeg":
+                    self = .jpeg
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .jpeg:
+                    return "image/jpeg"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .jpeg,
+                    .json
+                ]
+            }
+        }
+    }
+    /// Whether I can open a drop now, and when the next one is
+    ///
+    /// Deliberately nothing about waiting matches (B2). `ready` is true in demo mode
+    /// (`demo: true`, stage only) or from the nightly drop time (8pm Pacific) until midnight.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/drop`.
+    /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)`.
+    public enum BlindGetDrop {
+        public static let id: Swift.String = "blindGetDrop"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/drop/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetDrop.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetDrop.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetDrop.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindGetDrop.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/drop/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/drop/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindDropStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindDropStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindGetDrop.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindGetDrop.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Drop status.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindGetDrop.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindGetDrop.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/get(blindGetDrop)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Open my drop, my waiting matches as new blind chats
+    ///
+    /// Answers the open chats that are new to me (whoever's drop opened them), oldest first, at
+    /// most BLIND_MAX_OPEN_CHATS, and empty below BLIND_DROP_MIN_RIGHT_SWIPES right swipes (B3).
+    /// A retry within BLIND_DROP_REPLAY_WINDOW shows the same chats. Outside demo mode only
+    /// matches made before today's drop time open (Double Blind F-01). Before the drop time:
+    /// 409 `drop_not_ready`.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/drop`.
+    /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)`.
+    public enum BlindOpenDrop {
+        public static let id: Swift.String = "blindOpenDrop"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/drop/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindOpenDrop.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindOpenDrop.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindOpenDrop.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindOpenDrop.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/drop/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/drop/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindDropResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindDropResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindOpenDrop.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindOpenDrop.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The chats this drop shows me.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindOpenDrop.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindOpenDrop.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+            /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+            ///
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/drop/post(blindOpenDrop)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// My blind chats, codename and last message only
+    ///
+    /// Newest activity first. Chats I left or blocked are gone from my list.
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)`.
+    public enum BlindListChats {
+        public static let id: Swift.String = "blindListChats"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindListChats.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindListChats.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindListChats.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.BlindListChats.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindChatList)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindChatList {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindListChats.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindListChats.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// My chats.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindListChats.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindListChats.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/get(blindListChats)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// One blind chat. The partner only after both tapped Reveal
+    ///
+    /// `partner` (name and photo links) is present only when `status` is `revealed` (B1), and
+    /// `guessCorrect` only then too (when I made a guess). `theyLeft` is true only with status
+    /// `left`. A chat I'm not in, or left, is 404.
+    ///
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)`.
+    public enum BlindGetChat {
+        public static let id: Swift.String = "blindGetChat"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/GET/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindGetChat.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetChat.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetChat.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetChat.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.BlindGetChat.Input.Path,
+                headers: Operations.BlindGetChat.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindChat)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindChat {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindGetChat.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindGetChat.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The chat.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindGetChat.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindGetChat.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/get(blindGetChat)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Messages after a message ID, oldest first
+    ///
+    /// Each message says `mine`, never who sent it (B12). Marks them read.
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}/messages`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)`.
+    public enum BlindListMessages {
+        public static let id: Swift.String = "blindListMessages"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/GET/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindListMessages.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Only messages with a higher ID. Default 0 (from the start).
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/GET/query/after`.
+                public var after: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - after: Only messages with a higher ID. Default 0 (from the start).
+                public init(after: Swift.Int? = nil) {
+                    self.after = after
+                }
+            }
+            public var query: Operations.BlindListMessages.Input.Query
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindListMessages.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindListMessages.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindListMessages.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.BlindListMessages.Input.Path,
+                query: Operations.BlindListMessages.Input.Query = .init(),
+                headers: Operations.BlindListMessages.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindMessageList)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindMessageList {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindListMessages.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindListMessages.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Messages.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindListMessages.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindListMessages.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request doesn't match the contract (`bad_request`, with `issues`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/get(blindListMessages)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Send a message, unless it looks like it gives me away
+    ///
+    /// If the text looks like it reveals who I am (a handle, phone number, email, my name, ...),
+    /// the answer is 200 with `warning` and no `message`, and nothing is sent, unless the request
+    /// says `confirm: true`. A chat that ended is 409 `chat_closed`. The text is never logged.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/messages`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)`.
+    public enum BlindSendMessage {
+        public static let id: Swift.String = "blindSendMessage"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/POST/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindSendMessage.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindSendMessage.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindSendMessage.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindSendMessage.Input.Headers
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BlindNewMessage)
+            }
+            public var body: Operations.BlindSendMessage.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.BlindSendMessage.Input.Path,
+                headers: Operations.BlindSendMessage.Input.Headers = .init(),
+                body: Operations.BlindSendMessage.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/messages/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindSendResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindSendResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindSendMessage.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindSendMessage.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Sent (`message`), or held back (`warning`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindSendMessage.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindSendMessage.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request doesn't match the contract (`bad_request`, with `issues`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+            /// `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+            /// the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+            ///
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/messages/post(blindSendMessage)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Tap Reveal
+    ///
+    /// `status` stays `open` until both tapped, whether or not the other person did (B5). Then
+    /// it's `revealed` and the chat shows the partner.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/reveal`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)`.
+    public enum BlindReveal {
+        public static let id: Swift.String = "blindReveal"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/reveal/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/reveal/POST/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindReveal.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/reveal/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindReveal.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindReveal.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindReveal.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.BlindReveal.Input.Path,
+                headers: Operations.BlindReveal.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/reveal/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/reveal/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindRevealResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindRevealResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindReveal.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindReveal.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The chat's status.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindReveal.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindReveal.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/reveal/post(blindReveal)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Leave a blind chat without being revealed
+    ///
+    /// Idempotent. The other person sees only that they left (B6). Afterwards the chat is 404 for me.
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/leave`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)`.
+    public enum BlindLeaveChat {
+        public static let id: Swift.String = "blindLeaveChat"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/leave/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/leave/POST/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindLeaveChat.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/leave/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindLeaveChat.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindLeaveChat.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindLeaveChat.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.BlindLeaveChat.Input.Path,
+                headers: Operations.BlindLeaveChat.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/leave/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/leave/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindOk)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindOk {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindLeaveChat.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindLeaveChat.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Left.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindLeaveChat.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindLeaveChat.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/leave/post(blindLeaveChat)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Guess Who, pick which of my pool cards this chat partner is
+    ///
+    /// `guessId` is a card ID from my pool cards. The answer never says whether the guess is
+    /// right; after reveal the chat says `guessCorrect`. A card not in my pool is 404.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/guess`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)`.
+    public enum BlindGuess {
+        public static let id: Swift.String = "blindGuess"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/guess/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/guess/POST/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindGuess.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/guess/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGuess.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGuess.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGuess.Input.Headers
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/guess/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/guess/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BlindGuessRequest)
+            }
+            public var body: Operations.BlindGuess.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.BlindGuess.Input.Path,
+                headers: Operations.BlindGuess.Input.Headers = .init(),
+                body: Operations.BlindGuess.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/guess/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/guess/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindOk)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindOk {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindGuess.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindGuess.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Saved.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindGuess.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindGuess.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request doesn't match the contract (`bad_request`, with `issues`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/guess/post(blindGuess)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Block the person behind this chat, everywhere, without learning who
+    ///
+    /// A Glow block (`public.blocks`): both ways, in Blind and in Rooms (P7). Ends the chat and
+    /// any Glow match between us. Afterwards the chat is 404 for me.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/block`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)`.
+    public enum BlindBlock {
+        public static let id: Swift.String = "blindBlock"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/block/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/block/POST/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindBlock.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/block/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindBlock.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindBlock.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindBlock.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.BlindBlock.Input.Path,
+                headers: Operations.BlindBlock.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/block/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/block/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindOk)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindOk {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindBlock.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindBlock.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Blocked.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindBlock.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindBlock.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/block/post(blindBlock)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Report the person behind this chat (this also blocks them)
+    ///
+    /// Goes into Glow's reports queue with context `blind_chat`, keeping their last messages in
+    /// this chat as evidence. Works on a chat I already left or blocked.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/blind/chats/{id}/report`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)`.
+    public enum BlindReport {
+        public static let id: Swift.String = "blindReport"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/report/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/report/POST/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                public init(id: Components.Parameters.BlindChatId) {
+                    self.id = id
+                }
+            }
+            public var path: Operations.BlindReport.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/report/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindReport.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindReport.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindReport.Input.Headers
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/report/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/report/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BlindReportRequest)
+            }
+            public var body: Operations.BlindReport.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.BlindReport.Input.Path,
+                headers: Operations.BlindReport.Input.Headers = .init(),
+                body: Operations.BlindReport.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/report/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/blind/chats/{id}/report/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BlindOk)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BlindOk {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.BlindReport.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.BlindReport.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Reported and blocked.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.BlindReport.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.BlindReport.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// The request doesn't match the contract (`bad_request`, with `issues`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Too many requests (`rate_limited`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/report/post(blindReport)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// The revealed partner's photo, through a signed 60-second link
+    ///
+    /// Use a URL from `partner.photos` as is. 404 unless the chat is revealed (B1).
+    ///
+    /// - Remark: HTTP `GET /api/blind/chats/{id}/photos/{n}`.
+    /// - Remark: Generated from `#/paths//api/blind/chats/{id}/photos/{n}/get(blindGetPartnerPhoto)`.
+    public enum BlindGetPartnerPhoto {
+        public static let id: Swift.String = "blindGetPartnerPhoto"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/photos/{n}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// A blind chat ID. Never a user ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/photos/{n}/GET/path/id`.
+                public var id: Components.Parameters.BlindChatId
+                /// 0-based index into the partner's approved photos.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/photos/{n}/GET/path/n`.
+                public var n: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id: A blind chat ID. Never a user ID.
+                ///   - n: 0-based index into the partner's approved photos.
+                public init(
+                    id: Components.Parameters.BlindChatId,
+                    n: Swift.Int
+                ) {
+                    self.id = id
+                    self.n = n
+                }
+            }
+            public var path: Operations.BlindGetPartnerPhoto.Input.Path
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/photos/{n}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/photos/{n}/GET/query/exp`.
+                public var exp: Swift.Int
+                /// base64url HMAC-SHA256 (CARD_URL_SECRET) over the chat, n, the viewer and `exp`.
+                ///
+                /// - Remark: Generated from `#/paths/api/blind/chats/{id}/photos/{n}/GET/query/sig`.
+                public var sig: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - exp: When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+                ///   - sig: base64url HMAC-SHA256 (CARD_URL_SECRET) over the chat, n, the viewer and `exp`.
+                public init(
+                    exp: Swift.Int,
+                    sig: Swift.String
+                ) {
+                    self.exp = exp
+                    self.sig = sig
+                }
+            }
+            public var query: Operations.BlindGetPartnerPhoto.Input.Query
+            /// - Remark: Generated from `#/paths/api/blind/chats/{id}/photos/{n}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetPartnerPhoto.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.BlindGetPartnerPhoto.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.BlindGetPartnerPhoto.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.BlindGetPartnerPhoto.Input.Path,
+                query: Operations.BlindGetPartnerPhoto.Input.Query,
+                headers: Operations.BlindGetPartnerPhoto.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            /// A JPEG with no metadata, never cached.
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/photos/{n}/get(blindGetPartnerPhoto)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Components.Responses.JpegImage)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Components.Responses.JpegImage {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Missing, expired or invalid token (`unauthorized`).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/photos/{n}/get(blindGetPartnerPhoto)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/photos/{n}/get(blindGetPartnerPhoto)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+            ///
+            /// - Remark: Generated from `#/paths//api/blind/chats/{id}/photos/{n}/get(blindGetPartnerPhoto)/responses/default`.
+            ///
+            /// HTTP response code: `default`.
+            case `default`(statusCode: Swift.Int, Components.Responses.UnexpectedError)
+            /// The associated value of the enum case if `self` is `.`default``.
+            ///
+            /// - Throws: An error if `self` is not `.`default``.
+            /// - SeeAlso: `.`default``.
+            public var `default`: Components.Responses.UnexpectedError {
+                get throws {
+                    switch self {
+                    case let .`default`(_, response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "default",
+                            response: self
+                        )
+                    }
+                }
+            }
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case jpeg
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "image/jpeg":
+                    self = .jpeg
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .jpeg:
+                    return "image/jpeg"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .jpeg,
                     .json
                 ]
             }

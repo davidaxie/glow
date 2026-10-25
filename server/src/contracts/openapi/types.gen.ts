@@ -35,13 +35,13 @@ export type ErrorIssue = {
 /**
  * 400 bad_request · 401 unauthorized · 404 not_found (also for anything not allowed, P11) ·
  * 409 conflict, onboarding_incomplete, room_not_live, tap_limit_reached, chat_not_open,
- * last_photo, slug_taken · 413 payload_too_large · 415 unsupported_media_type ·
+ * last_photo, slug_taken, right_cap_reached, drop_not_ready, chat_closed · 413 payload_too_large · 415 unsupported_media_type ·
  * 422 under_18, not_in_room, location_inaccurate, location_required, join_ticket_invalid,
  * photo_rejected, message_rejected · 429 rate_limited · 500 internal ·
  * 501 not_implemented · 503 unavailable. There is never a 403.
  *
  */
-export type ErrorCode = 'bad_request' | 'unauthorized' | 'not_found' | 'conflict' | 'onboarding_incomplete' | 'room_not_live' | 'tap_limit_reached' | 'chat_not_open' | 'last_photo' | 'slug_taken' | 'payload_too_large' | 'unsupported_media_type' | 'under_18' | 'not_in_room' | 'location_inaccurate' | 'location_required' | 'join_ticket_invalid' | 'photo_rejected' | 'message_rejected' | 'rate_limited' | 'internal' | 'not_implemented' | 'unavailable';
+export type ErrorCode = 'bad_request' | 'unauthorized' | 'not_found' | 'conflict' | 'onboarding_incomplete' | 'room_not_live' | 'tap_limit_reached' | 'chat_not_open' | 'last_photo' | 'slug_taken' | 'right_cap_reached' | 'drop_not_ready' | 'chat_closed' | 'payload_too_large' | 'unsupported_media_type' | 'under_18' | 'not_in_room' | 'location_inaccurate' | 'location_required' | 'join_ticket_invalid' | 'photo_rejected' | 'message_rejected' | 'rate_limited' | 'internal' | 'not_implemented' | 'unavailable';
 
 export type Gender = 'woman' | 'man' | 'nonbinary';
 
@@ -86,6 +86,13 @@ export type ApnsEnvironment = 'sandbox' | 'production';
  * What the ID points at. A chat ID is its match ID.
  */
 export type ReportContext = 'card' | 'match' | 'chat';
+
+/**
+ * What a report's ID points at, as admins see it: ReportContext plus `blind_chat` (a Blind
+ * mode chat ID, for reports made from a blind chat).
+ *
+ */
+export type AdminReportContext = 'card' | 'match' | 'chat' | 'blind_chat';
 
 export type ReportReason = 'harassment' | 'inappropriate_photo' | 'underage' | 'spam' | 'unsafe' | 'other';
 
@@ -645,7 +652,7 @@ export type AdminReportEvidence = {
 
 export type AdminReport = {
     id: string;
-    context: ReportContext;
+    context: AdminReportContext;
     contextId: string;
     reason: ReportReason;
     details?: string;
@@ -697,6 +704,238 @@ export type AppleAppSiteAssociation = {
             }>;
         }>;
     };
+};
+
+/**
+ * pass is a left swipe; like and love are right swipes (love is a stronger like).
+ */
+export type BlindSwipeKind = 'pass' | 'like' | 'love';
+
+/**
+ * open until both tap Reveal (then revealed), or left once either person left or blocked.
+ */
+export type BlindChatStatus = 'open' | 'left' | 'revealed';
+
+export type BlindMe = {
+    /**
+     * I opted in to Blind mode.
+     */
+    member: boolean;
+    /**
+     * I have an approved profile photo, the one other members see on my card.
+     */
+    hasPhoto: boolean;
+    /**
+     * Right swipes left today (UTC day).
+     */
+    rightRemaining: number;
+    /**
+     * My right swipes ever
+     */
+    rightCount: number;
+    /**
+     * rightCount is at least BLIND_DROP_MIN_RIGHT_SWIPES.
+     */
+    canDrop: boolean;
+};
+
+/**
+ * A photo-only card. No name, age or anything else.
+ */
+export type BlindCard = {
+    /**
+     * Opaque, made for me only. Never a user ID.
+     */
+    id: string;
+    /**
+     * A signed link, relative to the API base URL. Fetch it with the bearer token within CARD_URL_TTL.
+     */
+    photoUrl: string;
+};
+
+export type BlindDeck = {
+    cards: Array<BlindCard>;
+};
+
+export type BlindSwipeRequest = {
+    /**
+     * A card ID from my deck.
+     */
+    targetId: string;
+    kind: BlindSwipeKind;
+};
+
+/**
+ * Nothing about matches (B2).
+ */
+export type BlindSwipeResult = {
+    rightRemaining: number;
+    rightCount: number;
+};
+
+export type BlindPool = {
+    rightCount: number;
+    rightRemaining: number;
+    canDrop: boolean;
+};
+
+/**
+ * Nothing about waiting matches (B2).
+ */
+export type BlindDropStatus = {
+    /**
+     * POST /api/blind/drop would open now.
+     */
+    ready: boolean;
+    /**
+     * Demo mode (stage only) opens drops at any time.
+     */
+    demo: boolean;
+    /**
+     * The next nightly drop (8pm Pacific).
+     */
+    nextDropAt: string;
+    rightCount: number;
+    canDrop: boolean;
+};
+
+export type BlindDropChat = {
+    /**
+     * The blind chat ID.
+     */
+    id: string;
+    /**
+     * What I call the other person in this chat.
+     */
+    codename: string;
+};
+
+export type BlindDropResult = {
+    /**
+     * How many chats this drop shows me (chats.length).
+     */
+    opened: number;
+    chats: Array<BlindDropChat>;
+};
+
+export type BlindDropAllResult = {
+    /**
+     * Chats opened
+     */
+    opened: number;
+};
+
+export type BlindLastMessage = {
+    mine: boolean;
+    text: string;
+    at: string;
+};
+
+export type BlindChatSummary = {
+    id: string;
+    codename: string;
+    status: BlindChatStatus;
+    /**
+     * Absent when nobody has written yet.
+     */
+    lastMessage?: BlindLastMessage;
+    /**
+     * The other person wrote something I haven't read.
+     */
+    unread: boolean;
+};
+
+export type BlindChatList = {
+    chats: Array<BlindChatSummary>;
+};
+
+/**
+ * Only after both tapped Reveal (B1).
+ */
+export type BlindPartner = {
+    /**
+     * Their first name.
+     */
+    name: string;
+    /**
+     * Signed links (relative, CARD_URL_TTL) to their approved photos.
+     */
+    photos: Array<string>;
+};
+
+/**
+ * `partner` is present only when status is revealed, and then always. `guessCorrect` only
+ * when revealed and I guessed. `theyLeft` only with status left.
+ *
+ */
+export type BlindChat = {
+    id: string;
+    codename: string;
+    status: BlindChatStatus;
+    iTappedReveal: boolean;
+    theyLeft: boolean;
+    partner?: BlindPartner;
+    guessCorrect?: boolean;
+};
+
+/**
+ * A message as I see it, `mine` instead of a sender (B12).
+ */
+export type BlindMessage = {
+    id: number;
+    mine: boolean;
+    text: string;
+    at: string;
+};
+
+export type BlindMessageList = {
+    messages: Array<BlindMessage>;
+};
+
+export type BlindNewMessage = {
+    text: string;
+    /**
+     * Send even though it may give me away (after a warning).
+     */
+    confirm?: boolean;
+};
+
+export type BlindWarning = {
+    /**
+     * Why it may give me away
+     */
+    reason: string;
+};
+
+/**
+ * Exactly one of `message` (sent) or `warning` (held back, nothing sent).
+ */
+export type BlindSendResult = {
+    message?: BlindMessage;
+    warning?: BlindWarning;
+};
+
+export type BlindRevealResult = {
+    status: BlindChatStatus;
+};
+
+export type BlindOk = {
+    ok: boolean;
+};
+
+export type BlindGuessRequest = {
+    /**
+     * A card ID from my pool cards.
+     */
+    guessId: string;
+};
+
+export type BlindReportRequest = {
+    /**
+     * What happened, in my words.
+     */
+    reason: string;
+    category?: ReportReason;
 };
 
 export type GlowEventType = 'match.created' | 'match.choice' | 'match.recheck' | 'match.ended' | 'glow.started' | 'glow.ended' | 'message.created' | 'checkin.expiring' | 'deck.changed';
@@ -783,6 +1022,16 @@ export type CardId = string;
 export type PhotoId = string;
 
 export type DeviceId = string;
+
+/**
+ * A blind chat ID. Never a user ID.
+ */
+export type BlindChatId = string;
+
+/**
+ * An opaque Blind card ID, made for one viewer. Never a user ID.
+ */
+export type BlindCardId = string;
 
 export type DeleteAccountData = {
     body?: never;
@@ -967,7 +1216,7 @@ export type DeleteProfilePhotoErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -1075,7 +1324,7 @@ export type CompleteOnboardingErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -1228,7 +1477,7 @@ export type ResolveRoomErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -1313,7 +1562,7 @@ export type JoinRoomErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -1405,7 +1654,7 @@ export type CreateCheckinErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -1562,7 +1811,7 @@ export type CreateTapErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -1914,7 +2163,7 @@ export type ListMessagesErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -1960,7 +2209,7 @@ export type SendMessageErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -2196,7 +2445,7 @@ export type AdminCreateRoomErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -2277,7 +2526,7 @@ export type AdminUpdateRoomErrors = {
     /**
      * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
      * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-     * the generic `conflict`.
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
      *
      */
     409: Error;
@@ -2789,6 +3038,922 @@ export type AdminReviewPhotoResponses = {
 };
 
 export type AdminReviewPhotoResponse = AdminReviewPhotoResponses[keyof AdminReviewPhotoResponses];
+
+export type BlindGetMeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/me';
+};
+
+export type BlindGetMeErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetMeError = BlindGetMeErrors[keyof BlindGetMeErrors];
+
+export type BlindGetMeResponses = {
+    /**
+     * My Blind state.
+     */
+    200: BlindMe;
+};
+
+export type BlindGetMeResponse = BlindGetMeResponses[keyof BlindGetMeResponses];
+
+export type BlindLeaveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/join';
+};
+
+export type BlindLeaveErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindLeaveError = BlindLeaveErrors[keyof BlindLeaveErrors];
+
+export type BlindLeaveResponses = {
+    /**
+     * Left.
+     */
+    204: void;
+};
+
+export type BlindLeaveResponse = BlindLeaveResponses[keyof BlindLeaveResponses];
+
+export type BlindJoinData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/join';
+};
+
+export type BlindJoinErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+     * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+     *
+     */
+    409: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindJoinError = BlindJoinErrors[keyof BlindJoinErrors];
+
+export type BlindJoinResponses = {
+    /**
+     * My Blind state after joining.
+     */
+    200: BlindMe;
+};
+
+export type BlindJoinResponse = BlindJoinResponses[keyof BlindJoinResponses];
+
+export type BlindGetDeckData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Cards to return, default 10.
+         */
+        limit?: number;
+    };
+    url: '/api/blind/deck';
+};
+
+export type BlindGetDeckErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetDeckError = BlindGetDeckErrors[keyof BlindGetDeckErrors];
+
+export type BlindGetDeckResponses = {
+    /**
+     * Cards.
+     */
+    200: BlindDeck;
+};
+
+export type BlindGetDeckResponse = BlindGetDeckResponses[keyof BlindGetDeckResponses];
+
+export type BlindSwipeData = {
+    body: BlindSwipeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/blind/swipe';
+};
+
+export type BlindSwipeErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+     * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+     *
+     */
+    409: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindSwipeError = BlindSwipeErrors[keyof BlindSwipeErrors];
+
+export type BlindSwipeResponses = {
+    /**
+     * Counters after the swipe.
+     */
+    200: BlindSwipeResult;
+};
+
+export type BlindSwipeResponse = BlindSwipeResponses[keyof BlindSwipeResponses];
+
+export type BlindGetPoolData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/pool';
+};
+
+export type BlindGetPoolErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetPoolError = BlindGetPoolErrors[keyof BlindGetPoolErrors];
+
+export type BlindGetPoolResponses = {
+    /**
+     * My pool.
+     */
+    200: BlindPool;
+};
+
+export type BlindGetPoolResponse = BlindGetPoolResponses[keyof BlindGetPoolResponses];
+
+export type BlindGetPoolCardsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/pool/cards';
+};
+
+export type BlindGetPoolCardsErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetPoolCardsError = BlindGetPoolCardsErrors[keyof BlindGetPoolCardsErrors];
+
+export type BlindGetPoolCardsResponses = {
+    /**
+     * Cards.
+     */
+    200: BlindDeck;
+};
+
+export type BlindGetPoolCardsResponse = BlindGetPoolCardsResponses[keyof BlindGetPoolCardsResponses];
+
+export type BlindGetCardImageData = {
+    body?: never;
+    path: {
+        /**
+         * An opaque Blind card ID, made for one viewer. Never a user ID.
+         */
+        cardId: string;
+    };
+    query: {
+        /**
+         * When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+         */
+        exp: number;
+        /**
+         * base64url HMAC-SHA256 (CARD_URL_SECRET) over the card, the viewer and `exp`.
+         */
+        sig: string;
+    };
+    url: '/api/blind/cards/{cardId}/image';
+};
+
+export type BlindGetCardImageErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetCardImageError = BlindGetCardImageErrors[keyof BlindGetCardImageErrors];
+
+export type BlindGetCardImageResponses = {
+    /**
+     * A JPEG with no metadata, never cached.
+     */
+    200: string;
+};
+
+export type BlindGetCardImageResponse = BlindGetCardImageResponses[keyof BlindGetCardImageResponses];
+
+export type BlindGetDropData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/drop';
+};
+
+export type BlindGetDropErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetDropError = BlindGetDropErrors[keyof BlindGetDropErrors];
+
+export type BlindGetDropResponses = {
+    /**
+     * Drop status.
+     */
+    200: BlindDropStatus;
+};
+
+export type BlindGetDropResponse = BlindGetDropResponses[keyof BlindGetDropResponses];
+
+export type BlindOpenDropData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/drop';
+};
+
+export type BlindOpenDropErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+     * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+     *
+     */
+    409: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindOpenDropError = BlindOpenDropErrors[keyof BlindOpenDropErrors];
+
+export type BlindOpenDropResponses = {
+    /**
+     * The chats this drop shows me.
+     */
+    200: BlindDropResult;
+};
+
+export type BlindOpenDropResponse = BlindOpenDropResponses[keyof BlindOpenDropResponses];
+
+export type BlindListChatsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/blind/chats';
+};
+
+export type BlindListChatsErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindListChatsError = BlindListChatsErrors[keyof BlindListChatsErrors];
+
+export type BlindListChatsResponses = {
+    /**
+     * My chats.
+     */
+    200: BlindChatList;
+};
+
+export type BlindListChatsResponse = BlindListChatsResponses[keyof BlindListChatsResponses];
+
+export type BlindGetChatData = {
+    body?: never;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/blind/chats/{id}';
+};
+
+export type BlindGetChatErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetChatError = BlindGetChatErrors[keyof BlindGetChatErrors];
+
+export type BlindGetChatResponses = {
+    /**
+     * The chat.
+     */
+    200: BlindChat;
+};
+
+export type BlindGetChatResponse = BlindGetChatResponses[keyof BlindGetChatResponses];
+
+export type BlindListMessagesData = {
+    body?: never;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Only messages with a higher ID. Default 0 (from the start).
+         */
+        after?: number;
+    };
+    url: '/api/blind/chats/{id}/messages';
+};
+
+export type BlindListMessagesErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindListMessagesError = BlindListMessagesErrors[keyof BlindListMessagesErrors];
+
+export type BlindListMessagesResponses = {
+    /**
+     * Messages.
+     */
+    200: BlindMessageList;
+};
+
+export type BlindListMessagesResponse = BlindListMessagesResponses[keyof BlindListMessagesResponses];
+
+export type BlindSendMessageData = {
+    body: BlindNewMessage;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/blind/chats/{id}/messages';
+};
+
+export type BlindSendMessageErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * The caller's own state doesn't allow this right now: `onboarding_incomplete`,
+     * `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
+     * the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
+     *
+     */
+    409: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindSendMessageError = BlindSendMessageErrors[keyof BlindSendMessageErrors];
+
+export type BlindSendMessageResponses = {
+    /**
+     * Sent (`message`), or held back (`warning`).
+     */
+    200: BlindSendResult;
+};
+
+export type BlindSendMessageResponse = BlindSendMessageResponses[keyof BlindSendMessageResponses];
+
+export type BlindRevealData = {
+    body?: never;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/blind/chats/{id}/reveal';
+};
+
+export type BlindRevealErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindRevealError = BlindRevealErrors[keyof BlindRevealErrors];
+
+export type BlindRevealResponses = {
+    /**
+     * The chat's status.
+     */
+    200: BlindRevealResult;
+};
+
+export type BlindRevealResponse = BlindRevealResponses[keyof BlindRevealResponses];
+
+export type BlindLeaveChatData = {
+    body?: never;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/blind/chats/{id}/leave';
+};
+
+export type BlindLeaveChatErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindLeaveChatError = BlindLeaveChatErrors[keyof BlindLeaveChatErrors];
+
+export type BlindLeaveChatResponses = {
+    /**
+     * Left.
+     */
+    200: BlindOk;
+};
+
+export type BlindLeaveChatResponse = BlindLeaveChatResponses[keyof BlindLeaveChatResponses];
+
+export type BlindGuessData = {
+    body: BlindGuessRequest;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/blind/chats/{id}/guess';
+};
+
+export type BlindGuessErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGuessError = BlindGuessErrors[keyof BlindGuessErrors];
+
+export type BlindGuessResponses = {
+    /**
+     * Saved.
+     */
+    200: BlindOk;
+};
+
+export type BlindGuessResponse = BlindGuessResponses[keyof BlindGuessResponses];
+
+export type BlindBlockData = {
+    body?: never;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/blind/chats/{id}/block';
+};
+
+export type BlindBlockErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindBlockError = BlindBlockErrors[keyof BlindBlockErrors];
+
+export type BlindBlockResponses = {
+    /**
+     * Blocked.
+     */
+    200: BlindOk;
+};
+
+export type BlindBlockResponse = BlindBlockResponses[keyof BlindBlockResponses];
+
+export type BlindReportData = {
+    body: BlindReportRequest;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/blind/chats/{id}/report';
+};
+
+export type BlindReportErrors = {
+    /**
+     * The request doesn't match the contract (`bad_request`, with `issues`).
+     */
+    400: Error;
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Too many requests (`rate_limited`).
+     */
+    429: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindReportError = BlindReportErrors[keyof BlindReportErrors];
+
+export type BlindReportResponses = {
+    /**
+     * Reported and blocked.
+     */
+    200: BlindOk;
+};
+
+export type BlindReportResponse = BlindReportResponses[keyof BlindReportResponses];
+
+export type BlindGetPartnerPhotoData = {
+    body?: never;
+    path: {
+        /**
+         * A blind chat ID. Never a user ID.
+         */
+        id: string;
+        /**
+         * 0-based index into the partner's approved photos.
+         */
+        n: number;
+    };
+    query: {
+        /**
+         * When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+         */
+        exp: number;
+        /**
+         * base64url HMAC-SHA256 (CARD_URL_SECRET) over the chat, n, the viewer and `exp`.
+         */
+        sig: string;
+    };
+    url: '/api/blind/chats/{id}/photos/{n}';
+};
+
+export type BlindGetPartnerPhotoErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindGetPartnerPhotoError = BlindGetPartnerPhotoErrors[keyof BlindGetPartnerPhotoErrors];
+
+export type BlindGetPartnerPhotoResponses = {
+    /**
+     * A JPEG with no metadata, never cached.
+     */
+    200: string;
+};
+
+export type BlindGetPartnerPhotoResponse = BlindGetPartnerPhotoResponses[keyof BlindGetPartnerPhotoResponses];
+
+export type BlindAdminDropData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/blind/drop';
+};
+
+export type BlindAdminDropErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * It doesn't exist, or the caller isn't allowed to see it (`not_found`, P11).
+     */
+    404: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindAdminDropError = BlindAdminDropErrors[keyof BlindAdminDropErrors];
+
+export type BlindAdminDropResponses = {
+    /**
+     * How many chats opened, across everyone.
+     */
+    200: BlindDropAllResult;
+};
+
+export type BlindAdminDropResponse = BlindAdminDropResponses[keyof BlindAdminDropResponses];
+
+export type BlindCronDropData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/cron/blind-drop';
+};
+
+export type BlindCronDropErrors = {
+    /**
+     * Missing, expired or invalid token (`unauthorized`).
+     */
+    401: Error;
+    /**
+     * Anything else: `internal` (500), `not_implemented` (501, endpoint stubs) or `unsupported_media_type` (415).
+     */
+    default: Error;
+};
+
+export type BlindCronDropError = BlindCronDropErrors[keyof BlindCronDropErrors];
+
+export type BlindCronDropResponses = {
+    /**
+     * How many chats opened.
+     */
+    200: BlindDropAllResult;
+};
+
+export type BlindCronDropResponse = BlindCronDropResponses[keyof BlindCronDropResponses];
 
 export type GetAppSiteAssociationData = {
     body?: never;
