@@ -44,6 +44,13 @@ public struct BlindDropView: View {
                 model = BlindDropModel(service: dependencies.blindService(override: override), analytics: dependencies.analytics)
             }
             await model?.load()
+            #if DEBUG
+                // `-GlowDebugBlindAutoOpen YES` presses Open my drop by itself, for screenshots.
+                if UserDefaults.standard.bool(forKey: "GlowDebugBlindAutoOpen"), model?.status?.canDrop == true {
+                    try? await Task.sleep(for: .seconds(1))
+                    await model?.open()
+                }
+            #endif
         }
     }
 

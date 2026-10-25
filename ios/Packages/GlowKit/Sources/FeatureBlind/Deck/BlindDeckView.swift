@@ -87,6 +87,8 @@ struct BlindDeckView: View {
                         navigate(.blindDrop)
                     } label: {
                         Label("Open your drop", systemImage: "sparkles")
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     .buttonStyle(.glow(.primary, size: .compact))
                     .accessibilityIdentifier("blind.deck.openDrop")

@@ -13,6 +13,15 @@ final class BlindTabState {
 
     static let shared = BlindTabState()
     var section: Section = .swipe
+
+    init() {
+        #if DEBUG
+            // `-GlowDebugBlindSection chats` opens the Blind tab on the chats (screenshots, UI tests).
+            if let value = UserDefaults.standard.string(forKey: "GlowDebugBlindSection"), let section = Section(rawValue: value) {
+                self.section = section
+            }
+        #endif
+    }
 }
 
 /// Membership and the deck, kept for as long as the Blind tab lives.
