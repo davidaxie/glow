@@ -4,10 +4,8 @@
 // generated contract types. Talks to the local server and the local Supabase only, and refuses
 // anything else, because it creates test people and reads keys from server/.env.local.
 //
-// Where an owner's route isn't on main yet (it answers 501), a few setup steps fall back to the
-// local Supabase with the service role key, so B can still be played end to end. Each fallback
-// says so on stderr, and goes away by itself when the route ships. The steps a journey actually
-// tests (join, check in, deck, tap, choose, glow, chat, block) never fall back.
+// Every step goes through the API, test sign-in and onboarding included (B1's routes). The
+// service role key is only used to end a check-in early for the expiry journey (harness.ts).
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -55,6 +53,9 @@ export const DEMO_ROOM = {
 } as const;
 
 export const DEFAULT_PHOTO = join(ROOT, 'ios/fixtures/photos/outfit-real-blue-flightsuit.jpg');
+
+/** A profile photo: B1's route wants a 4:5 crop (cut from the outfit-real fixtures). */
+export const DEFAULT_PROFILE_PHOTO = join(ROOT, 'scripts/e2e/fixtures/profile-b.jpg');
 
 // ---------------------------------------------------------------------------------- environment
 
@@ -351,7 +352,7 @@ export function freshEmail(prefix: string): string {
   return `${prefix.toLowerCase().replace(/[^a-z0-9.+-]/g, '')}-${suffix}@glow.test`;
 }
 
-/** Signs in with B1's test sign-in, or, until it ships, the same way it does (local Supabase). */
+/** Signs in with B1's test sign-in: `POST /api/dev/test-login` (local servers with ALLOW_TEST_LOGIN). */
 export async function signIn(env: Env, email: string): Promise<Session> {
   if (!email.endsWith('@glow.test'))
     throw new Error('test sign-in takes @glow.test addresses only');
@@ -360,59 +361,16 @@ export async function signIn(env: Env, email: string): Promise<Session> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email }),
   });
-  if (res.ok) {
-    const session = (await res.json()) as TestSession;
-    return { accessToken: session.accessToken, userId: session.userId, email };
-  }
-  if (res.status !== 501) {
+  if (!res.ok) {
     throw new ApiError(
       'testLogin',
       res.status,
       undefined,
-      'is ALLOW_TEST_LOGIN on? pnpm env:setup --force --test-login',
+      'is ALLOW_TEST_LOGIN on? pnpm env:setup --force --test-login, then restart the server',
     );
   }
-  note(
-    'POST /api/dev/test-login is still a stub (B1): signing in through the local Supabase instead',
-  );
-  return signInWithSupabase(env, email);
-}
-
-async function signInWithSupabase(env: Env, email: string): Promise<Session> {
-  const { supabaseUrl, anonKey, serviceKey } = requireSupabase(env);
-  const admin = {
-    apikey: serviceKey,
-    authorization: `Bearer ${serviceKey}`,
-    'content-type': 'application/json',
-  };
-  // Make the person if they're new (an existing address answers 422, which is fine).
-  await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-    method: 'POST',
-    headers: admin,
-    body: JSON.stringify({ email, email_confirm: true, user_metadata: { test_data: true } }),
-  });
-  const link = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
-    method: 'POST',
-    headers: admin,
-    body: JSON.stringify({ type: 'magiclink', email }),
-  });
-  const linked = (await link.json()) as {
-    hashed_token?: string;
-    properties?: { hashed_token?: string };
-  };
-  const tokenHash = linked.hashed_token ?? linked.properties?.hashed_token;
-  if (!link.ok || !tokenHash)
-    throw new Error(`could not make a sign-in link for ${email} (${link.status})`);
-  const verify = await fetch(`${supabaseUrl}/auth/v1/verify`, {
-    method: 'POST',
-    headers: { apikey: anonKey, 'content-type': 'application/json' },
-    body: JSON.stringify({ type: 'magiclink', token_hash: tokenHash }),
-  });
-  const session = (await verify.json()) as { access_token?: string; user?: { id?: string } };
-  if (!verify.ok || !session.access_token || !session.user?.id) {
-    throw new Error(`could not sign in ${email} (${verify.status})`);
-  }
-  return { accessToken: session.access_token, userId: session.user.id, email };
+  const session = (await res.json()) as TestSession;
+  return { accessToken: session.accessToken, userId: session.userId, email };
 }
 
 function requireSupabase(env: Env): Required<Pick<Env, 'supabaseUrl' | 'anonKey' | 'serviceKey'>> {
@@ -455,12 +413,13 @@ export type ProfileInput = {
   gender: 'woman' | 'man' | 'nonbinary';
   showMe: Array<'woman' | 'man' | 'nonbinary'>;
   birthdate?: string;
-  photo?: string;
+  /** A 4:5 JPEG for the profile (default scripts/e2e/fixtures/profile-b.jpg). */
+  profilePhoto?: string;
 };
 
 /**
  * Signs in a test person and finishes their onboarding through B1's routes: profile, one
- * profile photo, complete. Until those ship, it writes the same profile with the service role.
+ * profile photo, complete.
  */
 export async function onboardedPerson(
   env: Env,
@@ -474,24 +433,10 @@ export async function onboardedPerson(
     gender: input.gender,
     showMe: input.showMe,
   };
-  try {
-    await person.call('updateProfile', 'PUT', '/api/me/profile', profile);
-    const photo = readFileSync(input.photo ?? DEFAULT_PHOTO).toString('base64');
-    await person.call('addProfilePhoto', 'POST', '/api/me/photos', { position: 0, photo });
-    await person.call('completeOnboarding', 'POST', '/api/me/onboarding/complete');
-  } catch (error) {
-    if (!(error instanceof ApiError && error.isStub)) throw error;
-    note(
-      `${error.operation} is still a stub (B1): writing the profile with the service role instead`,
-    );
-    await serviceRest(env, 'PATCH', `profiles?id=eq.${person.userId}`, {
-      first_name: profile.firstName,
-      birthdate: profile.birthdate,
-      gender: profile.gender,
-      show_me: profile.showMe,
-      onboarding_step: 'complete',
-    });
-  }
+  await person.call('updateProfile', 'PUT', '/api/me/profile', profile);
+  const photo = readFileSync(input.profilePhoto ?? DEFAULT_PROFILE_PHOTO).toString('base64');
+  await person.call('addProfilePhoto', 'POST', '/api/me/photos', { position: 0, photo });
+  await person.call('completeOnboarding', 'POST', '/api/me/onboarding/complete');
   return person;
 }
 

@@ -191,7 +191,12 @@ async function main(): Promise<number> {
         .flatMap((g) => genders.filter((x) => x === g.trim()));
       if (!rest[0] || !gender || showMe.length === 0) break;
       const email = freshEmail(rest[0]);
-      const person = await onboardedPerson(env, email, { firstName: values.name, gender, showMe });
+      const person = await onboardedPerson(env, email, {
+        firstName: values.name,
+        gender,
+        showMe,
+        profilePhoto: join(ROOT, 'scripts/e2e/fixtures/profile-a.jpg'),
+      });
       out({
         email,
         userId: person.userId,
