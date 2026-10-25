@@ -19,7 +19,7 @@ struct ProfileStepView: View {
             if gateClosed || form.phase == .underAge {
                 UnderAgeView()
             } else {
-                OnboardingScreen {
+                OnboardingScreen(identifier: "onboarding.profile") {
                     VStack(alignment: .leading, spacing: GlowSpacing.lg) {
                         GlowStepHeader(
                             step: 1,
@@ -44,7 +44,6 @@ struct ProfileStepView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("onboarding.profile")
         .task {
             // Coming back to a half-filled profile: start from what was saved.
             if form.trimmedName.isEmpty, let saved = await dependencies.session.currentProfile()?.profile {
@@ -272,7 +271,7 @@ struct UnderAgeView: View {
     @State private var isSigningOut = false
 
     var body: some View {
-        OnboardingScreen {
+        OnboardingScreen(identifier: "onboarding.underAge") {
             UnderAgeContent()
         } actions: {
             Button("Sign out") {
@@ -287,7 +286,6 @@ struct UnderAgeView: View {
             .accessibilityIdentifier("underAge.signOut")
         }
         .navigationBarBackButtonHidden()
-        .accessibilityIdentifier("onboarding.underAge")
     }
 }
 

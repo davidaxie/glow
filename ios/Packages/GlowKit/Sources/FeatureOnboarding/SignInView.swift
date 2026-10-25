@@ -14,7 +14,7 @@ struct SignInView: View {
     @State private var error: SessionError?
 
     var body: some View {
-        OnboardingScreen {
+        OnboardingScreen(identifier: "onboarding.signIn") {
             SignInContent(error: error)
         } actions: {
             SignInWithAppleButton(.continue) { request in
@@ -42,7 +42,6 @@ struct SignInView: View {
         }
         .glowLoading(isSigningIn)
         .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("onboarding.signIn")
     }
 
     private func finishApple(_ result: Result<ASAuthorization, any Error>) async {

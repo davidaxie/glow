@@ -6,7 +6,7 @@ struct WelcomeView: View {
     let getStarted: () -> Void
 
     var body: some View {
-        OnboardingScreen {
+        OnboardingScreen(identifier: "onboarding.welcome") {
             WelcomeContent()
         } actions: {
             Button("Get started", action: getStarted)
@@ -19,7 +19,6 @@ struct WelcomeView: View {
                 .multilineTextAlignment(.center)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .accessibilityIdentifier("onboarding.welcome")
     }
 }
 

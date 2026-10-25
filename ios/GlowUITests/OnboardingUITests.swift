@@ -11,6 +11,16 @@ final class OnboardingUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Saves a screenshot of the whole device as `b1-<name>.png` in `TEST_RUNNER_GLOW_SHOTS_DIR`
+    /// (docs/shots for the PR's proof). Does nothing without it.
+    @MainActor
+    private func shot(_ name: String) {
+        guard let dir = ProcessInfo.processInfo.environment["GLOW_SHOTS_DIR"] else { return }
+        Thread.sleep(forTimeInterval: 0.6) // let animations settle
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("b1-\(name).png"))
+    }
+
     /// Today minus 17 years, as `YYYY-MM-DD`.
     private var seventeenYearsAgo: String {
         let date = Calendar(identifier: .gregorian).date(byAdding: .year, value: -17, to: .now) ?? .now
@@ -21,10 +31,14 @@ final class OnboardingUITests: XCTestCase {
     private func fillProfile(_ app: XCUIApplication, name: String) {
         let field = app.textFields["profile.firstName"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
+        shot("profile-empty")
         field.tap()
-        field.typeText(name)
+        field.typeText(name + "\n") // Done: closes the keyboard so the taps below land
         app.buttons["profile.gender.woman"].tap()
+        XCTAssertTrue(app.buttons["profile.gender.woman"].isSelected)
         app.buttons["profile.showMe.man"].tap()
+        XCTAssertTrue(app.buttons["profile.continue"].waitForExistence(timeout: 5))
+        shot("profile-filled")
         app.buttons["profile.continue"].tap()
     }
 
@@ -44,6 +58,7 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["onboarding.underAge"].waitForExistence(timeout: 5)
             || app.staticTexts["Glow is for adults"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Glow is for adults"].exists)
+        shot("under-18")
         XCTAssertTrue(app.buttons["underAge.signOut"].exists)
         XCTAssertFalse(app.buttons["profile.continue"].exists)
 
@@ -61,6 +76,24 @@ final class OnboardingUITests: XCTestCase {
         reset.launchArguments += ["-GlowPreviewSession", "onboarding", "-GlowResetAgeGate", "YES"]
         reset.launch()
         XCTAssertTrue(reset.textFields["profile.firstName"].waitForExistence(timeout: 10))
+    }
+
+    /// The welcome and profile screens at the largest accessibility text size (no backend).
+    @MainActor
+    func testLargestTextScreens() {
+        guard ProcessInfo.processInfo.environment["GLOW_SHOTS_DIR"] != nil else { return }
+        for (session, name) in [("signedOut", "welcome-largest-text"), ("onboarding", "profile-largest-text")] {
+            let app = XCUIApplication()
+            app.launchArguments += [
+                "-GlowPreviewSession", session,
+                "-GlowResetAgeGate", "YES",
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            ]
+            app.launch()
+            XCTAssertTrue(app.staticTexts.firstMatch.waitForExistence(timeout: 10))
+            shot(name)
+            app.terminate()
+        }
     }
 
     /// A fresh test person signs in with the Debug test sign-in and reaches the tabs:
@@ -91,26 +124,51 @@ final class OnboardingUITests: XCTestCase {
     private func finishPhotosAndNotifications(_ app: XCUIApplication) throws {
         let slot = app.buttons["photos.slot.0"]
         XCTAssertTrue(slot.waitForExistence(timeout: 15))
+        shot("photos-empty")
         slot.tap()
         // The system photo picker: take the first photo in the library.
-        let photo = app.scrollViews.otherElements.images.firstMatch
+        // (Its thumbnails are the images with this identifier; the app's own tiles are images too.)
+        let photo = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
         if !photo.waitForExistence(timeout: 10) {
             throw XCTSkip("The Simulator's photo library is empty (scripts/sim.sh photos A).")
         }
-        photo.tap()
+        // The picker animates in and lives in another process, where isHittable is unreliable:
+        // wait a moment, then tap the middle of the thumbnail by coordinate.
+        Thread.sleep(forTimeInterval: 1.5)
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
         let next = app.buttons["photos.continue"]
         XCTAssertTrue(next.waitForExistence(timeout: 10))
         let enabled = NSPredicate(format: "isEnabled == true")
         expectation(for: enabled, evaluatedWith: next)
         waitForExpectations(timeout: 20)
+        shot("photos-added")
         next.tap()
 
         let notNow = app.buttons["notifications.skip"]
         XCTAssertTrue(notNow.waitForExistence(timeout: 15))
+        shot("notifications")
         notNow.tap()
 
         XCTAssertTrue(app.tabBars.buttons["Rooms"].waitForExistence(timeout: 15))
+        shot("tabs")
+        captureSettings(app)
+    }
+
+    /// Settings, Edit profile and Edit photos, for the PR's proof.
+    @MainActor
+    private func captureSettings(_ app: XCUIApplication) {
+        guard ProcessInfo.processInfo.environment["GLOW_SHOTS_DIR"] != nil else { return }
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["settings.editProfile"].waitForExistence(timeout: 10))
+        shot("settings")
+        app.buttons["settings.editProfile"].tap()
+        XCTAssertTrue(app.textFields["editProfile.firstName"].waitForExistence(timeout: 10))
+        shot("edit-profile")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["settings.editPhotos"].tap()
+        XCTAssertTrue(app.buttons["editPhotos.slot.0"].waitForExistence(timeout: 10))
+        shot("edit-photos")
     }
 
     /// A fresh install signs in with the 6-digit email code and reaches the tabs. Reads the code
@@ -132,17 +190,22 @@ final class OnboardingUITests: XCTestCase {
 
         let getStarted = app.buttons["onboarding.getStarted"]
         XCTAssertTrue(getStarted.waitForExistence(timeout: 15))
+        shot("welcome")
         getStarted.tap()
+        XCTAssertTrue(app.buttons["signIn.email"].waitForExistence(timeout: 5))
+        shot("sign-in")
         app.buttons["signIn.email"].tap()
         let field = app.textFields["email.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
         field.typeText(email)
+        shot("email")
         app.buttons["email.send"].tap()
 
         let code = try XCTUnwrap(waitForCode(to: email, mailpit: mailpit), "No code arrived in Mailpit")
         let codeField = app.textFields.firstMatch
         XCTAssertTrue(codeField.waitForExistence(timeout: 10))
+        shot("code")
         codeField.tap()
         codeField.typeText(code) // six digits sign in at once
 

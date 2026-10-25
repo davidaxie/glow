@@ -14,7 +14,7 @@ struct EmailEntryView: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        OnboardingScreen {
+        OnboardingScreen(identifier: "onboarding.email") {
             EmailEntryContent(email: $email, error: error, focused: $focused, submit: send)
         } actions: {
             Button("Send code", action: send)
@@ -25,7 +25,6 @@ struct EmailEntryView: View {
         .glowLoading(isSending)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { focused = true }
-        .accessibilityIdentifier("onboarding.email")
     }
 
     private func send() {
@@ -92,7 +91,7 @@ struct CodeEntryView: View {
     @State private var resent = false
 
     var body: some View {
-        OnboardingScreen {
+        OnboardingScreen(identifier: "onboarding.code") {
             // A code from the keyboard's suggestion or a paste signs in at once.
             CodeEntryContent(email: email, code: $code, error: error, resent: resent) { _ in verify() }
         } actions: {
@@ -111,7 +110,6 @@ struct CodeEntryView: View {
         }
         .glowLoading(isWorking)
         .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("onboarding.code")
     }
 
     private func verify() {

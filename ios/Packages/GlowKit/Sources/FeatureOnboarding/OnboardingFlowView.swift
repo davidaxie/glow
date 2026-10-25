@@ -67,7 +67,11 @@ struct SignedOutFlow: View {
 
 /// The onboarding screen layout: a scrolling column of content, with the screen's actions
 /// pinned at the bottom, above the keyboard.
+///
+/// `identifier` goes on the scroll view only: an identifier on a container overrides the
+/// identifiers of the buttons pinned below it, and UI tests need those.
 struct OnboardingScreen<Content: View, Actions: View>: View {
+    let identifier: String
     @ViewBuilder var content: Content
     @ViewBuilder var actions: Actions
 
@@ -80,6 +84,7 @@ struct OnboardingScreen<Content: View, Actions: View>: View {
                 .padding(.bottom, GlowSpacing.xl)
         }
         .scrollDismissesKeyboard(.interactively)
+        .accessibilityIdentifier(identifier)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: GlowSpacing.xs) {
                 actions

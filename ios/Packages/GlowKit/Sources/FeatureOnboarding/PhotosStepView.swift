@@ -17,7 +17,7 @@ struct PhotosStepView: View {
     }
 
     var body: some View {
-        OnboardingScreen {
+        OnboardingScreen(identifier: "onboarding.photos") {
             PhotosStepContent(slots: slots) { data, position in
                 await slots.add(data, at: position, using: client)
             } remove: { position in
@@ -33,7 +33,6 @@ struct PhotosStepView: View {
         }
         .glowLoading(isContinuing)
         .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("onboarding.photos")
         .task {
             if let photos = await dependencies.session.currentProfile()?.photos {
                 slots.show(photos)

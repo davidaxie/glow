@@ -12,7 +12,7 @@ struct NotificationsStepView: View {
     @State private var error: ProfileError?
 
     var body: some View {
-        OnboardingScreen {
+        OnboardingScreen(identifier: "onboarding.notifications") {
             NotificationsStepContent(error: error)
         } actions: {
             Button("Turn on notifications") {
@@ -28,7 +28,6 @@ struct NotificationsStepView: View {
         }
         .glowLoading(isFinishing)
         .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("onboarding.notifications")
     }
 
     private func finish(askForPermission: Bool) async {
