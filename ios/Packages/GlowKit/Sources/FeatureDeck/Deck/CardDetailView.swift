@@ -292,7 +292,7 @@ struct TapConfirmPanel: View {
                     topTrailingRadius: DeckLight.sheetRadius + 8,
                     style: .continuous,
                 )
-                .fill(Color.glowSurface.opacity(0.85)),
+                .fill(Color.glowSurface.opacity(0.98)),
             )
             .overlay(alignment: .top) {
                 UnevenRoundedRectangle(
