@@ -4,7 +4,13 @@
  * user IDs only where the server needs them to act; nothing here is ever sent to a browser
  * as is. `views.ts` turns records into the contract's shapes.
  */
-import type { CardTags, ReportContext, ReportReason, ReportStatus, RoomStatus } from '@/contracts';
+import type {
+  AdminReportContext,
+  CardTags,
+  ReportReason,
+  ReportStatus,
+  RoomStatus,
+} from '@/contracts';
 
 export type SpotRecord = { readonly id: string; readonly name: string; readonly sort: number };
 
@@ -76,7 +82,7 @@ export type ReportRecord = {
   readonly reporterId: string;
   readonly reportedId: string;
   readonly roomId: string | null;
-  readonly context: ReportContext;
+  readonly context: AdminReportContext;
   readonly contextId: string;
   readonly reason: ReportReason;
   readonly details: string | null;

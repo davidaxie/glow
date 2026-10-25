@@ -79,6 +79,7 @@ Agents: A1 Integrator and repo, A2 Contracts and database, A3 iPhone app skeleto
 | --- | --- | --- |
 | `contracts/` (`openapi.yaml`, `events.json`, `constants.json`) | A2 | After Checkpoint 1, only through a `contract-change` PR that A1 approves |
 | `supabase/` (`config.toml`, `migrations/`, `tests/`, `seed.sql`) | A2 | |
+| `supabase/migrations/01*_x1_blind_*.sql`, `supabase/tests/database/blind_*.test.sql`, `scripts/seed-blind.ts` | X1 | Blind mode tables, functions, pgTAP and demo seed |
 | `supabase/migrations/NNNN_b4_*.sql` | B4 | New deck and tap tuning migrations. Any other agent who needs a migration asks A2, then names it `NNNN_{agent id}_{what}.sql`. Never edit a merged migration. |
 
 ### Server (`server/`)
@@ -110,6 +111,7 @@ Agents: A1 Integrator and repo, A2 Contracts and database, A3 iPhone app skeleto
 | `server/tests/security/` | D2 | Fixes go through PRs to each owner |
 | `server/app/api/matches/[id]/ni-token/` | E1 | Wave 4 |
 | `server/app/api/badges/**`, `server/src/server/badges/` | E3 | Wave 4 |
+| `server/app/api/blind/**`, `server/app/api/admin/blind/**`, `server/app/api/cron/blind-drop/`, `server/src/server/blind/`, `server/tests/blind/` | X1 | Blind mode backend (docs/briefs/blind-mode.md) |
 
 ### iPhone app (`ios/`)
 
@@ -140,6 +142,7 @@ Module code lives in `ios/Packages/GlowKit/Sources/{Module}/` and its tests in `
 | `ios/GlowUITests/` | D1 | D1 may make small fixes anywhere through PRs labeled `integration`, telling the owner in `docs/HANDOFFS.md` |
 | `Localizable.xcstrings` in every module | D4 | Accessibility fixes go through PRs to each owner |
 | Proximity | E2 | Wave 4. The `nearbyOnly` deck filter is a contract change. |
+| FeatureBlind, `AppCore/Services/BlindService.swift`, `AppCore/Mocks/PreviewBlindService.swift` | X2 | Blind mode in the app (docs/briefs/blind-mode.md) |
 
 ## Commands
 

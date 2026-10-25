@@ -52,6 +52,304 @@ isOneToOne: true
       referencedColumns: ["id"]
     }
                   ]
+                },"blind_cards": {
+                  Row: {
+                    "card_id": string,"created_at": string,"target_id": string,"viewer_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "card_id"?: string,"created_at"?: string,"target_id": string,"viewer_id": string
+                  }
+                  Update: {
+                    "card_id"?: string,"created_at"?: string,"target_id"?: string,"viewer_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_cards_target_id_fkey"
+      columns: ["target_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_cards_viewer_id_fkey"
+      columns: ["viewer_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_chat_exits": {
+                  Row: {
+                    "chat_id": string,"created_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "chat_id": string,"created_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "chat_id"?: string,"created_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_chat_exits_chat_id_fkey"
+      columns: ["chat_id"]
+isOneToOne: false
+      referencedRelation: "blind_chats"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_chat_exits_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_chats": {
+                  Row: {
+                    "codename_a": string,"codename_b": string,"guess_a": string | null,"guess_b": string | null,"id": string,"left_by": string | null,"opened_at": string,"read_a": number,"read_b": number,"reveal_a": boolean,"reveal_b": boolean,"revealed_at": string | null,"status": string,"user_a": string,"user_b": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "codename_a": string,"codename_b": string,"guess_a"?: string | null,"guess_b"?: string | null,"id"?: string,"left_by"?: string | null,"opened_at"?: string,"read_a"?: number,"read_b"?: number,"reveal_a"?: boolean,"reveal_b"?: boolean,"revealed_at"?: string | null,"status"?: string,"user_a": string,"user_b": string
+                  }
+                  Update: {
+                    "codename_a"?: string,"codename_b"?: string,"guess_a"?: string | null,"guess_b"?: string | null,"id"?: string,"left_by"?: string | null,"opened_at"?: string,"read_a"?: number,"read_b"?: number,"reveal_a"?: boolean,"reveal_b"?: boolean,"revealed_at"?: string | null,"status"?: string,"user_a"?: string,"user_b"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_chats_codename_a_fkey"
+      columns: ["codename_a"]
+isOneToOne: false
+      referencedRelation: "blind_codenames"
+      referencedColumns: ["name"]
+    },{
+      foreignKeyName: "blind_chats_codename_b_fkey"
+      columns: ["codename_b"]
+isOneToOne: false
+      referencedRelation: "blind_codenames"
+      referencedColumns: ["name"]
+    },{
+      foreignKeyName: "blind_chats_guess_a_fkey"
+      columns: ["guess_a"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_chats_guess_b_fkey"
+      columns: ["guess_b"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_chats_left_by_fkey"
+      columns: ["left_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_chats_user_a_fkey"
+      columns: ["user_a"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_chats_user_b_fkey"
+      columns: ["user_b"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_codename_uses": {
+                  Row: {
+                    "chat_id": string,"codename": string,"kind": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "chat_id": string,"codename": string,"kind": string,"user_id": string
+                  }
+                  Update: {
+                    "chat_id"?: string,"codename"?: string,"kind"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_codename_uses_chat_id_fkey"
+      columns: ["chat_id"]
+isOneToOne: false
+      referencedRelation: "blind_chats"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_codename_uses_codename_fkey"
+      columns: ["codename"]
+isOneToOne: false
+      referencedRelation: "blind_codenames"
+      referencedColumns: ["name"]
+    },{
+      foreignKeyName: "blind_codename_uses_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_codenames": {
+                  Row: {
+                    "name": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "name": string
+                  }
+                  Update: {
+                    "name"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"blind_drop_seen": {
+                  Row: {
+                    "chat_id": string,"seen_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "chat_id": string,"seen_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "chat_id"?: string,"seen_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_drop_seen_chat_id_fkey"
+      columns: ["chat_id"]
+isOneToOne: false
+      referencedRelation: "blind_chats"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_drop_seen_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_drops": {
+                  Row: {
+                    "created_at": string,"id": number,"opened_count": number,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: never,"opened_count": number,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: never,"opened_count"?: number,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_drops_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_matches": {
+                  Row: {
+                    "chat_id": string | null,"created_at": string,"id": string,"user_a": string,"user_b": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "chat_id"?: string | null,"created_at"?: string,"id"?: string,"user_a": string,"user_b": string
+                  }
+                  Update: {
+                    "chat_id"?: string | null,"created_at"?: string,"id"?: string,"user_a"?: string,"user_b"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_matches_chat_id_fkey"
+      columns: ["chat_id"]
+isOneToOne: true
+      referencedRelation: "blind_chats"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_matches_user_a_fkey"
+      columns: ["user_a"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_matches_user_b_fkey"
+      columns: ["user_b"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_members": {
+                  Row: {
+                    "joined_at": string,"paused": boolean,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "joined_at"?: string,"paused"?: boolean,"user_id": string
+                  }
+                  Update: {
+                    "joined_at"?: string,"paused"?: boolean,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_members_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: true
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_messages": {
+                  Row: {
+                    "body": string,"chat_id": string,"created_at": string,"id": number,"side": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "body": string,"chat_id": string,"created_at"?: string,"id"?: never,"side": string
+                  }
+                  Update: {
+                    "body"?: string,"chat_id"?: string,"created_at"?: string,"id"?: never,"side"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_messages_chat_id_fkey"
+      columns: ["chat_id"]
+isOneToOne: false
+      referencedRelation: "blind_chats"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"blind_swipes": {
+                  Row: {
+                    "created_at": string,"kind": string,"swiper_id": string,"target_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"kind": string,"swiper_id": string,"target_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"kind"?: string,"swiper_id"?: string,"target_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "blind_swipes_swiper_id_fkey"
+      columns: ["swiper_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "blind_swipes_target_id_fkey"
+      columns: ["target_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"blocks": {
                   Row: {
                     "blocked_id": string,"blocker_id": string,"created_at": string
@@ -462,7 +760,70 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "block_user":
+            "blind_block":
+{ Args: { "p_chat_id": string,"p_user_id": string }; Returns: Json
+                           },
+"blind_card_photo_path":
+{ Args: { "p_card_id": string,"p_viewer_id": string }; Returns: string
+                           },
+"blind_chat_list":
+{ Args: { "p_user_id": string }; Returns: Json
+                           },
+"blind_deck":
+{ Args: { "p_limit"?: number,"p_viewer_id": string }; Returns: Json
+                           },
+"blind_drop_new_chats":
+{ Args: { "p_user_id": string }; Returns: Json
+                           },
+"blind_get_chat":
+{ Args: { "p_chat_id": string,"p_user_id": string }; Returns: Json
+                           },
+"blind_join":
+{ Args: { "p_user_id": string }; Returns: Json
+                           },
+"blind_leave":
+{ Args: { "p_user_id": string }; Returns: Json
+                           },
+"blind_leave_chat":
+{ Args: { "p_chat_id": string,"p_user_id": string }; Returns: Json
+                           },
+"blind_list_messages":
+{ Args: { "p_after"?: number,"p_chat_id": string,"p_limit"?: number,"p_user_id": string }; Returns: Json
+                           },
+"blind_me":
+{ Args: { "p_user_id": string }; Returns: Json
+                           },
+"blind_partner_photo_path":
+{ Args: { "p_chat_id": string,"p_n": number,"p_viewer_id": string }; Returns: string
+                           },
+"blind_pool":
+{ Args: { "p_user_id": string }; Returns: Json
+                           },
+"blind_pool_cards":
+{ Args: { "p_limit"?: number,"p_user_id": string }; Returns: Json
+                           },
+"blind_record_guess":
+{ Args: { "p_card_id": string,"p_chat_id": string,"p_user_id": string }; Returns: Json
+                           },
+"blind_record_swipe":
+{ Args: { "p_card_id": string,"p_kind": string,"p_swiper_id": string }; Returns: Json
+                           },
+"blind_report":
+{ Args: { "p_chat_id": string,"p_details": string,"p_reason"?: Database["public"]['Enums']["report_reason"],"p_user_id": string }; Returns: Json
+                           },
+"blind_run_drop":
+{ Args: { "p_cutoff"?: string,"p_user_id": string }; Returns: Json
+                           },
+"blind_run_drop_all":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"blind_send_message":
+{ Args: { "p_body": string,"p_chat_id": string,"p_user_id": string }; Returns: Json
+                           },
+"blind_tap_reveal":
+{ Args: { "p_chat_id": string,"p_user_id": string }; Returns: Json
+                           },
+"block_user":
 { Args: { "p_context": Database["public"]['Enums']["report_context"],"p_context_id": string,"p_user_id": string }; Returns: Json
                            },
 "cancel_glow":
@@ -524,7 +885,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "abuse_kind": "screenshot"|"recording","accuracy_bucket": "under_20m"|"under_50m"|"under_100m"|"under_500m"|"over_500m","apns_environment": "sandbox"|"production","card_extra": "glasses"|"hat"|"beard"|"headphones"|"backpack","gender": "woman"|"man"|"nonbinary","glow_color": "ember"|"rose"|"violet"|"sky"|"aqua"|"lime"|"sun"|"pearl","glow_status": "active"|"met"|"canceled"|"expired","hair_color": "black"|"brown"|"blonde"|"red"|"gray"|"dyed","hair_length": "short"|"medium"|"long","location_check_purpose": "join"|"find","location_check_result": "pass"|"fail"|"demo_skip","match_choice": "find"|"chat","match_status": "choosing"|"glowing"|"chatting"|"met"|"ended","message_moderation": "pending"|"passed"|"flagged","moderation_status": "pending"|"approved"|"held"|"rejected","onboarding_step": "profile"|"photos"|"notifications"|"complete","report_context": "card"|"match"|"chat","report_reason": "harassment"|"inappropriate_photo"|"underage"|"spam"|"unsafe"|"other","report_status": "open"|"dismissed"|"actioned","room_activity_kind": "checkin"|"card_view"|"tap"|"match"|"glow_started"|"glow_met"|"report","room_status": "live"|"paused"|"ended","top_color": "black"|"white"|"gray"|"red"|"pink"|"orange"|"yellow"|"green"|"blue"|"purple"
+            "abuse_kind": "screenshot"|"recording","accuracy_bucket": "under_20m"|"under_50m"|"under_100m"|"under_500m"|"over_500m","apns_environment": "sandbox"|"production","card_extra": "glasses"|"hat"|"beard"|"headphones"|"backpack","gender": "woman"|"man"|"nonbinary","glow_color": "ember"|"rose"|"violet"|"sky"|"aqua"|"lime"|"sun"|"pearl","glow_status": "active"|"met"|"canceled"|"expired","hair_color": "black"|"brown"|"blonde"|"red"|"gray"|"dyed","hair_length": "short"|"medium"|"long","location_check_purpose": "join"|"find","location_check_result": "pass"|"fail"|"demo_skip","match_choice": "find"|"chat","match_status": "choosing"|"glowing"|"chatting"|"met"|"ended","message_moderation": "pending"|"passed"|"flagged","moderation_status": "pending"|"approved"|"held"|"rejected","onboarding_step": "profile"|"photos"|"notifications"|"complete","report_context": "card"|"match"|"chat"|"blind_chat","report_reason": "harassment"|"inappropriate_photo"|"underage"|"spam"|"unsafe"|"other","report_status": "open"|"dismissed"|"actioned","room_activity_kind": "checkin"|"card_view"|"tap"|"match"|"glow_started"|"glow_met"|"report","room_status": "live"|"paused"|"ended","top_color": "black"|"white"|"gray"|"red"|"pink"|"orange"|"yellow"|"green"|"blue"|"purple"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -640,7 +1001,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "abuse_kind": ["screenshot", "recording"],"accuracy_bucket": ["under_20m", "under_50m", "under_100m", "under_500m", "over_500m"],"apns_environment": ["sandbox", "production"],"card_extra": ["glasses", "hat", "beard", "headphones", "backpack"],"gender": ["woman", "man", "nonbinary"],"glow_color": ["ember", "rose", "violet", "sky", "aqua", "lime", "sun", "pearl"],"glow_status": ["active", "met", "canceled", "expired"],"hair_color": ["black", "brown", "blonde", "red", "gray", "dyed"],"hair_length": ["short", "medium", "long"],"location_check_purpose": ["join", "find"],"location_check_result": ["pass", "fail", "demo_skip"],"match_choice": ["find", "chat"],"match_status": ["choosing", "glowing", "chatting", "met", "ended"],"message_moderation": ["pending", "passed", "flagged"],"moderation_status": ["pending", "approved", "held", "rejected"],"onboarding_step": ["profile", "photos", "notifications", "complete"],"report_context": ["card", "match", "chat"],"report_reason": ["harassment", "inappropriate_photo", "underage", "spam", "unsafe", "other"],"report_status": ["open", "dismissed", "actioned"],"room_activity_kind": ["checkin", "card_view", "tap", "match", "glow_started", "glow_met", "report"],"room_status": ["live", "paused", "ended"],"top_color": ["black", "white", "gray", "red", "pink", "orange", "yellow", "green", "blue", "purple"]
+            "abuse_kind": ["screenshot", "recording"],"accuracy_bucket": ["under_20m", "under_50m", "under_100m", "under_500m", "over_500m"],"apns_environment": ["sandbox", "production"],"card_extra": ["glasses", "hat", "beard", "headphones", "backpack"],"gender": ["woman", "man", "nonbinary"],"glow_color": ["ember", "rose", "violet", "sky", "aqua", "lime", "sun", "pearl"],"glow_status": ["active", "met", "canceled", "expired"],"hair_color": ["black", "brown", "blonde", "red", "gray", "dyed"],"hair_length": ["short", "medium", "long"],"location_check_purpose": ["join", "find"],"location_check_result": ["pass", "fail", "demo_skip"],"match_choice": ["find", "chat"],"match_status": ["choosing", "glowing", "chatting", "met", "ended"],"message_moderation": ["pending", "passed", "flagged"],"moderation_status": ["pending", "approved", "held", "rejected"],"onboarding_step": ["profile", "photos", "notifications", "complete"],"report_context": ["card", "match", "chat", "blind_chat"],"report_reason": ["harassment", "inappropriate_photo", "underage", "spam", "unsafe", "other"],"report_status": ["open", "dismissed", "actioned"],"room_activity_kind": ["checkin", "card_view", "tap", "match", "glow_started", "glow_met", "report"],"room_status": ["live", "paused", "ended"],"top_color": ["black", "white", "gray", "red", "pink", "orange", "yellow", "green", "blue", "purple"]
           }
         }
 } as const

@@ -11,7 +11,7 @@ export const zErrorIssue = z.object({
 /**
  * 400 bad_request · 401 unauthorized · 404 not_found (also for anything not allowed, P11) ·
  * 409 conflict, onboarding_incomplete, room_not_live, tap_limit_reached, chat_not_open,
- * last_photo, slug_taken · 413 payload_too_large · 415 unsupported_media_type ·
+ * last_photo, slug_taken, right_cap_reached, drop_not_ready, chat_closed · 413 payload_too_large · 415 unsupported_media_type ·
  * 422 under_18, not_in_room, location_inaccurate, location_required, join_ticket_invalid,
  * photo_rejected, message_rejected · 429 rate_limited · 500 internal ·
  * 501 not_implemented · 503 unavailable. There is never a 403.
@@ -28,6 +28,9 @@ export const zErrorCode = z.enum([
     'chat_not_open',
     'last_photo',
     'slug_taken',
+    'right_cap_reached',
+    'drop_not_ready',
+    'chat_closed',
     'payload_too_large',
     'unsupported_media_type',
     'under_18',
@@ -165,6 +168,18 @@ export const zReportContext = z.enum([
     'card',
     'match',
     'chat'
+]);
+
+/**
+ * What a report's ID points at, as admins see it: ReportContext plus `blind_chat` (a Blind
+ * mode chat ID, for reports made from a blind chat).
+ *
+ */
+export const zAdminReportContext = z.enum([
+    'card',
+    'match',
+    'chat',
+    'blind_chat'
 ]);
 
 export const zReportReason = z.enum([
@@ -640,7 +655,7 @@ export const zAdminReportEvidence = z.object({
 
 export const zAdminReport = z.object({
     id: z.uuid(),
-    context: zReportContext,
+    context: zAdminReportContext,
     contextId: z.uuid(),
     reason: zReportReason,
     details: z.string().optional(),
@@ -694,6 +709,177 @@ export const zAppleAppSiteAssociation = z.object({
             }))
         }))
     })
+});
+
+/**
+ * pass is a left swipe; like and love are right swipes (love is a stronger like).
+ */
+export const zBlindSwipeKind = z.enum([
+    'pass',
+    'like',
+    'love'
+]);
+
+/**
+ * open until both tap Reveal (then revealed), or left once either person left or blocked.
+ */
+export const zBlindChatStatus = z.enum([
+    'open',
+    'left',
+    'revealed'
+]);
+
+export const zBlindMe = z.object({
+    member: z.boolean(),
+    hasPhoto: z.boolean(),
+    rightRemaining: z.int().gte(0).lte(20),
+    rightCount: z.int().gte(0),
+    canDrop: z.boolean()
+});
+
+/**
+ * A photo-only card. No name, age or anything else.
+ */
+export const zBlindCard = z.object({
+    id: z.uuid(),
+    photoUrl: z.string()
+});
+
+export const zBlindDeck = z.object({
+    cards: z.array(zBlindCard).max(200)
+});
+
+export const zBlindSwipeRequest = z.object({
+    targetId: z.uuid(),
+    kind: zBlindSwipeKind
+});
+
+/**
+ * Nothing about matches (B2).
+ */
+export const zBlindSwipeResult = z.object({
+    rightRemaining: z.int().gte(0).lte(20),
+    rightCount: z.int().gte(0)
+});
+
+export const zBlindPool = z.object({
+    rightCount: z.int().gte(0),
+    rightRemaining: z.int().gte(0).lte(20),
+    canDrop: z.boolean()
+});
+
+/**
+ * Nothing about waiting matches (B2).
+ */
+export const zBlindDropStatus = z.object({
+    ready: z.boolean(),
+    demo: z.boolean(),
+    nextDropAt: z.iso.datetime(),
+    rightCount: z.int().gte(0),
+    canDrop: z.boolean()
+});
+
+export const zBlindDropChat = z.object({
+    id: z.uuid(),
+    codename: z.string().min(1)
+});
+
+export const zBlindDropResult = z.object({
+    opened: z.int().gte(0),
+    chats: z.array(zBlindDropChat).max(5)
+});
+
+export const zBlindDropAllResult = z.object({
+    opened: z.int().gte(0)
+});
+
+export const zBlindLastMessage = z.object({
+    mine: z.boolean(),
+    text: z.string(),
+    at: z.iso.datetime()
+});
+
+export const zBlindChatSummary = z.object({
+    id: z.uuid(),
+    codename: z.string(),
+    status: zBlindChatStatus,
+    lastMessage: zBlindLastMessage.optional(),
+    unread: z.boolean()
+});
+
+export const zBlindChatList = z.object({
+    chats: z.array(zBlindChatSummary)
+});
+
+/**
+ * Only after both tapped Reveal (B1).
+ */
+export const zBlindPartner = z.object({
+    name: z.string(),
+    photos: z.array(z.string()).max(3)
+});
+
+/**
+ * `partner` is present only when status is revealed, and then always. `guessCorrect` only
+ * when revealed and I guessed. `theyLeft` only with status left.
+ *
+ */
+export const zBlindChat = z.object({
+    id: z.uuid(),
+    codename: z.string(),
+    status: zBlindChatStatus,
+    iTappedReveal: z.boolean(),
+    theyLeft: z.boolean(),
+    partner: zBlindPartner.optional(),
+    guessCorrect: z.boolean().optional()
+});
+
+/**
+ * A message as I see it, `mine` instead of a sender (B12).
+ */
+export const zBlindMessage = z.object({
+    id: z.int().gte(1),
+    mine: z.boolean(),
+    text: z.string(),
+    at: z.iso.datetime()
+});
+
+export const zBlindMessageList = z.object({
+    messages: z.array(zBlindMessage)
+});
+
+export const zBlindNewMessage = z.object({
+    text: z.string().min(1).max(1000),
+    confirm: z.boolean().optional()
+});
+
+export const zBlindWarning = z.object({
+    reason: z.string()
+});
+
+/**
+ * Exactly one of `message` (sent) or `warning` (held back, nothing sent).
+ */
+export const zBlindSendResult = z.object({
+    message: zBlindMessage.optional(),
+    warning: zBlindWarning.optional()
+});
+
+export const zBlindRevealResult = z.object({
+    status: zBlindChatStatus
+});
+
+export const zBlindOk = z.object({
+    ok: z.boolean()
+});
+
+export const zBlindGuessRequest = z.object({
+    guessId: z.uuid()
+});
+
+export const zBlindReportRequest = z.object({
+    reason: z.string().min(1).max(500),
+    category: zReportReason.optional()
 });
 
 export const zGlowEventType = z.enum([
@@ -782,6 +968,16 @@ export const zCardId = z.uuid();
 export const zPhotoId = z.uuid();
 
 export const zDeviceId = z.uuid();
+
+/**
+ * A blind chat ID. Never a user ID.
+ */
+export const zBlindChatId = z.uuid();
+
+/**
+ * An opaque Blind card ID, made for one viewer. Never a user ID.
+ */
+export const zBlindCardId = z.uuid();
 
 /**
  * Deleted.
@@ -1227,6 +1423,183 @@ export const zAdminReviewPhotoPath = z.object({
  * The photo after review.
  */
 export const zAdminReviewPhotoResponse = zAdminPhoto;
+
+/**
+ * My Blind state.
+ */
+export const zBlindGetMeResponse = zBlindMe;
+
+/**
+ * Left.
+ */
+export const zBlindLeaveResponse = z.void();
+
+/**
+ * My Blind state after joining.
+ */
+export const zBlindJoinResponse = zBlindMe;
+
+export const zBlindGetDeckQuery = z.object({
+    limit: z.int().gte(1).lte(20).optional()
+});
+
+/**
+ * Cards.
+ */
+export const zBlindGetDeckResponse = zBlindDeck;
+
+export const zBlindSwipeBody = zBlindSwipeRequest;
+
+/**
+ * Counters after the swipe.
+ */
+export const zBlindSwipeResponse = zBlindSwipeResult;
+
+/**
+ * My pool.
+ */
+export const zBlindGetPoolResponse = zBlindPool;
+
+/**
+ * Cards.
+ */
+export const zBlindGetPoolCardsResponse = zBlindDeck;
+
+export const zBlindGetCardImagePath = z.object({
+    cardId: z.uuid()
+});
+
+export const zBlindGetCardImageQuery = z.object({
+    exp: z.int().gte(0),
+    sig: z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+});
+
+/**
+ * A JPEG with no metadata, never cached.
+ */
+export const zBlindGetCardImageResponse = z.string();
+
+/**
+ * Drop status.
+ */
+export const zBlindGetDropResponse = zBlindDropStatus;
+
+/**
+ * The chats this drop shows me.
+ */
+export const zBlindOpenDropResponse = zBlindDropResult;
+
+/**
+ * My chats.
+ */
+export const zBlindListChatsResponse = zBlindChatList;
+
+export const zBlindGetChatPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * The chat.
+ */
+export const zBlindGetChatResponse = zBlindChat;
+
+export const zBlindListMessagesPath = z.object({
+    id: z.uuid()
+});
+
+export const zBlindListMessagesQuery = z.object({
+    after: z.int().gte(0).optional()
+});
+
+/**
+ * Messages.
+ */
+export const zBlindListMessagesResponse = zBlindMessageList;
+
+export const zBlindSendMessageBody = zBlindNewMessage;
+
+export const zBlindSendMessagePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * Sent (`message`), or held back (`warning`).
+ */
+export const zBlindSendMessageResponse = zBlindSendResult;
+
+export const zBlindRevealPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * The chat's status.
+ */
+export const zBlindRevealResponse = zBlindRevealResult;
+
+export const zBlindLeaveChatPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * Left.
+ */
+export const zBlindLeaveChatResponse = zBlindOk;
+
+export const zBlindGuessBody = zBlindGuessRequest;
+
+export const zBlindGuessPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * Saved.
+ */
+export const zBlindGuessResponse = zBlindOk;
+
+export const zBlindBlockPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * Blocked.
+ */
+export const zBlindBlockResponse = zBlindOk;
+
+export const zBlindReportBody = zBlindReportRequest;
+
+export const zBlindReportPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * Reported and blocked.
+ */
+export const zBlindReportResponse = zBlindOk;
+
+export const zBlindGetPartnerPhotoPath = z.object({
+    id: z.uuid(),
+    n: z.int().gte(0).lte(2)
+});
+
+export const zBlindGetPartnerPhotoQuery = z.object({
+    exp: z.int().gte(0),
+    sig: z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+});
+
+/**
+ * A JPEG with no metadata, never cached.
+ */
+export const zBlindGetPartnerPhotoResponse = z.string();
+
+/**
+ * How many chats opened, across everyone.
+ */
+export const zBlindAdminDropResponse = zBlindDropAllResult;
+
+/**
+ * How many chats opened.
+ */
+export const zBlindCronDropResponse = zBlindDropAllResult;
 
 /**
  * The association file.

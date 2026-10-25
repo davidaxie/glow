@@ -64,6 +64,12 @@ tags:
     description: Room operations for admins. Everyone else gets 404. Not in the Swift client.
   - name: web
     description: Web pages and files for universal links. Not in the Swift client.
+  - name: blind
+    description: |
+      Blind mode, opt in: photo-only swipes, hidden matches, a drop of codenamed blind chats, and
+      a reveal only when both tap. A member's face photo is shown before a match (that's the
+      product), but never their name, ID, room, check-in or location, and nothing about a blind
+      chat partner before both tapped Reveal. Not a member is 404 (except me and join).
 
 paths:
   # ------------------------------------------------------------------ me
@@ -1207,6 +1213,508 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         default: { $ref: "#/components/responses/UnexpectedError" }
 
+  # ------------------------------------------------------------------ blind
+  # Blind mode (docs/briefs/blind-mode.md): swipe on photos only, hidden mutual matches, a
+  # "drop" opens them as blind chats with codenames, reveal only when both tap. Same shapes as
+  # Double Blind's contract, with opaque per-viewer card IDs and paths under /api/blind.
+  # Blindness rules (Double Blind B1 to B12) are in docs/CONTRACTS.md, "Blind mode".
+  /api/blind/me:
+    get:
+      operationId: blindGetMe
+      tags: [blind]
+      summary: My Blind membership and right-swipe counters
+      description: |
+        Works for everyone signed in, member or not. `member` false means show the opt-in screen.
+        `hasPhoto` says whether I have an approved profile photo, which is what other members see
+        on my card (without one I am not in anyone's deck).
+      x-owner: X1
+      responses:
+        "200":
+          description: My Blind state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindMe" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/join:
+    post:
+      operationId: blindJoin
+      tags: [blind]
+      summary: Opt in to Blind mode
+      description: |
+        Idempotent. Needs a finished Glow profile (409 `onboarding_incomplete` otherwise). From
+        now on my first approved photo (never my name) is shown to other Blind members who fit
+        me both ways. Nothing about rooms or where I am is ever shown.
+      x-owner: X1
+      responses:
+        "200":
+          description: My Blind state after joining.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindMe" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    delete:
+      operationId: blindLeave
+      tags: [blind]
+      summary: Leave Blind mode
+      description: |
+        Idempotent. Deletes my Blind swipes, matches, chats and cards. The other person in any of
+        my chats sees only "they left", never who it was.
+      x-owner: X1
+      responses:
+        "204": { description: Left. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/deck:
+    get:
+      operationId: blindGetDeck
+      tags: [blind]
+      summary: Photo-only cards of other members I haven't swiped yet
+      description: |
+        No names, ages or anything else. Card IDs are opaque and mine alone (never a user ID).
+        Excludes myself, people I swiped, blocked either way, paused, banned, without an approved
+        photo, and anyone whose gender or show me doesn't fit mine both ways. Random order.
+        Not a member is 404.
+      x-owner: X1
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Cards to return, default 10.
+          schema: { type: integer, minimum: 1, maximum: 20, x-constant: { maximum: BLIND_DECK_PAGE_MAX } }
+      responses:
+        "200":
+          description: Cards.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindDeck" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/swipe:
+    post:
+      operationId: blindSwipe
+      tags: [blind]
+      summary: Swipe a card. Says nothing about matches
+      description: |
+        `targetId` is a card ID from my deck. A right swipe (like or love) beyond
+        BLIND_RIGHT_SWIPES_PER_DAY per UTC day is 409 `right_cap_reached`. A swipe on someone
+        no longer eligible is silently ignored and answers the same. Repeating a swipe changes
+        nothing. The answer never says whether it was mutual (B2). An unknown card is 404.
+      x-owner: X1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BlindSwipeRequest" }
+      responses:
+        "200":
+          description: Counters after the swipe.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindSwipeResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/pool:
+    get:
+      operationId: blindGetPool
+      tags: [blind]
+      summary: My right-swipe count, swipes left today and whether I can open a drop
+      x-owner: X1
+      responses:
+        "200":
+          description: My pool.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindPool" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/pool/cards:
+    get:
+      operationId: blindGetPoolCards
+      tags: [blind]
+      summary: Guess Who cards, my own right swipes as photo-only cards
+      description: |
+        Same shape as the deck, newest first. Never filtered by blocks, pauses or chats, so it
+        can't tell me who a chat partner is (B1).
+      x-owner: X1
+      responses:
+        "200":
+          description: Cards.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindDeck" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/cards/{cardId}/image:
+    parameters:
+      - $ref: "#/components/parameters/BlindCardId"
+      - name: exp
+        in: query
+        required: true
+        description: When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+        schema: { type: integer, minimum: 0 }
+      - name: sig
+        in: query
+        required: true
+        description: base64url HMAC-SHA256 (CARD_URL_SECRET) over the card, the viewer and `exp`.
+        schema: { type: string, pattern: "^[A-Za-z0-9_-]{43}$" }
+    get:
+      operationId: blindGetCardImage
+      tags: [blind]
+      summary: A Blind card photo, through a signed 60-second link
+      description: |
+        Use a card's `photoUrl` as is. Only the viewer the card was made for can open it (the
+        viewer comes from the bearer token). Watermarked with the viewer's code, `no-store`.
+      x-owner: X1
+      responses:
+        "200": { $ref: "#/components/responses/JpegImage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/drop:
+    get:
+      operationId: blindGetDrop
+      tags: [blind]
+      summary: Whether I can open a drop now, and when the next one is
+      description: |
+        Deliberately nothing about waiting matches (B2). `ready` is true in demo mode
+        (`demo: true`, stage only) or from the nightly drop time (8pm Pacific) until midnight.
+      x-owner: X1
+      responses:
+        "200":
+          description: Drop status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindDropStatus" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    post:
+      operationId: blindOpenDrop
+      tags: [blind]
+      summary: Open my drop, my waiting matches as new blind chats
+      description: |
+        Answers the open chats that are new to me (whoever's drop opened them), oldest first, at
+        most BLIND_MAX_OPEN_CHATS, and empty below BLIND_DROP_MIN_RIGHT_SWIPES right swipes (B3).
+        A retry within BLIND_DROP_REPLAY_WINDOW shows the same chats. Outside demo mode only
+        matches made before today's drop time open (Double Blind F-01). Before the drop time:
+        409 `drop_not_ready`.
+      x-owner: X1
+      responses:
+        "200":
+          description: The chats this drop shows me.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindDropResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats:
+    get:
+      operationId: blindListChats
+      tags: [blind]
+      summary: My blind chats, codename and last message only
+      description: Newest activity first. Chats I left or blocked are gone from my list.
+      x-owner: X1
+      responses:
+        "200":
+          description: My chats.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindChatList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+    get:
+      operationId: blindGetChat
+      tags: [blind]
+      summary: One blind chat. The partner only after both tapped Reveal
+      description: |
+        `partner` (name and photo links) is present only when `status` is `revealed` (B1), and
+        `guessCorrect` only then too (when I made a guess). `theyLeft` is true only with status
+        `left`. A chat I'm not in, or left, is 404.
+      x-owner: X1
+      responses:
+        "200":
+          description: The chat.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindChat" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+    get:
+      operationId: blindListMessages
+      tags: [blind]
+      summary: Messages after a message ID, oldest first
+      description: Each message says `mine`, never who sent it (B12). Marks them read.
+      x-owner: X1
+      parameters:
+        - name: after
+          in: query
+          required: false
+          description: Only messages with a higher ID. Default 0 (from the start).
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Messages.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindMessageList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+    post:
+      operationId: blindSendMessage
+      tags: [blind]
+      summary: Send a message, unless it looks like it gives me away
+      description: |
+        If the text looks like it reveals who I am (a handle, phone number, email, my name, ...),
+        the answer is 200 with `warning` and no `message`, and nothing is sent, unless the request
+        says `confirm: true`. A chat that ended is 409 `chat_closed`. The text is never logged.
+      x-owner: X1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BlindNewMessage" }
+      responses:
+        "200":
+          description: Sent (`message`), or held back (`warning`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindSendResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}/reveal:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+    post:
+      operationId: blindReveal
+      tags: [blind]
+      summary: Tap Reveal
+      description: |
+        `status` stays `open` until both tapped, whether or not the other person did (B5). Then
+        it's `revealed` and the chat shows the partner.
+      x-owner: X1
+      responses:
+        "200":
+          description: The chat's status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindRevealResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}/leave:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+    post:
+      operationId: blindLeaveChat
+      tags: [blind]
+      summary: Leave a blind chat without being revealed
+      description: Idempotent. The other person sees only that they left (B6). Afterwards the chat is 404 for me.
+      x-owner: X1
+      responses:
+        "200":
+          description: Left.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindOk" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}/guess:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+    post:
+      operationId: blindGuess
+      tags: [blind]
+      summary: Guess Who, pick which of my pool cards this chat partner is
+      description: |
+        `guessId` is a card ID from my pool cards. The answer never says whether the guess is
+        right; after reveal the chat says `guessCorrect`. A card not in my pool is 404.
+      x-owner: X1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BlindGuessRequest" }
+      responses:
+        "200":
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindOk" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}/block:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+    post:
+      operationId: blindBlock
+      tags: [blind]
+      summary: Block the person behind this chat, everywhere, without learning who
+      description: |
+        A Glow block (`public.blocks`): both ways, in Blind and in Rooms (P7). Ends the chat and
+        any Glow match between us. Afterwards the chat is 404 for me.
+      x-owner: X1
+      responses:
+        "200":
+          description: Blocked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindOk" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}/report:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+    post:
+      operationId: blindReport
+      tags: [blind]
+      summary: Report the person behind this chat (this also blocks them)
+      description: |
+        Goes into Glow's reports queue with context `blind_chat`, keeping their last messages in
+        this chat as evidence. Works on a chat I already left or blocked.
+      x-owner: X1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BlindReportRequest" }
+      responses:
+        "200":
+          description: Reported and blocked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindOk" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/blind/chats/{id}/photos/{n}:
+    parameters:
+      - $ref: "#/components/parameters/BlindChatId"
+      - name: n
+        in: path
+        required: true
+        description: 0-based index into the partner's approved photos.
+        schema: { type: integer, minimum: 0, maximum: 2, x-constant: { maximum: "PROFILE_PHOTOS_MAX - 1" } }
+      - name: exp
+        in: query
+        required: true
+        description: When the link expires, in Unix seconds. At most CARD_URL_TTL after it was made.
+        schema: { type: integer, minimum: 0 }
+      - name: sig
+        in: query
+        required: true
+        description: base64url HMAC-SHA256 (CARD_URL_SECRET) over the chat, n, the viewer and `exp`.
+        schema: { type: string, pattern: "^[A-Za-z0-9_-]{43}$" }
+    get:
+      operationId: blindGetPartnerPhoto
+      tags: [blind]
+      summary: The revealed partner's photo, through a signed 60-second link
+      description: Use a URL from `partner.photos` as is. 404 unless the chat is revealed (B1).
+      x-owner: X1
+      responses:
+        "200": { $ref: "#/components/responses/JpegImage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/admin/blind/drop:
+    post:
+      operationId: blindAdminDrop
+      tags: [admin]
+      summary: Drop for everyone now (Blind mode)
+      description: Opens every waiting Blind match whose people can take a chat. Admins only; everyone else 404.
+      x-owner: X1
+      responses:
+        "200":
+          description: How many chats opened, across everyone.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindDropAllResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
+  /api/cron/blind-drop:
+    get:
+      operationId: blindCronDrop
+      tags: [cron]
+      summary: The nightly Blind drop, protected by the cron secret
+      description: Opens every waiting Blind match whose people can take a chat (run nightly at 8pm Pacific).
+      x-owner: X1
+      security:
+        - cronSecret: []
+      responses:
+        "200":
+          description: How many chats opened.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlindDropAllResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        default: { $ref: "#/components/responses/UnexpectedError" }
+
   # ------------------------------------------------------------------ web
   /.well-known/apple-app-site-association:
     get:
@@ -1287,6 +1795,18 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    BlindChatId:
+      name: id
+      in: path
+      required: true
+      description: A blind chat ID. Never a user ID.
+      schema: { type: string, format: uuid }
+    BlindCardId:
+      name: cardId
+      in: path
+      required: true
+      description: An opaque Blind card ID, made for one viewer. Never a user ID.
+      schema: { type: string, format: uuid }
 
   headers:
     RetryAfter:
@@ -1340,7 +1860,7 @@ components:
       description: |
         The caller's own state doesn't allow this right now: `onboarding_incomplete`,
         `room_not_live`, `tap_limit_reached`, `chat_not_open`, `last_photo`, `slug_taken`, or
-        the generic `conflict`.
+        the generic `conflict`. Blind mode: `right_cap_reached`, `drop_not_ready`, `chat_closed`.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -1427,7 +1947,7 @@ components:
       description: |
         400 bad_request · 401 unauthorized · 404 not_found (also for anything not allowed, P11) ·
         409 conflict, onboarding_incomplete, room_not_live, tap_limit_reached, chat_not_open,
-        last_photo, slug_taken · 413 payload_too_large · 415 unsupported_media_type ·
+        last_photo, slug_taken, right_cap_reached, drop_not_ready, chat_closed · 413 payload_too_large · 415 unsupported_media_type ·
         422 under_18, not_in_room, location_inaccurate, location_required, join_ticket_invalid,
         photo_rejected, message_rejected · 429 rate_limited · 500 internal ·
         501 not_implemented · 503 unavailable. There is never a 403.
@@ -1442,6 +1962,9 @@ components:
         - chat_not_open
         - last_photo
         - slug_taken
+        - right_cap_reached
+        - drop_not_ready
+        - chat_closed
         - payload_too_large
         - unsupported_media_type
         - under_18
@@ -1507,6 +2030,12 @@ components:
       type: string
       description: What the ID points at. A chat ID is its match ID.
       enum: [card, match, chat]
+    AdminReportContext:
+      type: string
+      description: |
+        What a report's ID points at, as admins see it: ReportContext plus `blind_chat` (a Blind
+        mode chat ID, for reports made from a blind chat).
+      enum: [card, match, chat, blind_chat]
     ReportReason:
       type: string
       enum: [harassment, inappropriate_photo, underage, spam, unsafe, other]
@@ -2263,7 +2792,7 @@ components:
       required: [id, context, contextId, reason, status, createdAt, reporterViewerCode, reportedViewerCode, evidence]
       properties:
         id: { type: string, format: uuid }
-        context: { $ref: "#/components/schemas/ReportContext" }
+        context: { $ref: "#/components/schemas/AdminReportContext" }
         contextId: { type: string, format: uuid }
         reason: { $ref: "#/components/schemas/ReportReason" }
         details: { type: string }
@@ -2346,6 +2875,250 @@ components:
                       type: object
                       properties:
                         "/": { type: string, example: "/r/*" }
+
+    # ---------------------------------------------------------------- blind
+    BlindSwipeKind:
+      type: string
+      description: pass is a left swipe; like and love are right swipes (love is a stronger like).
+      enum: [pass, like, love]
+    BlindChatStatus:
+      type: string
+      description: open until both tap Reveal (then revealed), or left once either person left or blocked.
+      enum: [open, left, revealed]
+    BlindMe:
+      type: object
+      additionalProperties: false
+      required: [member, hasPhoto, rightRemaining, rightCount, canDrop]
+      properties:
+        member: { type: boolean, description: I opted in to Blind mode. }
+        hasPhoto:
+          type: boolean
+          description: I have an approved profile photo, the one other members see on my card.
+        rightRemaining:
+          type: integer
+          minimum: 0
+          maximum: 20
+          x-constant: { maximum: BLIND_RIGHT_SWIPES_PER_DAY }
+          description: Right swipes left today (UTC day).
+        rightCount: { type: integer, minimum: 0, description: My right swipes ever, my pool. }
+        canDrop:
+          type: boolean
+          description: rightCount is at least BLIND_DROP_MIN_RIGHT_SWIPES.
+      example: { member: true, hasPhoto: true, rightRemaining: 17, rightCount: 9, canDrop: true }
+    BlindCard:
+      type: object
+      additionalProperties: false
+      description: A photo-only card. No name, age or anything else.
+      required: [id, photoUrl]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Opaque, made for me only. Never a user ID.
+        photoUrl:
+          type: string
+          format: uri-reference
+          description: A signed link, relative to the API base URL. Fetch it with the bearer token within CARD_URL_TTL.
+          example: /api/blind/cards/aaaaaaaa-0000-4000-8000-000000000001/image?exp=1793040000&sig=Xb3fQ0x2lN4m3P1QeRrS5T6uV7wX8yZ9a0b1c2d3e4f
+    BlindDeck:
+      type: object
+      additionalProperties: false
+      required: [cards]
+      properties:
+        cards:
+          type: array
+          maxItems: 200
+          items: { $ref: "#/components/schemas/BlindCard" }
+    BlindSwipeRequest:
+      type: object
+      additionalProperties: false
+      required: [targetId, kind]
+      properties:
+        targetId: { type: string, format: uuid, description: A card ID from my deck. }
+        kind: { $ref: "#/components/schemas/BlindSwipeKind" }
+    BlindSwipeResult:
+      type: object
+      additionalProperties: false
+      description: Nothing about matches (B2).
+      required: [rightRemaining, rightCount]
+      properties:
+        rightRemaining: { type: integer, minimum: 0, maximum: 20, x-constant: { maximum: BLIND_RIGHT_SWIPES_PER_DAY } }
+        rightCount: { type: integer, minimum: 0 }
+    BlindPool:
+      type: object
+      additionalProperties: false
+      required: [rightCount, rightRemaining, canDrop]
+      properties:
+        rightCount: { type: integer, minimum: 0 }
+        rightRemaining: { type: integer, minimum: 0, maximum: 20, x-constant: { maximum: BLIND_RIGHT_SWIPES_PER_DAY } }
+        canDrop: { type: boolean }
+    BlindDropStatus:
+      type: object
+      additionalProperties: false
+      description: Nothing about waiting matches (B2).
+      required: [ready, demo, nextDropAt, rightCount, canDrop]
+      properties:
+        ready: { type: boolean, description: POST /api/blind/drop would open now. }
+        demo: { type: boolean, description: Demo mode (stage only) opens drops at any time. }
+        nextDropAt: { type: string, format: date-time, description: The next nightly drop (8pm Pacific). }
+        rightCount: { type: integer, minimum: 0 }
+        canDrop: { type: boolean }
+      example: { ready: false, demo: false, nextDropAt: "2026-10-26T03:00:00.000Z", rightCount: 6, canDrop: true }
+    BlindDropChat:
+      type: object
+      additionalProperties: false
+      required: [id, codename]
+      properties:
+        id: { type: string, format: uuid, description: The blind chat ID. }
+        codename: { type: string, minLength: 1, description: What I call the other person in this chat. }
+    BlindDropResult:
+      type: object
+      additionalProperties: false
+      required: [opened, chats]
+      properties:
+        opened: { type: integer, minimum: 0, description: How many chats this drop shows me (chats.length). }
+        chats:
+          type: array
+          maxItems: 5
+          x-constant: { maxItems: BLIND_MAX_OPEN_CHATS }
+          items: { $ref: "#/components/schemas/BlindDropChat" }
+      example:
+        opened: 2
+        chats:
+          - { id: c4a7e1d2-93b0-4f6a-a1d5-6e2b8f09c733, codename: Heron }
+          - { id: 0f3d6a8e-1c52-4b97-b2e4-d7a9035c18f4, codename: Comet }
+    BlindDropAllResult:
+      type: object
+      additionalProperties: false
+      required: [opened]
+      properties:
+        opened: { type: integer, minimum: 0, description: Chats opened, across everyone. }
+    BlindLastMessage:
+      type: object
+      additionalProperties: false
+      required: [mine, text, at]
+      properties:
+        mine: { type: boolean }
+        text: { type: string }
+        at: { type: string, format: date-time }
+    BlindChatSummary:
+      type: object
+      additionalProperties: false
+      required: [id, codename, status, unread]
+      properties:
+        id: { type: string, format: uuid }
+        codename: { type: string }
+        status: { $ref: "#/components/schemas/BlindChatStatus" }
+        lastMessage:
+          $ref: "#/components/schemas/BlindLastMessage"
+          description: Absent when nobody has written yet.
+        unread: { type: boolean, description: The other person wrote something I haven't read. }
+    BlindChatList:
+      type: object
+      additionalProperties: false
+      required: [chats]
+      properties:
+        chats:
+          type: array
+          items: { $ref: "#/components/schemas/BlindChatSummary" }
+    BlindPartner:
+      type: object
+      additionalProperties: false
+      description: Only after both tapped Reveal (B1).
+      required: [name, photos]
+      properties:
+        name: { type: string, description: Their first name. }
+        photos:
+          type: array
+          maxItems: 3
+          x-constant: { maxItems: PROFILE_PHOTOS_MAX }
+          description: Signed links (relative, CARD_URL_TTL) to their approved photos.
+          items: { type: string, format: uri-reference }
+    BlindChat:
+      type: object
+      additionalProperties: false
+      description: |
+        `partner` is present only when status is revealed, and then always. `guessCorrect` only
+        when revealed and I guessed. `theyLeft` only with status left.
+      required: [id, codename, status, iTappedReveal, theyLeft]
+      properties:
+        id: { type: string, format: uuid }
+        codename: { type: string }
+        status: { $ref: "#/components/schemas/BlindChatStatus" }
+        iTappedReveal: { type: boolean }
+        theyLeft: { type: boolean }
+        partner: { $ref: "#/components/schemas/BlindPartner" }
+        guessCorrect: { type: boolean }
+    BlindMessage:
+      type: object
+      additionalProperties: false
+      description: A message as I see it, `mine` instead of a sender (B12).
+      required: [id, mine, text, at]
+      properties:
+        id: { type: integer, minimum: 1 }
+        mine: { type: boolean }
+        text: { type: string }
+        at: { type: string, format: date-time }
+    BlindMessageList:
+      type: object
+      additionalProperties: false
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/BlindMessage" }
+    BlindNewMessage:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 1000, x-constant: { maxLength: MESSAGE_MAX_CHARS } }
+        confirm:
+          type: boolean
+          description: Send even though it may give me away (after a warning).
+    BlindWarning:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, description: Why it may give me away, in plain words to show. }
+    BlindSendResult:
+      type: object
+      additionalProperties: false
+      description: Exactly one of `message` (sent) or `warning` (held back, nothing sent).
+      properties:
+        message: { $ref: "#/components/schemas/BlindMessage" }
+        warning: { $ref: "#/components/schemas/BlindWarning" }
+    BlindRevealResult:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/BlindChatStatus" }
+    BlindOk:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+    BlindGuessRequest:
+      type: object
+      additionalProperties: false
+      required: [guessId]
+      properties:
+        guessId: { type: string, format: uuid, description: A card ID from my pool cards. }
+    BlindReportRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          x-constant: { maxLength: BLIND_REPORT_MAX_CHARS }
+          description: What happened, in my words.
+        category: { $ref: "#/components/schemas/ReportReason" }
 
     # ---------------------------------------------------------------- events (contracts/events.json)
     GlowEventType:

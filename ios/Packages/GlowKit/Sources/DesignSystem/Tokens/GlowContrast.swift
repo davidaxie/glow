@@ -61,6 +61,17 @@ extension GlowPalette {
                 GlowTextPairing(danger, on: ground, usage: "danger (errors) on \(name)"),
             ]
         }
+        // U1: the canvas's lighter top and glass cards.
+        for (name, ground) in [("canvasTop", canvasTop), ("glass", glass), ("glassRaised", glassRaised)] {
+            pairings += [
+                GlowTextPairing(textPrimary, on: ground, usage: "textPrimary on \(name)"),
+                GlowTextPairing(textSecondary, on: ground, usage: "textSecondary on \(name)"),
+                GlowTextPairing(accent, on: ground, usage: "accent on \(name)"),
+            ]
+        }
+        for (name, ground) in [("background", background), ("surface", surface), ("canvasTop", canvasTop), ("glass", glass)] {
+            pairings.append(GlowTextPairing(textTertiary, on: ground, usage: "textTertiary (hints) on \(name)"))
+        }
         pairings += [
             GlowTextPairing(textPrimary, on: line, usage: "textPrimary on line (pressed secondary button)"),
             GlowTextPairing(onAccent, on: accent, usage: "onAccent on accent (primary button, selected chip)"),
