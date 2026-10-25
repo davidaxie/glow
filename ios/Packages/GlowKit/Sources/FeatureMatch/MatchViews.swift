@@ -116,7 +116,7 @@ struct MatchScreen: View {
         case .takeover:
             // The stage: a warm dark room with one light. The light the two points became in the
             // intro rises behind the name, so the takeover reads as one continuous moment.
-            MomentStage(lightRisen: introDone, onClose: { dismiss() }) {
+            MomentStage(lightRisen: introDone) {
                 ZStack {
                     if introDone {
                         content.transition(.opacity)
@@ -125,6 +125,8 @@ struct MatchScreen: View {
                     }
                 }
                 .animation(Moment.fade, value: introDone)
+            } onClose: {
+                dismiss()
             }
         case .screen:
             content
@@ -221,72 +223,6 @@ struct MatchDetails: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
         .onAppear { appeared = true }
-    }
-}
-
-// MARK: - The stage
-
-/// The takeover's room: warm near-black, one accent light, and a glass close button. The light
-/// sits in the middle during the intro and rises behind the name once it's done.
-struct MomentStage<Content: View>: View {
-    let lightRisen: Bool
-    let onClose: () -> Void
-    @ViewBuilder let content: () -> Content
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [GlowPalette.surface.color, GlowPalette.background.color, GlowPalette.background.color],
-                startPoint: .top,
-                endPoint: .bottom,
-            )
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
-
-            GeometryReader { proxy in
-                let side = max(proxy.size.width, proxy.size.height)
-                MomentLight(core: lightRisen ? 0.35 : 0)
-                    .frame(width: side * (lightRisen ? 1.1 : 0.9), height: side * (lightRisen ? 1.1 : 0.9))
-                    .position(x: proxy.size.width / 2, y: lightRisen ? -side * 0.12 : proxy.size.height * 0.4)
-                    .opacity(lightRisen ? 0.75 : 0)
-                    .momentBreathing(lightRisen)
-            }
-            .ignoresSafeArea()
-            .animation(Moment.animation(Moment.gentle, reduceMotion: reduceMotion), value: lightRisen)
-            .accessibilityHidden(true)
-
-            content()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .overlay(alignment: .topTrailing) {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.glow(.headline))
-                    .foregroundStyle(.glowTextPrimary)
-                    .frame(width: GlowSize.minimumTapTarget, height: GlowSize.minimumTapTarget)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(GlowPalette.textPrimary.color.opacity(0.12), lineWidth: 1))
-            }
-            .accessibilityLabel(Text("Close"))
-            .padding(.horizontal, GlowSpacing.md)
-            .padding(.top, GlowSpacing.xs)
-        }
-    }
-}
-
-/// A waiting state that breathes instead of spinning.
-struct MomentWaitingLight: View {
-    let label: Text
-    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 120
-
-    var body: some View {
-        MomentLight(core: 0.7)
-            .frame(width: size, height: size)
-            .momentBreathing()
-            .accessibilityElement()
-            .accessibilityLabel(label)
     }
 }
 

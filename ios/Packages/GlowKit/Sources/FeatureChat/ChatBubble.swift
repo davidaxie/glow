@@ -101,7 +101,10 @@ struct ChatBubble: View {
             .overlay {
                 shape.strokeBorder(
                     LinearGradient(
-                        colors: [GlowPalette.textPrimary.color.opacity(message.fromMe ? 0.25 : 0.1), GlowPalette.textPrimary.color.opacity(0)],
+                        colors: [
+                            GlowPalette.textPrimary.color.opacity(message.fromMe ? 0.25 : 0.1),
+                            GlowPalette.textPrimary.color.opacity(0),
+                        ],
                         startPoint: .top,
                         endPoint: .center,
                     ),
