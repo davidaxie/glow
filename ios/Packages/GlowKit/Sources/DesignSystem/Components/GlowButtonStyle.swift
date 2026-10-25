@@ -123,8 +123,15 @@ struct GlowButtonBody<Label: View>: View {
         .colors(for: kind, isPressed: isPressed)
     }
 
+    /// Filled kinds glow softly in their own color (DIRECTION: light marks the primary action).
+    private var glows: Bool {
+        (kind == .primary || kind == .danger) && isEnabled
+    }
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: GlowRadius.control, style: .continuous)
+        // U1: full capsules, a 1 px highlight along the top edge, and a soft light under filled
+        // buttons. Pressing settles on the snappy spring.
+        let shape = Capsule(style: .continuous)
         ZStack {
             label
                 .multilineTextAlignment(.center)
@@ -144,6 +151,7 @@ struct GlowButtonBody<Label: View>: View {
         .background {
             if let fill = colors.fill {
                 shape.fill(fill.color)
+                    .shadow(color: glows ? fill.color.opacity(isPressed ? 0.18 : 0.32) : .clear, radius: 18, x: 0, y: 6)
             }
         }
         .overlay {
@@ -151,11 +159,25 @@ struct GlowButtonBody<Label: View>: View {
                 shape.strokeBorder(border.color, lineWidth: 1)
             }
         }
+        .overlay {
+            if colors.fill != nil {
+                shape
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(kind == .secondary ? 0.08 : 0.28), Color.white.opacity(0)],
+                            startPoint: .top,
+                            endPoint: .center,
+                        ),
+                        lineWidth: 1,
+                    )
+                    .allowsHitTesting(false)
+            }
+        }
         .contentShape(shape)
         // Disabled controls are exempt from WCAG contrast; loading ones stay at full strength.
         .opacity(isEnabled || isLoading ? 1 : 0.4)
-        .scaleEffect(isPressed && !reduceMotion ? 0.98 : 1)
-        .animation(GlowMotion.ui, value: isPressed)
+        .scaleEffect(isPressed && !reduceMotion ? 0.97 : 1)
+        .animation(Motion.Preset.snappy.animation(reduceMotion: reduceMotion), value: isPressed)
         .accessibilityValue(isLoading ? Text("In progress") : Text(verbatim: ""))
     }
 }

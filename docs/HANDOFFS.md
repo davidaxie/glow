@@ -964,6 +964,13 @@ _2026-10-25._ Branch `design/u1-foundation` (from `blind-mode`). The shared visi
 - Type: `.display` and `.codeWord` are now New York (serif); new `.hero` (serif, regular, for one big quiet sentence), `.titleSerif`, `.codename` (serif italic, Blind), `.numeric` (monospaced digits; add `.contentTransition(.numericText())`), `.eyebrow` (use `.glowEyebrow()`). `.glowFont` applies tight tracking to the display styles.
 - Haptics and sound, choreographed: `.glowMoment(.mutual, trigger:)` (two soft beats 120 ms apart plus the chime), `.glowArrives` (the swell), `.reveal` (success plus swell), `.messageSent` (tick), `.cardLeaves` (soft impact). Single pieces: `.glowHaptic(.heartbeat | .cardLeave | .reveal, trigger:)`, `.glowSound(.chime | .swell | .tick, trigger:)`, `GlowSounds.shared.play(_:)`. Sounds are synthesized in code (`GlowSoundSynth`), play in the `.ambient` session (the silent switch mutes them) and follow Settings > Sound (`GlowSounds.isEnabledKey`, on by default).
 
+**Second commit (restyle, same public names)**
+
+- Buttons are full capsules with a top highlight; filled ones cast a soft light in their color; pressing settles on `Motion.snappy`. `.glowOnSurface` is a capsule too. `GlowCodeWord` is New York semibold, set tight. `GlowEmptyState` breathes (a `GlowBreathingLight` behind a thin icon) and titles in `.titleSerif`.
+- New: `GlowBreathingLight(hue:)` (waiting states, never a spinner), `.glowBloom(trigger:at:hue:)` (600 ms radial light from a point), `.glowVeil(isLifted:)` (X2/U4: blur and frost dissolving from the center over 1.2 s), `GlowWordmark()`. All have Reduce Motion crossfades and hold still under tests (U1-D2).
+- Shell (`RootView`): tabs tinted with the accent; every stack root and pushed screen on the canvas through `containerBackground(for: .navigation)` (iOS 18+); `LaunchBackground` is `#0B0A0F`; the in-app launch view breathes. **X2**: the restyle didn't change `MainTabs`' structure, so your Blind tab merges cleanly; it inherits the canvas through `routeDestinations()`.
+- Onboarding on the canvas with a staggered welcome; Settings > Sound toggle. Layout and copy changes are listed in `docs/design/CHANGES.md`.
+
 **Snapshots**: the warmer neutrals and restyled components change every module's snapshots a little. U1 re-records them on this branch; when you merge and a PNG conflicts, take either side and re-record your own module (`scripts/sim.sh test <Module>` twice, or `TEST_RUNNER_SNAPSHOT_TESTING_RECORD=failed`).
 
 **For B7 (admin CSS)**: the neutral hex values changed (`GlowPalette.tokens`): background `#0B0A0F`, surface `#17151C`, surfaceRaised `#221F27`, textPrimary `#F5F3F0`, textSecondary `#A9A39D`, line `#2D2931`. Accent, danger and the glow hues are unchanged.

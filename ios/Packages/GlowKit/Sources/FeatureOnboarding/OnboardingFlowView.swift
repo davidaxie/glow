@@ -76,26 +76,35 @@ struct OnboardingScreen<Content: View, Actions: View>: View {
     @ViewBuilder var actions: Actions
 
     var body: some View {
+        // U1: the screen sits on the canvas with a faint light gathered at the top; the actions
+        // float in the thumb zone, with the content fading out softly beneath them.
         ScrollView {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, GlowSpacing.screenMargin)
+                .padding(.horizontal, GlowSpacing.screenMarginWide)
                 .padding(.top, GlowSpacing.lg)
                 .padding(.bottom, GlowSpacing.xl)
         }
         .scrollDismissesKeyboard(.interactively)
         .accessibilityIdentifier(identifier)
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: GlowSpacing.xs) {
+            VStack(spacing: GlowSpacing.sm) {
                 actions
             }
-            .padding(.horizontal, GlowSpacing.screenMargin)
-            .padding(.top, GlowSpacing.sm)
-            .padding(.bottom, GlowSpacing.sm)
-            .background(.glowBackground)
+            .padding(.horizontal, GlowSpacing.screenMarginWide)
+            .padding(.top, GlowSpacing.lg)
+            .padding(.bottom, GlowSpacing.xs)
+            .background {
+                LinearGradient(
+                    stops: [.init(color: .glowBackground.opacity(0), location: 0), .init(color: .glowBackground, location: 0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom,
+                )
+                .ignoresSafeArea()
+            }
         }
-        .background(.glowBackground)
-        .toolbarBackground(.glowBackground, for: .navigationBar)
+        .glowCanvas(light: .accent)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 }
 

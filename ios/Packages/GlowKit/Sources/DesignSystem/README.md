@@ -8,6 +8,25 @@ feature module imports it, and SwiftLint stops features from defining their own 
 The Gallery shows every component in every state: **Settings > Debug > Gallery** in a Debug build.
 Its sections are also snapshot tests, at the default text size and the largest accessibility size.
 
+## Light as the language (design wave, U1)
+
+The vision is [`docs/design/DIRECTION.md`](../../../../../docs/design/DIRECTION.md). In short:
+
+```swift
+screen.glowCanvas(light: .accent)                    // warm gradient + grain, a faint light on top
+card.padding(GlowSpacing.lg).glowGlass()             // lifted glass, 28 pt corners
+Text("Lantern").glowFont(.hero)                      // New York; also .display, .titleSerif, .codename
+.glowMotion(.smooth, value: x)                       // Motion.snappy / .smooth / .gentle / .fade
+row.glowRise(index: i, isVisible: shown)             // staggered rise, 40 ms apart
+GlowBreathingLight()                                 // waiting: a 4 s breath, never a spinner
+view.glowBloom(trigger: n, at: .center)              // a 600 ms bloom of light
+photo.glowVeil(isLifted: revealed)                   // Blind: the veil lifts from the center
+.glowMoment(.mutual, trigger: matchID)               // heartbeat haptic + chime, choreographed
+```
+
+Every helper follows Reduce Motion (a calm crossfade) and holds still under tests (U1-D2). Sounds
+follow the silent switch and Settings > Sound.
+
 ## Colors
 
 ```swift

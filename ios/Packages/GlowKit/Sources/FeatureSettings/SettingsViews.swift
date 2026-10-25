@@ -18,7 +18,7 @@ public struct SettingsView: View {
         List {
             Section {
                 SettingsProfileSummary(me: me)
-                    .listRowBackground(Color.glowSurface)
+                    .listRowBackground(Color.glowGlass)
             }
             Section {
                 SettingsRow("Edit profile", systemImage: "person") { navigate(.editProfile) }
@@ -40,6 +40,13 @@ public struct SettingsView: View {
                 SettingsFooter("While you're paused, you leave every deck at once.")
             }
             Section {
+                SettingsSoundToggle()
+            } header: {
+                SettingsHeader("Sound")
+            } footer: {
+                SettingsFooter("A soft chime when it's mutual, a swell when the glow arrives. Your silent switch turns them off too.")
+            }
+            Section {
                 SettingsRow("Sign out", systemImage: "rectangle.portrait.and.arrow.right") { confirmSignOut = true }
                     .accessibilityIdentifier("settings.signOut")
                 SettingsRow("Delete account", systemImage: "trash", isDanger: true) { navigate(.deleteAccount) }
@@ -56,7 +63,7 @@ public struct SettingsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(.glowBackground)
+        .glowCanvas()
         .glowLoading(isSigningOut)
         .navigationTitle("Settings")
         .confirmationDialog("Sign out of Glow?", isPresented: $confirmSignOut, titleVisibility: .visible) {
@@ -129,7 +136,34 @@ struct SettingsRow: View {
             .frame(maxWidth: .infinity, minHeight: GlowSize.minimumTapTarget, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .listRowBackground(Color.glowSurface)
+        .listRowBackground(Color.glowGlass)
+    }
+}
+
+/// Settings > Sound: the three soft cues on or off (U1). On by default; the silent switch still
+/// mutes them. Presentation only: nothing in Glow needs a sound to be understood.
+struct SettingsSoundToggle: View {
+    @AppStorage(GlowSounds.isEnabledKey) private var isOn = true
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Label {
+                Text("Sounds").glowFont(.body)
+            } icon: {
+                Image(systemName: isOn ? "speaker.wave.2" : "speaker.slash")
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .foregroundStyle(.glowTextPrimary)
+        }
+        .tint(.glowAccent)
+        .frame(minHeight: GlowSize.minimumTapTarget)
+        .listRowBackground(Color.glowGlass)
+        .accessibilityIdentifier("settings.sounds")
+        .onChange(of: isOn) { _, isOn in
+            if isOn {
+                GlowSounds.shared.play(.tick)
+            }
+        }
     }
 }
 

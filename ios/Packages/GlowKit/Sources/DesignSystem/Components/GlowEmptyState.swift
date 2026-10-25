@@ -10,13 +10,14 @@ import SwiftUI
 //         Button("Change what you noticed") { … }.buttonStyle(.glowSecondary)
 //     }
 
-/// A softly glowing icon, a title, a message and optional actions, centered.
+/// A breathing light around a thin icon, one honest sentence in New York, a message and optional
+/// actions, centered (U1: waiting and empty states feel intentional and warm).
 public struct GlowEmptyState<Actions: View>: View {
     private let systemImage: String
     private let title: Text
     private let message: Text?
     private let actions: Actions
-    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 34
 
     public init(
         systemImage: String,
@@ -33,28 +34,21 @@ public struct GlowEmptyState<Actions: View>: View {
     public var body: some View {
         VStack(spacing: GlowSpacing.lg) {
             ZStack {
-                Circle()
-                    .fill(RadialGradient(
-                        colors: [.glowAccent.opacity(0.35), .glowAccent.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: iconSize * 1.4,
-                    ))
-                    .frame(width: iconSize * 2.8, height: iconSize * 2.8)
+                GlowBreathingLight()
                 Image(systemName: systemImage)
-                    .font(.system(size: iconSize, weight: .regular))
-                    .foregroundStyle(.glowAccent)
+                    .font(.system(size: iconSize, weight: .light))
+                    .foregroundStyle(.glowTextPrimary)
             }
             .accessibilityHidden(true)
 
-            VStack(spacing: GlowSpacing.xs) {
+            VStack(spacing: GlowSpacing.sm) {
                 title
-                    .glowFont(.headline)
+                    .glowFont(.titleSerif)
                     .foregroundStyle(.glowTextPrimary)
                     .accessibilityAddTraits(.isHeader)
                 if let message {
                     message
-                        .glowFont(.body)
+                        .glowFont(.callout)
                         .foregroundStyle(.glowTextSecondary)
                 }
             }
