@@ -158,6 +158,7 @@ function parseQuery(op: OperationDef, req: NextRequest): unknown {
           ? [...existing, value]
           : [existing, value];
   }
+  if (Object.values(raw).some((v) => hasNul(v))) throw badRequest('The query is not valid.');
   const parsed = op.query.safeParse(raw);
   if (!parsed.success) throw badRequest('The query is not valid.', issuesOf(parsed.error, 'query'));
   return parsed.data;
@@ -190,10 +191,25 @@ async function parseBody(op: OperationDef, req: Request): Promise<unknown> {
     } catch {
       throw badRequest('The body is not valid JSON.');
     }
+    // Postgres text can't hold a NUL, so one anywhere in a string used to reach the database
+    // and come back as a 500 (D2-F4). Nothing Glow stores needs one: refuse it up front.
+    if (hasNul(json)) throw badRequest('The body is not valid.');
   }
   const parsed = op.body.safeParse(json);
   if (!parsed.success) throw badRequest('The body is not valid.', issuesOf(parsed.error, 'body'));
   return parsed.data;
+}
+
+/**
+ * True if any string in `value` (a key or a value) holds a NUL character. Nesting deeper than
+ * 64 levels counts as true too: no Glow body is anywhere near that deep.
+ */
+export function hasNul(value: unknown, depth = 0): boolean {
+  if (typeof value === 'string') return value.includes('\u0000');
+  if (value === null || typeof value !== 'object') return false;
+  if (depth > 64) return true;
+  if (Array.isArray(value)) return value.some((v) => hasNul(v, depth + 1));
+  return Object.entries(value).some(([k, v]) => k.includes('\u0000') || hasNul(v, depth + 1));
 }
 
 const tooLarge = () => new HttpError(413, 'payload_too_large', 'That request is too large.');
