@@ -4,7 +4,7 @@ D5's hand-off: how to run the 3-minute demo so it can't break, how to get the fi
 
 **Status, 2026-10-24.** The seed script, this script, the fallbacks and the checklists are done. Three things wait on others: the venue (David), the full loop on `main` (B1, B3, C1 to C4, then the backup video), and real iPhones with TestFlight (the Apple Developer account, then the two dry runs). See [Done when](#done-when).
 
-Contents: [Before the event](#before-the-event) · [The two rooms](#the-two-rooms) · [The seeded room](#the-seeded-room) · [The 3-minute demo](#the-3-minute-demo) · [Fallback plan](#fallback-plan) · [Stage setup](#stage-setup) · [Dry runs](#dry-runs-on-real-phones) · [Backup video](#backup-video) · [First 50 people](#the-first-50-people) · [Pitch points](#pitch-points) · [Devpost draft](#devpost-draft)
+Contents: [Before the event](#before-the-event) · [The two rooms](#the-two-rooms) · [The seeded room](#the-seeded-room) · [The 3-minute demo](#the-3-minute-demo) · [The 75-second cut](#the-75-second-cut) · [Fallback plan](#fallback-plan) · [Stage setup](#stage-setup) · [Dry runs](#dry-runs-on-real-phones) · [Backup video](#backup-video) · [First 50 people](#the-first-50-people) · [Pitch points](#pitch-points) · [Devpost draft](#devpost-draft)
 
 ## Before the event
 
@@ -75,16 +75,32 @@ Two presenters: **D** (David, phone A) and **R** (Robin, phone B), both admins, 
 
 | Time | Who | On screen | Say (roughly) |
 | --- | --- | --- | --- |
-| 0:00 to 0:20 | D | Title slide, then the display screen's QR | "You've noticed someone at a hackathon. Maybe they noticed you too. Neither of you will ever say it. In 1998, Japan bought a gadget for exactly this: the Lovegety. It beeped when someone nearby was open to talking too. It never said who, and never whether it was you they'd noticed. Glow finishes that idea." |
+| 0:00 to 0:20 | D | Title slide, then the display screen's QR | "You've noticed someone at a hackathon. Maybe they noticed you too. Neither of you will ever say it. In 1998 [verify: possibly 1997, by Erfolg], Japan bought a gadget for exactly this: the Lovegety [verify]. It beeped when someone nearby was open to talking too [verify]. It never said who, and never whether it was you they'd noticed [verify]. Glow finishes that idea." |
 | 0:20 to 0:40 | D | Phone A: scan, "You're in the room" | "Scan the room's code. Glow checks you're actually here, once, and then forgets where you are. We keep pass or fail, never your location." |
-| 0:40 to 1:05 | D | Phone A: outfit photo, the blur preview | "Check in with a photo of today's outfit. Any face is blurred on the phone, before anything is uploaded. This is what others will see." (Show the preview. If it's already checked in, show the preview and cancel: the existing card stays.) |
+| 0:40 to 1:05 | D | Phone A: outfit photo, the blur preview | "Check in with a photo of today's outfit. Any face in this photo is blurred on the phone, before anything is uploaded. This is what others will see." (Show the preview. If it's already checked in, show the preview and cancel: the existing card stays.) |
 | 1:05 to 1:35 | D | Phone A: What did you notice, then the deck | "I noticed someone in [R's outfit]. No names, no faces, no distances: just today's look. I tap. They aren't told. Nobody ever finds out about a tap that isn't mutual. Not them, not the room, not us on the dashboard." Tap R's card. |
 | 1:35 to 1:50 | R, D | Both phones: the mutual takeover | R taps D's card. "If they tap me too..." both phones buzz. "Someone you noticed noticed you back. Only now do we see each other's real profile." |
-| 1:50 to 2:20 | R, D | Both phones held up: same color, code word, meeting spot | Both pick Find each other. "Find only happens if both say yes. Now both screens glow the same color with the same code word, and Glow picks a meeting spot." Hold both phones up to the room. "In a crowded hall, you look for the color." |
+| 1:50 to 2:20 | R, D | Both phones held up: same color, code word, meeting spot | Both pick Find each other. "Find only happens if both say yes. Now both screens glow the same color with the same code word, and Glow picks a meeting spot." Hold both phones up to the room. "In a crowded hall, you look for the color. Then you walk up and say the code word: 'Are you maple?' No pickup line needed. The app hands you the excuse." |
 | 2:20 to 2:35 | R, D | Both tap We met; the chat | "We met. The chat stays open." |
 | 2:35 to 3:00 | D | Laptop: live numbers for the attendee room | "Everything you saw is real and running now. [Number] people are checked in to this room. You'll notice there's no tap count, on purpose. Scan the poster by the food line to join." |
 
-**Rules on stage.** Never lock either phone (push may not be set up, see below). Never AirPlay or screen-share phone A while the deck is open: the deck hides itself when the screen is captured (P12). That's a feature worth one line if it happens: "See? The moment the screen is shared, the deck hides." Keep R's card findable: R checks in in something distinctive and sets the matching tags.
+## The 75-second cut
+
+For a judging table or a short slot. Same two phones and the same stage room as the 3-minute demo, with the check-in already done during setup (see [Stage setup](#stage-setup)). It opens on the one-sided beat, not on history, and it leaves the Lovegety line out. The glow lands in the last third, so keep the opening tight. Timings are estimates until the first dry run [verify].
+
+| Time | Who | On screen | Say (roughly) |
+| --- | --- | --- | --- |
+| 0:00 to 0:10 | D, R | Both phones held up, screens dark or on the room home | "One of us has tapped the other. Neither of us knows which." |
+| 0:10 to 0:30 | D | Phone A on the document camera: the deck is already open, filtered to what D noticed, with R's card and a few seeded cards. D taps R's card: "They won't know unless they tap you too." | "This is our stage room, so the other cards are seeded test people. The two real people are us. I noticed Robin's jacket. I tap. They weren't told." R holds up phone B: nothing has happened. |
+| 0:30 to 0:50 | R, D | R taps D's card. Both phones buzz. Both show the takeover, then each other's real profile. | "Now Robin taps me. Someone you noticed noticed you back. Only now do we see each other." |
+| 0:50 to 1:10 | R, D | Both pick Find each other. Both screens go to full brightness, the same color, the same code word, a meeting spot. Hold both phones up to the room. | "Find only happens if both say yes." |
+| 1:10 to 1:15 | D | Both phones up | "Look for the color, say the code word. No pickup line needed. The app hands you the excuse." |
+
+**If there is a second or two to spare**, add one line before the first tap: "Faces on outfit cards are blurred on your phone before upload. Your profile photos are shown only after a mutual match."
+
+**Rules.** The "Rules on stage" below apply to this cut too. The stage phones skip the location check because they are admins in a demo-mode room (each skip is logged); don't say the location was verified on stage.
+
+**Rules on stage.** (These apply to the 3-minute demo and the 75-second cut.) Never lock either phone (push may not be set up, see below). Never AirPlay or screen-share phone A while the deck is open: the deck hides itself when the screen is captured (P12). That's a feature worth one line if it happens: "See? The moment the screen is shared, the deck hides." Keep R's card findable: R checks in in something distinctive and sets the matching tags.
 
 **Between runs (rehearsals and dry runs), reset the pair:** unmatch from the chat menu (an active match keeps both out of each other's deck), and seed a new stage room with `--slug stage-dry-1`, `stage-dry-2` and so on, then `stage` for the real show. Taps are capped at 3 per person per room per day, and a re-tap after an unmatch uses a new one (D53), so a fresh room per run means the cap can't bite on stage.
 
@@ -113,6 +129,7 @@ At least 30 minutes before.
 
 - [ ] Both phones: latest TestFlight build, signed in, charged, Do Not Disturb on (except Glow), auto-lock set to Never, brightness up, on the hotspot.
 - [ ] `scripts/seed-demo.ts --remote --slug stage --refresh`, then both phones join the stage room by its code and check in. R wears something distinctive and tags it.
+- [ ] **Pre-set the tags and the deck filters.** R's check-in tags are set (top color, hair, extras) and D has already picked What did you notice so R's card shows near the top. Live filter picking costs about 20 s on stage. Don't relaunch the app afterwards: the filters live in the app's memory, not on the server [verify against the C1 build; PR #25 is still a draft].
 - [ ] D opens the deck once and checks R's card is there (then leaves it: card views count).
 - [ ] Neither phone has an active match with the other (Matches tab is empty).
 - [ ] Laptop: admin web signed in, tab 1 the attendee room's display screen (Full screen), tab 2 its live numbers. Backup video open and paused. Plugged in.
@@ -137,7 +154,8 @@ Before the first run: both stage accounts are admins with profile photos; the st
 10. [ ] Both tap We met; send one chat message each way.
 11. [ ] The attendee room's live numbers on the laptop update within 10 s.
 12. [ ] Reset: unmatch from the chat. Note anything slow, wrong or confusing, with the time.
-13. [ ] Run 2 only: everything again on the **hotspot**, and time the whole demo against the script (3:00 or under).
+13. [ ] To film a dry run of a real phone, use a **second camera** (another phone, filming over the shoulder). Don't screen-record a real phone with the deck open: the deck hides itself while the screen is recorded (P12), so the video would show the cover, not the cards.
+14. [ ] Run 2 only: everything again on the **hotspot**, and time the whole demo against the script (3:00 or under).
 
 ## Backup video
 
@@ -155,6 +173,8 @@ scripts/sim.sh record d5-backup-full-loop         # Ctrl-C when done
 scripts/sim.sh release
 ```
 
+Record on Simulators, not on real phones: P12 hides the deck during any screen capture of a real phone, so a screen recording of a real phone shows the cover instead of the cards. A real-phone video must be filmed with a second camera.
+
 The result goes in `docs/shots/d5-backup-full-loop-A.mp4` and `-B.mp4`, plus one side-by-side cut for the stage laptop. The same recording can be `GLOW_REVIEW_VIDEO_URL` for Apple's beta reviewers (RELEASE.md, step 8). The Simulator's recording shows the deck (it isn't a screen capture from iOS's point of view), and every card in it is seeded test data, so it's safe to show anywhere.
 
 ## The first 50 people
@@ -170,22 +190,23 @@ The goal is 50 real people checked in to the attendee room on the first day, mea
 
 **Discord draft** (for David to post; not posted):
 
-> Hi all! We're building **Glow** this weekend: if you noticed someone here and they noticed you too, Glow tells you both, privately. Nobody ever finds out about a one-sided tap. Scan the poster by the food line (or the QR at our table), check in with a photo of today's outfit (faces are blurred on your phone), and tap who you noticed. It's in TestFlight, 18+ only, and your outfit card disappears after 3 hours. Feedback very welcome at our table!
+> Hi all! We're building **Glow** this weekend: if you noticed someone here and they noticed you too, Glow tells you both, privately. Nobody ever finds out about a one-sided tap. Scan the poster by the food line (or the QR at our table), check in with a photo of today's outfit (any face in it is blurred on your phone before upload), and tap who you noticed. It's in TestFlight, 18+ only, and your outfit card disappears after 3 hours. Feedback very welcome at our table!
 
 ## Pitch points
 
 **The one-liner.** Glow lets two people in the same room find out, privately, that they noticed each other.
 
-**The Lovegety line.** "In 1998 Japan briefly went wild for the Lovegety, a keychain that beeped when someone nearby carrying one was open to talking too. It told you somebody close by was interested in somebody: never who, and never whether it was you. Glow finishes that idea: it's about the one person you noticed, it only speaks when it's mutual, and then it helps you find each other in the crowd." (D5 wrote the Lovegety details from memory: check them before saying them on stage.)
+**The Lovegety line.** "In 1998 [verify: possibly 1997, by Erfolg] Japan briefly went wild for the Lovegety [verify], a keychain that beeped when someone nearby carrying one was open to talking too [verify]. It told you somebody close by was interested in somebody: never who, and never whether it was you [verify]. Glow finishes that idea: it's about the one person you noticed, it only speaks when it's mutual, and then it helps you find each other in the crowd." (D5 wrote every Lovegety fact from memory, and the other session believes it launched in 1997 from Erfolg. Check them all before saying any on stage. The 75-second cut leaves it out.)
 
 **The privacy story**, in the order to tell it. Each line is an invariant with an automated test (AGENTS.md).
 
 - **You're anonymous until it's mutual.** Cards are faceless photos of today's outfit: no name, no face, no distance. Nothing the app receives before a match carries another person's ID, name or face (P1).
-- **Faces never leave your phone.** Any face is blurred on the device, before upload (P3). Every image is checked on every request, with no public links, and watermarked with the viewer's code so a leaked screenshot can be traced (P4).
+- **Faces on outfit cards are blurred on your phone, before upload (P3).** Your profile photos, which do show your face, are shown only after a mutual match. Every image is checked on every request, with no public links, and watermarked with the viewer's code so a leaked screenshot can be traced (P4).
 - **A one-sided tap is invisible. Forever.** No response, count or event reveals it (P5), and the organizers' live dashboard has no tap count at all.
 - **We check you're in the room, then forget where you are.** Only pass or fail is kept, never coordinates (P2).
 - **It disappears.** Cards and check-ins are deleted within 10 minutes of expiring, after 3 hours (P9).
 - **Safety is built in.** Blocks apply both ways within 5 seconds (P7), pausing or leaving takes you out of every deck within 5 seconds (P8), 18+ only (P10), the lock screen never shows a name (P6), asking for something you can't see looks exactly like asking for something that doesn't exist (P11), and the deck hides itself when the screen is recorded or shared (P12).
+- **The app is the excuse.** Both screens show the same code word, so you walk up and say it ("Are you maple?"). No pickup line needed. Glow suggests no openers (C4-D5 for chat).
 - **Find only happens if both say yes.** After a match, each picks Find each other or Just chat. Find needs both, plus a fresh location check.
 
 **Why it's different.** Dating apps show you strangers far away. Glow only works for people in the same room right now, and the room is the filter. It's the opposite of swiping: you've already seen them.
@@ -200,13 +221,13 @@ A draft for David to edit and submit. Not posted (D5-D7). It says what's real an
 
 *Find out, privately, that you noticed each other.*
 
-**Inspiration.** Everyone at a hackathon has noticed someone and never said anything. Saying it first is a risk; not saying it is a loss. In 1998, Japan's Lovegety tried to solve this with a keychain that beeped when someone nearby carrying one was open to talking too, without ever saying who. We wanted the version that only speaks up when it's mutual.
+**Inspiration.** Everyone at a hackathon has noticed someone and never said anything. Saying it first is a risk; not saying it is a loss. In 1998 [verify: possibly 1997, by Erfolg], Japan's Lovegety [verify] tried to solve this with a keychain that beeped when someone nearby carrying one was open to talking too [verify], without ever saying who [verify]. We wanted the version that only speaks up when it's mutual.
 
-**What it does.** Scan the room's QR code. Glow checks you're in the room, then forgets where you are. Check in with a quick photo of today's outfit; any face is blurred on your phone before upload. Pick what you noticed (gender, top color, hair) and scroll a small deck of faceless cards. Tap the person you noticed: they aren't told. If they tap you too, both phones buzz and you see each other's real profile for the first time. If you both choose Find each other, both screens glow the same color with the same code word and a meeting spot, with a 15-minute Live Activity on the lock screen. Tap We met, and the chat stays open.
+**What it does.** Scan the room's QR code. Glow checks you're in the room, then forgets where you are. Check in with a quick photo of today's outfit; any face in it is blurred on your phone before upload. Pick what you noticed (gender, top color, hair) and scroll a small deck of faceless cards. Tap the person you noticed: they aren't told. If they tap you too, both phones buzz and you see each other's real profile for the first time. If you both choose Find each other, both screens glow the same color with the same code word and a meeting spot, with a 15-minute Live Activity on the lock screen. Both screens show the same code word, so there is no pickup line to find: you walk up and say it. Tap We met, and the chat stays open.
 
 **How we built it.** A native iPhone app in Swift 6 and SwiftUI (Vision face blur on the device, ActivityKit Live Activities, Core Haptics), a Next.js API on Vercel, and Supabase (Postgres, Auth, Storage, Realtime). The rules that must never break live in Postgres functions: who appears in your deck, the tap cap, and exactly one match when two people tap at the same moment. One OpenAPI contract generates both the Swift and TypeScript clients. Photos are moderated with Claude. [David: describe the team honestly here, for example "built by David and Robin with a team of AI coding agents (Claude Code) working in parallel waves, each owning one module, coordinated by an integrator agent."]
 
-**Privacy.** Twelve privacy invariants, each with an automated test: anonymous until mutual, faces never uploaded, one-sided taps never revealed, coordinates never stored, everything gone 3 hours later, blocks both ways in 5 seconds, 18+ only, and the deck hides when the screen is recorded.
+**Privacy.** Twelve privacy invariants, each with an automated test: anonymous until mutual, faces on outfit cards blurred on the phone before upload (profile photos are shown only after a mutual match), one-sided taps never revealed, coordinates never stored, everything gone 3 hours later, blocks both ways in 5 seconds, 18+ only, and the deck hides when the screen is recorded.
 
 **Challenges.** Making anonymity real rather than a promise: the server never sends another person's ID or name before a match, images are checked on every request, and even timing can't reveal a one-sided tap. Indoor location is fuzzy, so the room check is generous by design and admin demo phones can skip it, with every skip logged.
 
