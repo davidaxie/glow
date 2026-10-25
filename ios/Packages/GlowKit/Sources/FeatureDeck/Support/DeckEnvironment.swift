@@ -9,6 +9,8 @@ import SwiftUI
 //     -GlowDebugDeckFixture 200            a room of 200 made-up people (C1's find test)
 //     -GlowDebugDeckFixture quiet          or normal, checkinEnded, paused, viewLimitReached
 //     -GlowDebugFakeScreenCapture YES      act as if the screen is being recorded (P12 UI test)
+//     -GlowDebugDeckAutoplay skip|tap      with a fixture: skip What did you notice, and with `tap`
+//                                          also open a look and tap it, for headless recordings (U2)
 
 extension EnvironmentValues {
     /// Overrides the deck's server calls. Nil means the live API.
@@ -45,9 +47,12 @@ extension Dependencies {
         /// One fixture room for the whole launch, so the room home and the deck agree.
         let service: FixtureDeckService?
         let fakesScreenCapture: Bool
+        /// `skip` or `tap`: plays the deck by itself on a fixture room, for headless recordings.
+        let autoplay: String?
 
         init(defaults: UserDefaults) {
             fakesScreenCapture = defaults.bool(forKey: "GlowDebugFakeScreenCapture")
+            autoplay = defaults.string(forKey: "GlowDebugDeckAutoplay")
             guard let value = defaults.string(forKey: "GlowDebugDeckFixture"), !value.isEmpty else {
                 service = nil
                 return

@@ -26,6 +26,7 @@ public struct CheckInView: View {
 struct CheckInScreen: View {
     @State private var model: CheckInModel
     @Environment(\.navigate) private var navigate
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(model: CheckInModel) {
         _model = State(initialValue: model)
@@ -41,10 +42,11 @@ struct CheckInScreen: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color.glowBackground)
+        .background { CheckInCanvas(warmth: CheckInLight.warmth(model.step)) }
         .navigationTitle("Check in")
         .navigationBarTitleDisplayMode(.inline)
-        .animation(GlowMotion.ui, value: model.step)
+        .animation(CheckInLight.motion(CheckInLight.smooth, reduceMotion: reduceMotion), value: model.step)
+        .animation(CheckInLight.motion(CheckInLight.gentle, reduceMotion: reduceMotion), value: CheckInLight.warmth(model.step))
         .onChange(of: model.step) { _, step in
             if case .done = step {
                 navigate(.roomHome(model.roomID))
@@ -69,7 +71,7 @@ struct CheckInScreen: View {
         case .tags, .uploading:
             TagsStep(model: model)
         case .done:
-            ProgressStep(label: "You're checked in.")
+            ProgressStep(label: "You're checked in.", isDone: true)
         }
     }
 }
@@ -108,17 +110,21 @@ private struct NoticeBanner: View {
 
 // MARK: - Progress
 
+/// A wait, as a breath of light rather than a spinner; when it's done, the light is full.
 struct ProgressStep: View {
     let label: LocalizedStringKey
+    var isDone = false
 
     var body: some View {
-        VStack(spacing: GlowSpacing.md) {
-            ProgressView()
-                .tint(Color.glowAccent)
+        VStack(spacing: GlowSpacing.sm) {
+            CheckInBreath(size: isDone ? 240 : 180, intensity: isDone ? 1 : 0.75)
             Text(label)
-                .glowFont(.callout)
-                .foregroundStyle(Color.glowTextSecondary)
+                .glowFont(.titleSerif)
+                .tracking(-0.3)
+                .foregroundStyle(isDone ? Color.glowTextPrimary : Color.glowTextSecondary)
+                .multilineTextAlignment(.center)
         }
+        .padding(.horizontal, GlowSpacing.lg)
         .accessibilityElement(children: .combine)
     }
 }

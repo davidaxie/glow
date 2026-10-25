@@ -17,14 +17,10 @@ struct RoomHomeScreen: View {
         Group {
             switch model.phase {
             case .loading:
-                ProgressView()
-                    .tint(.glowTextSecondary)
+                DeckBreathingLight(size: 220, intensity: 0.7)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(failure):
-                GlowEmptyState(
-                    systemImage: failure == .offline ? "wifi.slash" : "exclamationmark.triangle",
-                    title: LocalizedStringKey(failure == .offline ? DeckCopy.offline : DeckCopy.roomLoadFailed),
-                ) {
+                DeckQuietState(title: failure == .offline ? DeckCopy.offline : DeckCopy.roomLoadFailed, intensity: 0.45) {
                     Button(DeckCopy.tryAgain) { Task { await model.load() } }
                         .buttonStyle(.glowSecondary)
                 }
@@ -33,9 +29,13 @@ struct RoomHomeScreen: View {
                 loaded(snapshot)
             }
         }
-        .background(.glowBackground)
+        .background { DeckCanvas(warmth: model.snapshot.map { $0.isCheckedIn(at: clock()) && !model.paused } == true ? 0.8 : 0.3) }
         .navigationTitle(model.snapshot?.name ?? "")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // The room's name is set large in New York below; the bar stays quiet.
+            ToolbarItem(placement: .principal) { Text(verbatim: "") }
+        }
         .glowToast($model.toast)
         .confirmationDialog(DeckCopy.leaveTitle, isPresented: $model.isConfirmingLeave, titleVisibility: .visible) {
             Button(DeckCopy.leaveConfirm, role: .destructive) {
@@ -64,6 +64,7 @@ struct RoomHomeScreen: View {
     private func loaded(_ snapshot: RoomSnapshot) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: GlowSpacing.md) {
+                RoomHero(name: snapshot.name)
                 TimelineView(.periodic(from: .now, by: 30)) { _ in
                     RoomStatusCard(snapshot: snapshot, now: clock(), checkInAgain: checkInAgain(snapshot))
                 }
@@ -89,6 +90,11 @@ struct RoomHomeScreen: View {
                     }
                     .buttonStyle(.glowPrimary)
                     .disabled(!snapshot.isCheckedIn(at: clock()) || model.paused)
+                    .shadow(
+                        color: Color.glowAccent.opacity(snapshot.isCheckedIn(at: clock()) && !model.paused ? 0.35 : 0),
+                        radius: 18,
+                        y: 6,
+                    )
                     .accessibilityIdentifier("room.seeLooks")
                 }
                 Button(DeckCopy.leave) {
@@ -100,7 +106,6 @@ struct RoomHomeScreen: View {
             }
             .padding(.horizontal, GlowSpacing.screenMargin)
             .padding(.vertical, GlowSpacing.xs)
-            .background(.glowBackground)
         }
     }
 
@@ -131,6 +136,30 @@ struct RoomHomeScreen: View {
     }
 }
 
+/// The room's name, set large in New York, with a quiet eyebrow above it.
+struct RoomHero: View {
+    let name: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: GlowSpacing.xxs) {
+            Text(DeckCopy.roomEyebrow)
+                .glowFont(.footnote)
+                .textCase(.uppercase)
+                .tracking(1.2)
+                .foregroundStyle(.glowTextSecondary)
+            Text(name)
+                .glowFont(.hero)
+                .tracking(-0.6)
+                .foregroundStyle(.glowTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+        .padding(.horizontal, GlowSpacing.xxs)
+        .padding(.top, GlowSpacing.lg)
+        .padding(.bottom, GlowSpacing.sm)
+    }
+}
+
 /// Checked in with time left, or why not, with Check in again.
 struct RoomStatusCard: View {
     let snapshot: RoomSnapshot
@@ -141,18 +170,28 @@ struct RoomStatusCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: GlowSpacing.sm) {
-            HStack(alignment: .top, spacing: GlowSpacing.sm) {
-                Image(systemName: icon)
-                    .font(.glow(.title))
-                    .foregroundStyle(isActive ? AnyShapeStyle(.glowAccent) : AnyShapeStyle(.glowTextSecondary))
-                    .accessibilityHidden(true)
+            HStack(alignment: .center, spacing: GlowSpacing.md) {
+                ZStack {
+                    if isActive {
+                        // Checked in and visible: a small light breathing at a resting heart rate.
+                        DeckBreathingLight(size: 64, intensity: 1)
+                    }
+                    Image(systemName: icon)
+                        .font(.glow(.title))
+                        .foregroundStyle(isActive ? AnyShapeStyle(.glowAccent) : AnyShapeStyle(.glowTextSecondary))
+                }
+                .frame(width: 44, height: 44)
+                .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: GlowSpacing.xxs) {
                     Text(title)
-                        .glowFont(.headline)
+                        .glowFont(.titleSerif)
+                        .tracking(-0.3)
                         .foregroundStyle(.glowTextPrimary)
                     if let detail {
                         Text(detail)
                             .glowFont(.callout)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
                             .foregroundStyle(.glowTextSecondary)
                     }
                 }
@@ -167,9 +206,9 @@ struct RoomStatusCard: View {
                     .accessibilityIdentifier("room.checkInAgain")
             }
         }
-        .padding(GlowSpacing.md)
+        .padding(GlowSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous))
+        .deckGlass()
     }
 
     private var isActive: Bool {
@@ -228,8 +267,8 @@ struct RoomVisibilityCard: View {
         }
         .tint(.glowAccent)
         .disabled(model.isChangingPause)
-        .padding(GlowSpacing.md)
-        .background(.glowSurface, in: RoundedRectangle(cornerRadius: GlowRadius.card, style: .continuous))
+        .padding(GlowSpacing.lg)
+        .deckGlass()
         .accessibilityIdentifier("room.visible")
     }
 }
