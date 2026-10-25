@@ -159,3 +159,31 @@ describe('No server secret reaches the app or the browser', () => {
     expect(found).toEqual([]);
   });
 });
+
+describe('App analytics carry no personal data (P1, P2)', () => {
+  const FORBIDDEN =
+    /^(name|first_?name|last_?name|lat|lng|lon|latitude|longitude|coords?|coordinates?|location|accuracy|email|phone|birth\w*|photo|image|token|text|body|address|user_?id|match_?id|room_?id|card_?id|ticket|code)$/i;
+
+  it('no analytics event is keyed by a name, coordinate, ID, token or text', () => {
+    const files = walk(
+      join(ROOT, 'ios'),
+      (p) => p.endsWith('.swift') && !/\/(Tests|GlowTests|GlowUITests)\//.test(p),
+    );
+    const bad: string[] = [];
+    let events = 0;
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      for (const m of source.matchAll(/AnalyticsEvent\(\s*"([a-z_]+)"/g)) {
+        events++;
+        // The call up to its closing line, which holds the event's [key: value] literal.
+        const call = source.slice(m.index!, m.index! + 400).split(/\)\)\s*$/m)[0]!;
+        for (const key of call.matchAll(/"([A-Za-z_]+)"\s*:/g)) {
+          if (FORBIDDEN.test(key[1]!))
+            bad.push(`${relative(ROOT, file)}: ${m[1]} has the key "${key[1]}"`);
+        }
+      }
+    }
+    expect(events).toBeGreaterThan(20);
+    expect(bad).toEqual([]);
+  });
+});
