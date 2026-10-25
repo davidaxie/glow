@@ -84,6 +84,28 @@ Full request and response shapes are in `contracts/openapi.yaml`.
 | `GET /api/admin/photos` | `adminListPhotos` | B7 | person | Profile photos waiting for review |
 | `GET /api/admin/photos/{id}/image` | `adminPhotoImage` | B7 | person | A profile photo for review, watermarked with the admin's code |
 | `POST /api/admin/photos/{id}/review` | `adminReviewPhoto` | B7 | person | Approve or reject a held profile photo, or ban its owner |
+| `GET /api/blind/me` | `blindGetMe` | X1 | person | My Blind membership and right-swipe counters |
+| `POST /api/blind/join` | `blindJoin` | X1 | person | Opt in to Blind mode |
+| `DELETE /api/blind/join` | `blindLeave` | X1 | person | Leave Blind mode |
+| `GET /api/blind/deck` | `blindGetDeck` | X1 | person | Photo-only cards of other members I haven't swiped yet |
+| `POST /api/blind/swipe` | `blindSwipe` | X1 | person | Swipe a card. Says nothing about matches |
+| `GET /api/blind/pool` | `blindGetPool` | X1 | person | My right-swipe count, swipes left today and whether I can open a drop |
+| `GET /api/blind/pool/cards` | `blindGetPoolCards` | X1 | person | Guess Who cards, my own right swipes as photo-only cards |
+| `GET /api/blind/cards/{cardId}/image` | `blindGetCardImage` | X1 | person | A Blind card photo, through a signed 60-second link |
+| `GET /api/blind/drop` | `blindGetDrop` | X1 | person | Whether I can open a drop now, and when the next one is |
+| `POST /api/blind/drop` | `blindOpenDrop` | X1 | person | Open my drop, my waiting matches as new blind chats |
+| `GET /api/blind/chats` | `blindListChats` | X1 | person | My blind chats, codename and last message only |
+| `GET /api/blind/chats/{id}` | `blindGetChat` | X1 | person | One blind chat. The partner only after both tapped Reveal |
+| `GET /api/blind/chats/{id}/messages` | `blindListMessages` | X1 | person | Messages after a message ID, oldest first |
+| `POST /api/blind/chats/{id}/messages` | `blindSendMessage` | X1 | person | Send a message, unless it looks like it gives me away |
+| `POST /api/blind/chats/{id}/reveal` | `blindReveal` | X1 | person | Tap Reveal |
+| `POST /api/blind/chats/{id}/leave` | `blindLeaveChat` | X1 | person | Leave a blind chat without being revealed |
+| `POST /api/blind/chats/{id}/guess` | `blindGuess` | X1 | person | Guess Who, pick which of my pool cards this chat partner is |
+| `POST /api/blind/chats/{id}/block` | `blindBlock` | X1 | person | Block the person behind this chat, everywhere, without learning who |
+| `POST /api/blind/chats/{id}/report` | `blindReport` | X1 | person | Report the person behind this chat (this also blocks them) |
+| `GET /api/blind/chats/{id}/photos/{n}` | `blindGetPartnerPhoto` | X1 | person | The revealed partner's photo, through a signed 60-second link |
+| `POST /api/admin/blind/drop` | `blindAdminDrop` | X1 | person | Drop for everyone now (Blind mode) |
+| `GET /api/cron/blind-drop` | `blindCronDrop` | X1 | cron secret | The nightly Blind drop, protected by the cron secret |
 | `GET /.well-known/apple-app-site-association` | `getAppSiteAssociation` | B2 | none | The file that lets QR links open the app |
 | `GET /r/{slug}` | `getRoomWebPage` | B2 | none | Web page for people who don't have Glow yet, with the TestFlight link |
 <!-- END GENERATED: endpoints -->
@@ -223,4 +245,10 @@ Matches time out lazily: the purge cron does it every `PURGE_INTERVAL`, and thes
 | `PHOTO_JPEG_QUALITY` | 80% | JPEG quality for uploads (0.8). |
 | `PHOTO_MAX_BYTES` | 3,000,000 bytes | Largest uploaded JPEG, before base64. |
 | `FACE_BOX_GROWTH` | 30% | Each detected face box grows by this much on every side before blurring. |
+| `BLIND_RIGHT_SWIPES_PER_DAY` | 20 | Blind mode: right swipes (like or love) per person per UTC day. |
+| `BLIND_DROP_MIN_RIGHT_SWIPES` | 5 | Blind mode: a drop opens only for someone with at least this many right swipes ever. |
+| `BLIND_MAX_OPEN_CHATS` | 5 | Blind mode: most open blind chats a person has at once. Drops never open more. |
+| `BLIND_DECK_PAGE_MAX` | 20 | Blind mode: most cards per deck page (10 by default). |
+| `BLIND_REPORT_MAX_CHARS` | 500 characters | Blind mode: longest report text from a blind chat. |
+| `BLIND_DROP_REPLAY_WINDOW` | 5 min | Blind mode: a drop shows a chat again for this long after first showing it, so a retry isn't empty. |
 <!-- END GENERATED: constants -->

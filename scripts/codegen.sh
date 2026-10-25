@@ -132,7 +132,7 @@ function check() {
     if (!op.operationId) fail(`${where}: no operationId`);
     if (seen.has(op.operationId)) fail(`${where}: duplicate operationId ${op.operationId}`);
     seen.add(op.operationId);
-    if (!/^[A-E][0-9]$/.test(op['x-owner'] ?? '')) fail(`${where}: x-owner must be an agent ID`);
+    if (!/^[A-EX][0-9]$/.test(op['x-owner'] ?? '')) fail(`${where}: x-owner must be an agent ID`);
     if (!op.tags?.length || op.tags.some((t) => !knownTags.has(t))) fail(`${where}: unknown or missing tag`);
     const statuses = Object.keys(op.responses ?? {});
     if (statuses.includes('403')) fail(`${where}: declares 403. Not allowed is 404 (P11).`);
