@@ -1347,3 +1347,21 @@ Steps 1, 3 and 4 touch A3's files, so ask in Requests or open a small `cross-own
 - **B5**: `PushService.route(for:)` turns a tapped notification into a Route, and `foregroundPresentation(for:)` decides banners while the app is open. The app delegate already forwards both, plus the device token.
 - **C3**: `GlowActivityAttributes` is in `LiveActivityShared`, which both FeatureGlow and the extension link.
 - **D1**: `GlowUITests/SimulatorSetupUITests.swift` isn't a product test: `scripts/sim.sh allow-push` runs it to tap Allow on the notification prompt. Please keep it.
+
+### CHIPS · Icebreaker chips
+
+_2026-10-24, Wave 3._ `cross-owner` PR on `w3/chips` (touches C3's FeatureGlow, C4's FeatureChat, A1's `scripts/agent-env.sh` and the docs). Decisions CHIPS-D1 to CHIPS-D4. David approved the feature.
+
+**Built** (client only: no endpoint, no contract change, nothing stored on the server)
+
+- **FeatureGlow, `GlowSayAloud.swift`**: under the code word and meeting spot, "Need an excuse?" and three lines to say aloud: "Are you {word}?", "We both noticed. Hi.", "Found you. Shall we sit by {spot}?" For reading only (nothing is tappable). The spot line is left out when the glow has no spot. VoiceOver reads each as "Suggested opener: …".
+- **FeatureChat, `ChatIcebreaker.swift`**: in an empty, open chat, up to three chips: "Hey, glad we both noticed. What brought you to {room}?", "Are you {word}? I'm the other one." (only with a glow word), "Want to find a seat at {spot}?" (only with a meeting spot, so not after Just chat). Tapping one fills the composer and focuses it; it never sends. The person edits it and sends it through the normal path. The chips vanish as soon as either person has a message in the thread. `ChatHeader` now also carries `roomName`, `codeWord` and `meetingSpot`, read from the `GET /api/matches/{id}` call the header already made. Using a chip logs `chat_icebreaker_used` with `chip` = `room`, `word` or `spot`, never text.
+- **Tests**: `ChatIcebreakerTests.swift` (copy and interpolation, omission, Just chat, hidden after either person writes, tapping fills and never sends, the edited text is what is sent, no marker on a sent chip, analytics ID only), `IcebreakerReachabilityTests.swift` (source-level: no other module mentions a chip type or a chip's words, no pre-match module depends on FeatureGlow or FeatureChat, and the app builds `GlowView` and `ChatView` only for their routes), `GlowSayAloudTests.swift`, and snapshots at the default and largest text size: chat with three chips, with a filled composer, and Just chat; the glow screen's existing snapshots were re-recorded because they now include the lines.
+
+**For C3 and C4**: your modules gained the files above, and `GlowOnView`, `ChatThread`, `ChatModel`, `ChatHeader`, `LiveChatAPI.header` and `PreviewChatAPI` (a `header:` argument) changed a little. C4-D5's "no openers" half is superseded (CHIPS-D1); messages still show verbatim.
+
+**For D1**: the chips are plain `Button`s with the accessibility label "Suggested opener: …" in the chat, and static text on the glow screen.
+
+**For D4**: new strings: "Need an excuse?", "Are you %@?", "We both noticed. Hi.", "Found you. Shall we sit by %@?", "Need a way to start?", "Hey, glad we both noticed. What brought you to %@?", "Are you %@? I'm the other one.", "Want to find a seat at %@?", "Suggested opener: %@", "Puts it in the message box. Nothing is sent until you send it.", "Tap one to start your message. You can change it first."
+
+**For A1**: `scripts/agent-env.sh` has a new row, `CHIPS 51` (port 3141), CHIPS-D4.
