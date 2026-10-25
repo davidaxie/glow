@@ -1215,3 +1215,25 @@ B8's `signIn` policy allows 10 test sign-ins per 10 minutes per client IP, and o
 ### D1-D8 · Install the app, then grant location, on every run
 
 `run.sh` granted location with `simctl privacy` before the app was installed, which does nothing on a new or erased Simulator, and it ended in `|| true`, so nobody saw it. iOS's location dialog then covered the Join screen and run 1 failed ("checkin.debugPhoto never appeared"). My ten runs reused an installed Glow A, which hid it. Now every run installs the built app first, then grants location, and either step failing stops the run with a message. Checked from cold: after `sim.sh reset A`, the old script fails run 1 the same way, and the new one passes run 1. The journeys only exercise the allowed-location path. The denied one ("Don't Allow") has not been run by anyone, so nothing here shows what the app does after a refusal.
+
+## X1 · Blind backend
+
+### X1-D1 · Blind lives in Glow's database, prefixed blind_
+
+Double Blind's tables and functions are ported as `blind_*` (0100, 0101) on Glow's profiles, photos and blocks. Eligibility also requires both people to have an approved photo, so nobody browses without being visible. `codegen.sh` accepts `X` agent IDs in `x-owner`, and `agent-env.sh` gets `X1 61` and `X2 62`.
+
+### X1-D2 · Absent instead of null
+
+Glow's contract has no nullable fields, so `lastMessage` and a send reply's `message` are left out instead of being `null`. Swift's optional decoding treats both the same.
+
+### X1-D3 · BLIND_DEMO_MODE is stage only
+
+`BLIND_DEMO_MODE=true` opens drops at any time (Double Blind's DEMO_MODE). It brings back the F-01 oracle (swipe, drop, learn which swipe was mutual), so it must never be set in production. Without it, drops open from 8pm Pacific until midnight, and only for matches made before today's 8pm (`blind_run_drop` with a cutoff).
+
+### X1-D4 · Blocks, reports and leaving
+
+A Blind block is a Glow block (`private.block_pair`), and a trigger on `public.blocks` closes Blind chats for a block made anywhere. A Blind report goes to `public.reports` (context `blind_chat`, with the partner's last messages as evidence) and also blocks, like every Glow report. `AdminReport.context` becomes `AdminReportContext` so the admin queue can show it. Leaving Blind deletes my swipes and cards both ways, my matches and my chats (for the partner the chat disappears and answers 404), as the brief says.
+
+### X1-D5 · Signed Blind image links
+
+Card photos and revealed partner photos use Glow's signing (CARD_URL_SECRET, 60 s, viewer from the bearer token) with their own `blind-card.` and `blind-photo.` prefixes, so a Blind link never works on a Glow route. Guess Who cards stay unfiltered by blocks (Double Blind B1), but banned people drop out.
