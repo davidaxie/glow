@@ -12,16 +12,28 @@ final class PushTapUITests: XCTestCase {
     /// screens show their "couldn't open" states; that still proves the tap routed there.
     /// The words are a stand-in until each screen has a `screen.<Module>` identifier (HANDOFFS,
     /// For C2, C3 and C4), which wins when present.
-    private let destinations: [(fixture: String, module: String, words: [String])] = [
-        ("match_created", "FeatureMatch", ["Couldn't open this match", "Someone you noticed noticed you back."]),
-        ("match_choice", "FeatureMatch", ["Couldn't open this match"]),
-        ("match_recheck", "FeatureMatch", ["Couldn't open this match"]),
-        ("match_ended", "FeatureMatch", ["Couldn't load your matches", "Matches"]),
-        ("glow_started", "FeatureGlow", ["Something went wrong.", "Couldn't load your matches"]),
-        ("glow_ended", "FeatureChat", ["The chat didn't load.", "Chat"]),
-        ("message_created", "FeatureChat", ["The chat didn't load.", "Chat"]),
-        ("checkin_expiring", "FeatureDeck", []),
-        ("deck_changed", "FeatureDeck", []),
+    private struct Destination {
+        let fixture: String
+        let module: String
+        let words: [String]
+
+        init(_ fixture: String, _ module: String, _ words: [String]) {
+            self.fixture = fixture
+            self.module = module
+            self.words = words
+        }
+    }
+
+    private let destinations: [Destination] = [
+        Destination("match_created", "FeatureMatch", ["Couldn't open this match", "Someone you noticed noticed you back."]),
+        Destination("match_choice", "FeatureMatch", ["Couldn't open this match"]),
+        Destination("match_recheck", "FeatureMatch", ["Couldn't open this match"]),
+        Destination("match_ended", "FeatureMatch", ["Couldn't load your matches", "Matches"]),
+        Destination("glow_started", "FeatureGlow", ["Something went wrong.", "Couldn't load your matches"]),
+        Destination("glow_ended", "FeatureChat", ["The chat didn't load.", "Chat"]),
+        Destination("message_created", "FeatureChat", ["The chat didn't load.", "Chat"]),
+        Destination("checkin_expiring", "FeatureDeck", []),
+        Destination("deck_changed", "FeatureDeck", []),
     ]
 
     override func setUp() {
@@ -37,7 +49,8 @@ final class PushTapUITests: XCTestCase {
         let personA = GlowA.launch(config, for: self, openRoom: false)
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
-        for (fixture, module, words) in destinations {
+        for destination in destinations {
+            let (fixture, module, words) = (destination.fixture, destination.module, destination.words)
             let body = try alertBody(URL(fileURLWithPath: folder).appending(path: "\(fixture).apns"))
             // From the background, so it shows as a banner on the springboard.
             XCUIDevice.shared.press(.home)
