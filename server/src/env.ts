@@ -98,6 +98,10 @@ const formats = {
   ALLOW_TEST_LOGIN: z
     .enum(['1', 'true', '0', 'false'], { error: 'must be 1, true, 0 or false' })
     .transform((v) => v === '1' || v === 'true'),
+  // Blind mode, stage only: drops open at any time instead of from 8pm Pacific (X1-D3).
+  BLIND_DEMO_MODE: z
+    .enum(['1', 'true', '0', 'false'], { error: 'must be 1, true, 0 or false' })
+    .transform((v) => v === '1' || v === 'true'),
 } as const;
 
 export type EnvName = keyof typeof formats;

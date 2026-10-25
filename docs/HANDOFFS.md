@@ -1394,7 +1394,7 @@ _2026-10-24, Wave 3._ `cross-owner` PR on `w3/chips` (touches C3's FeatureGlow, 
 
 _2026-10-25, Blind mode (docs/briefs/blind-mode.md). Branch `blind/x1-backend`._
 
-**Contract is in: commit `a598fa9`** ("X1: Blind mode contract (/api/blind), codegen and 501 stubs"). **X2: merge `blind/x1-backend` (at least `a598fa9`) and build `LiveBlindService` on the generated Swift client.** The routes answer 501 until the next commits land; the shapes don't change.
+**Contract is in: commit `a598fa9`** ("X1: Blind mode contract (/api/blind), codegen and 501 stubs"). **X2: merge `blind/x1-backend` (at least `a598fa9`) and build `LiveBlindService` on the generated Swift client.** **Routes are live** (commit `02823f0` and later): every operation below works against the blind_* functions. Run the server with `BLIND_DEMO_MODE=true` in `server/.env.local` for instant drops, seed with `scripts/seed-blind.ts`, and pair the two stage accounts with `scripts/seed-blind.ts pair <emailA> <emailB>`.
 
 Operations (tag `blind`, in the Swift client; `Client.blindX(...)`):
 

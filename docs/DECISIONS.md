@@ -1238,3 +1238,24 @@ The brief puts it in APIClient, but APIClient cannot see AppCore's `BlindService
 ### X2-D2 · The Blind deck hides while the screen is recorded
 
 P12 is a Rooms rule, but Blind cards are face photos, so the deck uses `.glowHiddenWhenCaptured()` too (the more private choice).
+## X1 · Blind backend
+
+### X1-D1 · Blind lives in Glow's database, prefixed blind_
+
+Double Blind's tables and functions are ported as `blind_*` (0100, 0101) on Glow's profiles, photos and blocks. Eligibility also requires both people to have an approved photo, so nobody browses without being visible. `codegen.sh` accepts `X` agent IDs in `x-owner`, and `agent-env.sh` gets `X1 61` and `X2 62`.
+
+### X1-D2 · Absent instead of null
+
+Glow's contract has no nullable fields, so `lastMessage` and a send reply's `message` are left out instead of being `null`. Swift's optional decoding treats both the same.
+
+### X1-D3 · BLIND_DEMO_MODE is stage only
+
+`BLIND_DEMO_MODE=true` opens drops at any time (Double Blind's DEMO_MODE). It brings back the F-01 oracle (swipe, drop, learn which swipe was mutual), so it must never be set in production. Without it, drops open from 8pm Pacific until midnight, and only for matches made before today's 8pm (`blind_run_drop` with a cutoff).
+
+### X1-D4 · Blocks, reports and leaving
+
+A Blind block is a Glow block (`private.block_pair`), and a trigger on `public.blocks` closes Blind chats for a block made anywhere. A Blind report goes to `public.reports` (context `blind_chat`, with the partner's last messages as evidence) and also blocks, like every Glow report. `AdminReport.context` becomes `AdminReportContext` so the admin queue can show it. Leaving Blind deletes my swipes and cards both ways, my matches and my chats (for the partner the chat disappears and answers 404), as the brief says.
+
+### X1-D5 · Signed Blind image links
+
+Card photos and revealed partner photos use Glow's signing (CARD_URL_SECRET, 60 s, viewer from the bearer token) with their own `blind-card.` and `blind-photo.` prefixes, so a Blind link never works on a Glow route. Guess Who cards stay unfiltered by blocks (Double Blind B1), but banned people drop out.
