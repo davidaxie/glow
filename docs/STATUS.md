@@ -27,6 +27,19 @@ Two people in one room both tap each other. Both phones buzz, then both screens 
 | Demo kit | Merged: seed script, demo script, fallbacks. | Seed script tests. |
 | Release pipeline | Merged. Cannot run without an Apple account. | Lane tests only. |
 
+## Blind mode and the design revamp (branch `integrate/y1`, not on main)
+
+`blind-mode` merges X1 (Blind backend), X2 (Blind tab, FeatureBlind), U1 (design foundation), U2 (rooms, check-in, deck) and U3 (mutual moment, glow, chat). Y1 integrated it; details in `docs/qa/y1.md`.
+
+| Area | State | Proof |
+| --- | --- | --- |
+| Builds and lint | iOS build and SwiftLint/SwiftFormat clean after Y1's fixes | `scripts/sim.sh build`, `lint` on `integrate/y1` |
+| Tests | Server Vitest 1019 passed; iOS unit tests pass with 53 Deck, Match, Glow and Chat snapshots re-recorded for the redesign (looked at) | `docs/qa/y1.md` |
+| Blind backend | Every `/api/blind/*` route live | X1's stage script 27/27 on Y1's own stack, no leaks before reveal |
+| **Blind on two Simulators, live** | Opt-in, 5 likes, drop, chat both ways, one-sided reveal (the other phone unchanged), mutual reveal | XCUITest on Glow A and Glow B against the real server and database (no mocks); 19 screenshots in `docs/shots/combined/` |
+
+Not proven on this branch: D1's Rooms journey after the redesign (not re-run), Blind's give-away warning, Guess Who, Report and Block on a live server, and anything on a real iPhone.
+
 ## In progress
 
 - **First run on a fresh Simulator: fixed, proven once.** The verification pass found the first full run on a brand-new Simulator failed (the location-permission dialog covered the Join screen). D1's fix (#58) installs the app before granting permission; D1 reproduced the failure on the old script and passed run 1 from a cold Simulator on the new one (83 s). One cold pass, not ten.
