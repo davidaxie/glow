@@ -1,6 +1,6 @@
 # Status
 
-Running note for David and Robin. Updated by the build orchestrator whenever something changes. Last updated 2026-10-24, main `1af3364`.
+Running note for David and Robin. Updated by the build orchestrator whenever something changes. Last updated 2026-10-24, main `1e40526`.
 
 Nothing here says "works" unless a test or a run proved it. "Proven" means a test ran against the real local database or the app on a Simulator. No part of this has run on a real iPhone.
 
@@ -20,7 +20,8 @@ Two people in one room both tap each other. Both phones buzz, then both screens 
 | Safety | Merged: block, report, pause, delete account, purge every 5 minutes, held photos. | Live tests: block removes both people within 5 s; deletion leaves no rows or files. |
 | Push and realtime | Merged: live realtime channels, push sender, notification routing. | Payload snapshots show no names; one person can't join another's channel. |
 | Design system | Merged: tokens, components, glow surface, takeover, haptics, card tile. | 45 tests; contrast checked for every pairing. |
-| Match, glow and chat screens | Merged. | Server tests for every choice combination. App screens only on fixtures so far. |
+| Match, glow and chat screens | Merged, with the icebreaker chips (#55, say-aloud lines on the glow screen, tap-to-fill openers in chat). | Server tests for every choice combination; snapshot and unit tests; Simulator screenshots. |
+| Full loop on the Simulator | Merged (B1 sign-in and the deck are in). Person B is a script, not a second phone. | D1's journey passed 10 of 10 in a row on one warm Simulator (1198 s). The verification pass re-ran it once warm and it passed (64 s). Recording: `docs/shots/d1-e2e-full.mp4`, two Simulators. |
 | Admin web | Merged: rooms, posters, rotating QR, reports, held photos. | 112 tests; non-admins get 404 everywhere. |
 | Security | One high finding fixed (account takeover through password sign-up), one low fixed. | Live test against the real local auth service. |
 | Demo kit | Merged: seed script, demo script, fallbacks. | Seed script tests. |
@@ -28,20 +29,18 @@ Two people in one room both tap each other. Both phones buzz, then both screens 
 
 ## In progress
 
-- **B1 iOS sign-in and onboarding.** The server half is merged. The app half (real sign-in, onboarding screens, a Debug launch option to sign in as a test person) is the one piece blocking every real end-to-end run.
-- **C1 deck screens.** Built, waiting on tests and a merge.
-- **D1 end-to-end tests** and the two-Simulator recording. Waiting on B1.
-- **D2 security review.** Still going: a full-loop traffic scan, and the chat attack list.
-- **Pitch pack** (60 to 90 second script, Q&A, narrative): being written.
+- **D1: first run on a fresh Simulator.** The verification pass found the first full run on a brand-new Simulator fails (the location-permission dialog covers the Join screen, because the script grants permission before the app is installed). D1 is fixing the script and re-proving a cold first run.
+- **Review of the pitch against what actually ran.** Pitch and demo docs updated in this change; the verification pass's full report is in the orchestrator's notes.
 - **Shared Simulator and build limits** for all projects on this Mac.
 
 ## Not proven yet
 
-- The full loop for real (sign in, join, check in, tap, mutual, glow, chat) on two Simulators. Waits on B1.
+- The full loop on a first launch of a fresh Simulator (fails today, fix in progress), and on two real phones.
+- Timing of the 5-second rules (block, pause), push, haptics, the camera, P3 traffic, P6, P9, P12 on a real run: the verification pass did not check them. What it did check: 465 of 465 database tests, 6 of 6 end-to-end checks, the public keys can read nothing, and no coordinates in the server log.
 - The mutual reveal within 2 seconds, and a message reaching the other phone in under 1 second. Measured only with stand-ins.
 - The lock-screen countdown starting and ending on time.
 - Anything on a real iPhone: camera, haptics, push while locked, location inside the venue, glow brightness in a bright hall.
-- Bad network, denied location and first launch end to end. Individual screens exist; nobody has run the whole path.
+- Bad network and denied location ("Don't Allow"). Nobody has run either path.
 
 ## What is simulated
 

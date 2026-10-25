@@ -2,7 +2,7 @@
 
 The pitch pack for Glow at Cal Hacks: tagline, a 75-second demo script, the narrative, answers to likely judge questions, what is technically impressive, and an honest table of what is real and what is simulated. Decisions: PITCH-D1 and CHIPS-D1 in [`DECISIONS.md`](DECISIONS.md).
 
-**Snapshot: 2026-10-24, main `1af3364`.** Everything here comes from the repo's docs ([`SPEC.md`](SPEC.md), [`BUILD_PLAN.md`](BUILD_PLAN.md), [`DEMO.md`](DEMO.md), [`DECISIONS.md`](DECISIONS.md), [`HANDOFFS.md`](HANDOFFS.md), [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md)). Nothing here says something works unless a test or a run in those docs proved it. Anything the repo can't back is marked **[verify]**. Re-read the [real-and-simulated table](#6-what-is-real-and-what-is-simulated) on the day, because it changes every time a PR merges.
+**Snapshot: 2026-10-24, main `1e40526`.** Everything here comes from the repo's docs ([`SPEC.md`](SPEC.md), [`BUILD_PLAN.md`](BUILD_PLAN.md), [`DEMO.md`](DEMO.md), [`DECISIONS.md`](DECISIONS.md), [`HANDOFFS.md`](HANDOFFS.md), [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md)). Nothing here says something works unless a test or a run in those docs proved it. Anything the repo can't back is marked **[verify]**. Re-read the [real-and-simulated table](#6-what-is-real-and-what-is-simulated) on the day, because it changes every time a PR merges.
 
 Contents: [1. Tagline](#1-tagline-and-description) · [2. Demo script](#2-the-75-second-demo-script) · [3. Narrative](#3-problem-solution-why-now) · [4. Judge questions](#4-likely-judge-questions) · [5. Technically impressive](#5-what-is-technically-impressive) · [6. Real and simulated](#6-what-is-real-and-what-is-simulated)
 
@@ -94,11 +94,11 @@ Be exact. The rules are P1 to P12 in `AGENTS.md`. As of this snapshot:
 | P5 one-sided taps never revealed | B4 contract and timing tests | |
 | P6 no name on the lock screen | B5 snapshots of every push payload | A real push through Apple |
 | P7 blocks both ways within 5 s | B8 live test: both decks lose each other | |
-| P8 paused or departed leave decks within 5 s | B8 live test (pause) | C1's side (deck screen is an unmerged draft) |
+| P8 paused or departed leave decks within 5 s | B8 live test (pause) | C1's deck screen is merged (#25); the 5-second timing was not measured in the verification pass |
 | P9 cards and check-ins deleted within 10 minutes | B8 live purge test | The 5-minute cron needs Vercel Pro or an outside scheduler (Needs David) |
-| P10 nobody under 18 finishes onboarding | Database trigger refuses the birthdate (D24); server check | B1's phone-side UI test (unmerged) |
+| P10 nobody under 18 finishes onboarding | Database trigger refuses the birthdate (D24); server check | B1's phone-side UI test (B1 is merged, #6) |
 | P11 not allowed returns 404, never 403 | The route helper turns 403 into 404; contract tests | |
-| P12 deck hides while recorded or mirrored | B6 `glowHiddenWhenCaptured` and its tests | C1's deck screen and UI test (unmerged draft) |
+| P12 deck hides while recorded or mirrored | B6 `glowHiddenWhenCaptured` and its tests | C1's deck screen and UI test (merged, #25 and #54) |
 
 ### Safety and consent
 
@@ -143,7 +143,7 @@ D2's security review found one **high** issue and fixed it: Supabase accepts pas
 **Q. What if only a few people are in the room?**
 The room is the filter, and the organizer's poster QR is the install funnel. The deck only ever holds people who are here now. That is the product's strength and its limit.
 
-With few people, the deck is short. The server says why a page is empty (`emptyReason`), and the C1 deck shows, for `quiet`: "It's quiet here. Nobody else fits you yet. New looks appear as people check in." For filters that match nobody: "Nobody fits that yet. Try fewer details." This is the C1 build in draft PR #25, **not yet on main**. There is **no** "you're one of the first here" state, and in a room with zero to two other people that quiet message is what a judge would see. Gender and show-me rules shrink the visible pool further.
+With few people, the deck is short. The server says why a page is empty (`emptyReason`), and the C1 deck shows, for `quiet`: "It's quiet here. Nobody else fits you yet. New looks appear as people check in." For filters that match nobody: "Nobody fits that yet. Try fewer details." This is the C1 deck, merged in #25. There is **no** "you're one of the first here" state, and in a room with zero to two other people that quiet message is what a judge would see. Gender and show-me rules shrink the visible pool further.
 
 Small rooms also weaken anonymity: with very few cards, a card is easier to place. Cards are faceless, but this is a real tradeoff, and no minimum room size is enforced **[verify: none in the repo]**.
 
@@ -183,7 +183,7 @@ The spec chose native for the camera, Vision (face blur on the device), push, ha
 No. Nothing has run on a real iPhone. The camera, haptics, push while locked, indoor GPS and glow brightness in a bright hall are untested on devices. All app runs so far are on Simulators. There is no Apple Developer account, so no TestFlight build exists yet (Needs David).
 
 **Q. Is the whole loop proven?**
-Not end to end. The server side of every step is merged and tested against a real local database. The sign-in screens (B1) and the deck screen (C1) are unmerged draft PRs. Individual screens (rooms, check-in, mutual moment, glow, chat) run on the Simulator. The first run of the full loop on two Simulators waits on B1.
+The full loop runs on the Simulator. D1's end-to-end journey (check in, tap, mutual, Find, glow, We met) passed 10 of 10 in a row on one warm Simulator, and the verification pass re-ran it once warm and it passed. On a brand-new Simulator the first run failed (the location-permission dialog covered the Join screen); D1 is fixing the script. Person B is a script (`scripts/e2e/player-b.ts`), and the two-phone recording (`docs/shots/d1-e2e-full.mp4`) is two Simulators, not two phones.
 
 **Q. How was it built?**
 By David and Robin with a team of AI coding agents (Claude Code) working in parallel waves, each owning one module, coordinated by an integrator agent: 24 agents in five waves (BUILD_PLAN). The contract came first (`openapi.yaml`), so each agent built against it. **[David: confirm how to describe the team.]**
@@ -202,13 +202,13 @@ By David and Robin with a team of AI coding agents (Claude Code) working in para
 
 ## 6. What is real and what is simulated
 
-Taken from `HANDOFFS.md`, `DEMO.md`, `DECISIONS.md`, and the repo as of main `1af3364`. "Proved" means a test or run recorded there. **Nothing has run on a real iPhone.**
+Taken from `HANDOFFS.md`, `DEMO.md`, `DECISIONS.md`, and the repo as of main `1e40526`. "Proved" means a test or run recorded there. **Nothing has run on a real iPhone.**
 
 | Piece | State | What the docs prove | Say on stage |
 | --- | --- | --- | --- |
 | Database rules, API, contract | Real, merged | Tested on a **local** Supabase only. 443 pgTAP tests at Checkpoint 1; a server test suite **[verify current counts]**. | "The rules run in the database." |
 | Cloud deployment | **Does not exist** | No Supabase cloud project, no Vercel project, no preview URL, no domain. The web domain is a placeholder. QR links don't open the app yet. | Don't say it is live online. |
-| Full loop (sign in, join, check in, tap, mutual, glow, chat) | **Never run end to end** | Each server step is tested. The B1 sign-in screens and the C1 deck screens are unmerged drafts (PRs #6, #25). The app's session is a preview mock until B1 merges. | Describe the flow; don't claim a recording of the full loop unless one exists. |
+| Full loop (sign in, join, check in, tap, mutual, glow, chat) | **Runs on the Simulator** | 10 of 10 in a row (D1, warm Simulator, test sign-in, 1198 s); re-run once warm by the verification pass. The first run on a fresh Simulator failed until the script is fixed. Person B is a script. Not run: mutual in 2 s, Live Activity, haptics, bad network, denied location. | Say "the full loop runs on two Simulators, and here is the recording". Never say "two phones". |
 | Mutual reveal in 2 seconds, message in under 1 second | Measured only with stand-ins | Message arrived 21 to 79 ms after broadcast with a local stand-in (C4). | Don't quote timings. |
 | Face blur on the phone | Real, merged | Tested on fixture photos on the Simulator. | "Blurred on the phone." Not tested with a real camera. |
 | Photo and chat moderation | **Simulated** until an Anthropic key exists | A deterministic fake rejects only marked test photos. Fails closed with a key; the live test has not run (Needs David 14). Synthetic outfit drawings are rejected by the real model as "no person". | Say it is a fake today. |
@@ -216,9 +216,9 @@ Taken from `HANDOFFS.md`, `DEMO.md`, `DECISIONS.md`, and the repo as of main `1a
 | Purge every 5 minutes (P9) | Real code, tested | Live purge test passes. Needs Vercel Pro or an outside scheduler (Needs David 3, 13). | |
 | Push through Apple | **Not run** | Payloads snapshot-tested (no names). No APNs key. A real sandbox push test skips until the key exists. Fixture pushes shown in the Simulator. | "Pushes arrive while the app is open." Don't show lock-screen pushes. |
 | Realtime | Real, merged | Tested against the local Supabase (private channels, can't join another's). | |
-| Sign in with Apple | Built, **untested** | Needs an Apple account. The email 6-digit code path is built; the email template change is an unmerged draft (PR #11). | |
+| Sign in with Apple | Built, **untested** | Needs an Apple account. The email 6-digit code path is built; the email template change is not on main (PR #11 was closed). | |
 | Location check | Real, merged | Tested with simulated location on the Simulator. Indoor GPS on a device untested. | Stage phones skip it (admins, demo mode, logged). |
-| Icebreaker chips (CHIPS-D1) | Built (this PR) | Unit and snapshot tests, plus a source-level test that no pre-match screen can show one. Static text, nothing stored on the server, nothing sent for you. Simulator screenshots in `docs/shots/chips-*.png`. | "Three tap-to-fill openers, only after a mutual match." |
+| Icebreaker chips (CHIPS-D1) | Built (merged, #55) | Unit and snapshot tests, plus a source-level test that no pre-match screen can show one. Static text, nothing stored on the server, nothing sent for you. Simulator screenshots in `docs/shots/chips-*.png`. | "Three tap-to-fill openers, only after a mutual match." |
 | Live Activity (lock screen countdown) | Built and unit-tested | Not yet shown running in the Simulator. | |
 | Haptics, glow brightness, brightness restore | Built | Brightness restore tested in six ways out. Simulator can't play haptics or change brightness. Untested on a device. | |
 | **Sound** | **None exists** | There is no sound code and no brief for it. Glow has haptics and light only. | Don't promise sound. |
