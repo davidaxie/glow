@@ -193,7 +193,7 @@ struct DeckTapNoted: View {
                     .foregroundStyle(.glowAccent)
                     .symbolEffect(.bounce, value: justNow)
                 Text(justNow ? DeckCopy.tapSent : DeckCopy.youTappedThem)
-                    .font(DeckLight.titleSerif)
+                    .glowFont(.titleSerif)
                     .tracking(-0.3)
                     .foregroundStyle(.glowTextPrimary)
             }
@@ -238,7 +238,7 @@ struct TapConfirmPanel: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: GlowSpacing.xs) {
                 Text(DeckCopy.confirmTitle)
-                    .font(DeckLight.displaySerif)
+                    .glowFont(.hero)
                     .tracking(-0.5)
                     .foregroundStyle(.glowTextPrimary)
                     .accessibilityAddTraits(.isHeader)

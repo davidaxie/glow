@@ -8,13 +8,22 @@ import SwiftUI
 
 enum CheckInLight {
     /// Big, slow arrivals: the light gathering.
-    static let gentle = Animation.spring(response: 0.8, dampingFraction: 0.95)
+    static var gentle: Animation {
+        Motion.gentle
+    }
+
     /// Most UI movement.
-    static let smooth = Animation.spring(response: 0.5, dampingFraction: 0.9)
+    static var smooth: Animation {
+        Motion.smooth
+    }
+
     /// Opacity-only changes, and every movement under Reduce Motion.
-    static let fade = Animation.easeOut(duration: 0.25)
+    static var fade: Animation {
+        Motion.fade
+    }
+
     /// One breath, in seconds.
-    static let breathPeriod = 4.0
+    static let breathPeriod = Motion.breathPeriod
 
     static func motion(_ animation: Animation, reduceMotion: Bool) -> Animation {
         reduceMotion ? fade : animation
@@ -31,21 +40,11 @@ enum CheckInLight {
         case .done: 1
         }
     }
-
-    // New York for display moments (DIRECTION.md "Type"). A bridge until U1 adds the serif text
-    // styles to DesignSystem; it scales with Dynamic Type like every Glow style.
-    // swiftlint:disable:next glow_feature_fonts
-    static let titleSerif = Font.system(.title2, design: .serif, weight: .regular)
 }
 
 /// The warm dark room, lit from above by `warmth` (0 to 1). Warmth gathers on the gentle spring.
-struct CheckInCanvas: View, Animatable {
+struct CheckInCanvas: View {
     var warmth: Double
-
-    var animatableData: Double {
-        get { warmth }
-        set { warmth = newValue }
-    }
 
     var body: some View {
         ZStack {

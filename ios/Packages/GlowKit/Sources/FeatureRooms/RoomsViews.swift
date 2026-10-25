@@ -31,7 +31,7 @@ public struct RoomsHomeView: View {
                 .frame(height: lightSize * 0.78)
                 .roomsRise(index: 0, isVisible: appeared)
                 Text("Join a room")
-                    .font(RoomsLight.displaySerif)
+                    .glowFont(.hero)
                     .tracking(-0.6)
                     .foregroundStyle(.glowTextPrimary)
                     .multilineTextAlignment(.center)
@@ -113,7 +113,7 @@ public struct RoomCodeEntryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Type the room code")
-                    .font(RoomsLight.titleSerif)
+                    .glowFont(.titleSerif)
                     .tracking(-0.4)
                     .foregroundStyle(.glowTextPrimary)
                     .accessibilityAddTraits(.isHeader)

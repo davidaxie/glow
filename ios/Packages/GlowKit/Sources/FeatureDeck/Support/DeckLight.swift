@@ -10,21 +10,33 @@ enum DeckLight {
     // MARK: Motion (DIRECTION.md "Motion system")
 
     /// Selections and small answers to a touch.
-    static let snappy = Animation.spring(response: 0.35, dampingFraction: 0.86)
+    static var snappy: Animation {
+        Motion.snappy
+    }
+
     /// Most UI movement: cards, panels, screens settling.
-    static let smooth = Animation.spring(response: 0.5, dampingFraction: 0.9)
+    static var smooth: Animation {
+        Motion.smooth
+    }
+
     /// Big, slow arrivals.
-    static let gentle = Animation.spring(response: 0.8, dampingFraction: 0.95)
+    static var gentle: Animation {
+        Motion.gentle
+    }
+
     /// Opacity-only changes, and every movement under Reduce Motion.
-    static let fade = Animation.easeOut(duration: 0.25)
+    static var fade: Animation {
+        Motion.fade
+    }
+
     /// Seconds between cards appearing.
-    static let stagger = 0.04
+    static let stagger = Motion.stagger
     /// The furthest card in a stagger: later ones arrive with it, so a long deck never waits.
     static let staggerCap = 8
     /// One breath, in seconds.
-    static let breathPeriod = 4.0
+    static let breathPeriod = Motion.breathPeriod
     /// A bloom: light from the point of interaction, then it settles.
-    static let bloomDuration = 0.6
+    static let bloomDuration = Motion.bloomDuration
 
     static func motion(_ animation: Animation, reduceMotion: Bool) -> Animation {
         reduceMotion ? fade : animation
@@ -36,15 +48,6 @@ enum DeckLight {
     static let cardRadius: CGFloat = 26
     /// Sheets' top corners.
     static let sheetRadius: CGFloat = 20
-
-    // MARK: Type
-
-    // New York for display moments (DIRECTION.md "Type"). A bridge until U1 adds the serif text
-    // styles to DesignSystem; each one scales with Dynamic Type like every Glow style.
-    // swiftlint:disable:next glow_feature_fonts
-    static let displaySerif = Font.system(.largeTitle, design: .serif, weight: .regular)
-    // swiftlint:disable:next glow_feature_fonts
-    static let titleSerif = Font.system(.title2, design: .serif, weight: .regular)
 }
 
 extension EnvironmentValues {
@@ -170,6 +173,7 @@ struct DeckRipple: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let still = reduceMotion
         GeometryReader { proxy in
             let reach = max(proxy.size.width, proxy.size.height) * 1.25
             Circle()
@@ -184,7 +188,7 @@ struct DeckRipple: View {
                 .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                 .keyframeAnimator(initialValue: RippleFrame(), trigger: trigger) { ring, frame in
                     ring
-                        .scaleEffect(reduceMotion ? 1 : frame.scale)
+                        .scaleEffect(still ? 1 : frame.scale)
                         .opacity(frame.opacity)
                 } keyframes: { _ in
                     KeyframeTrack(\.scale) {
@@ -247,7 +251,7 @@ struct DeckQuietState<Actions: View>: View {
                 .padding(.bottom, -GlowSpacing.lg)
             VStack(spacing: GlowSpacing.xs) {
                 Text(title)
-                    .font(DeckLight.titleSerif)
+                    .glowFont(.titleSerif)
                     .tracking(-0.3)
                     .foregroundStyle(.glowTextPrimary)
                     .accessibilityAddTraits(.isHeader)

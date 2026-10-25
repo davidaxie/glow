@@ -8,26 +8,28 @@ import SwiftUI
 
 enum RoomsLight {
     /// Most UI movement.
-    static let smooth = Animation.spring(response: 0.5, dampingFraction: 0.9)
+    static var smooth: Animation {
+        Motion.smooth
+    }
+
     /// Big, slow arrivals: the light gathering.
-    static let gentle = Animation.spring(response: 0.8, dampingFraction: 0.95)
+    static var gentle: Animation {
+        Motion.gentle
+    }
+
     /// Opacity-only changes, and every movement under Reduce Motion.
-    static let fade = Animation.easeOut(duration: 0.25)
+    static var fade: Animation {
+        Motion.fade
+    }
+
     /// Seconds between items appearing.
-    static let stagger = 0.04
+    static let stagger = Motion.stagger
     /// One breath, in seconds.
-    static let breathPeriod = 4.0
+    static let breathPeriod = Motion.breathPeriod
 
     static func motion(_ animation: Animation, reduceMotion: Bool) -> Animation {
         reduceMotion ? fade : animation
     }
-
-    // New York for display moments (DIRECTION.md "Type"). A bridge until U1 adds the serif text
-    // styles to DesignSystem; each one scales with Dynamic Type like every Glow style.
-    // swiftlint:disable:next glow_feature_fonts
-    static let displaySerif = Font.system(.largeTitle, design: .serif, weight: .regular)
-    // swiftlint:disable:next glow_feature_fonts
-    static let titleSerif = Font.system(.title, design: .serif, weight: .regular)
 }
 
 /// The warm dark room: a near-black canvas, a whisper of warmth from the top, and a light from
@@ -84,14 +86,9 @@ struct RoomWarmth: View {
 }
 
 /// The orb itself. Animatable, so warmth gathers smoothly instead of jumping.
-private struct RoomOrb: View, Animatable {
+private struct RoomOrb: View {
     var warmth: Double
     var isCold: Bool
-
-    var animatableData: Double {
-        get { warmth }
-        set { warmth = newValue }
-    }
 
     var body: some View {
         let light = isCold ? Color.glowTextSecondary : Color.glowAccent

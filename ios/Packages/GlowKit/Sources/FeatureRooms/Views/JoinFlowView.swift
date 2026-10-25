@@ -261,7 +261,7 @@ struct JoinStage<Actions: View>: View {
                 .frame(height: lightSize * 0.75)
                 VStack(spacing: GlowSpacing.sm) {
                     Text(title)
-                        .font(RoomsLight.titleSerif)
+                        .glowFont(.titleSerif)
                         .tracking(-0.4)
                         .foregroundStyle(.glowTextPrimary)
                         .multilineTextAlignment(.center)

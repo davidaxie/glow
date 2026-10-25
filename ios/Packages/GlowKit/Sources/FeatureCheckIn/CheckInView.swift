@@ -119,7 +119,7 @@ struct ProgressStep: View {
         VStack(spacing: GlowSpacing.sm) {
             CheckInBreath(size: isDone ? 240 : 180, intensity: isDone ? 1 : 0.75)
             Text(label)
-                .font(CheckInLight.titleSerif)
+                .glowFont(.titleSerif)
                 .tracking(-0.3)
                 .foregroundStyle(isDone ? Color.glowTextPrimary : Color.glowTextSecondary)
                 .multilineTextAlignment(.center)

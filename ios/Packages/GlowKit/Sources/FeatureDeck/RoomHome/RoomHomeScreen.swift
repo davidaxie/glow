@@ -148,7 +148,7 @@ struct RoomHero: View {
                 .tracking(1.2)
                 .foregroundStyle(.glowTextSecondary)
             Text(name)
-                .font(DeckLight.displaySerif)
+                .glowFont(.hero)
                 .tracking(-0.6)
                 .foregroundStyle(.glowTextPrimary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -184,7 +184,7 @@ struct RoomStatusCard: View {
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: GlowSpacing.xxs) {
                     Text(title)
-                        .font(DeckLight.titleSerif)
+                        .glowFont(.titleSerif)
                         .tracking(-0.3)
                         .foregroundStyle(.glowTextPrimary)
                     if let detail {
