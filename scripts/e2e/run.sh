@@ -56,6 +56,7 @@ SIM_A="${GLOW_SIM_A:-Glow A}"
 SIM_B="${GLOW_SIM_B:-Glow B}"
 PHOTO_A="$ROOT/ios/fixtures/photos/outfit-real-white-suit.jpg"
 PHOTO_B="$ROOT/ios/fixtures/photos/outfit-real-blue-flightsuit.jpg"
+BUNDLE_ID="com.davidxie.glow"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
 # Classes in ios/GlowUITests, one per journey.
@@ -125,7 +126,11 @@ prepare_simulators() {
   UDID_A="$(udid_of "$SIM_A")"
   [ -n "$UDID_A" ] || die "no Simulator named $SIM_A"
   scripts/sim.sh at venue A >/dev/null
-  xcrun simctl privacy "$UDID_A" grant location com.davidxie.glow >/dev/null 2>&1 || true
+  # `simctl privacy` needs the app installed, which a new or erased Simulator doesn't have yet: the
+  # grant used to do nothing there, and iOS's location dialog covered the Join screen on run 1
+  # (D1-D8). So install first, every run, then grant, and fail loudly if either can't be done.
+  scripts/sim.sh install A >/dev/null || die "could not install Glow on $SIM_A (build it first, or drop --no-build)"
+  xcrun simctl privacy "$UDID_A" grant location "$BUNDLE_ID" || die "could not grant location to Glow on $SIM_A"
 }
 
 # --- One journey ------------------------------------------------------------------------------
