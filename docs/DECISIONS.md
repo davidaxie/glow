@@ -1215,3 +1215,17 @@ B8's `signIn` policy allows 10 test sign-ins per 10 minutes per client IP, and o
 ### D1-D8 · Install the app, then grant location, on every run
 
 `run.sh` granted location with `simctl privacy` before the app was installed, which does nothing on a new or erased Simulator, and it ended in `|| true`, so nobody saw it. iOS's location dialog then covered the Join screen and run 1 failed ("checkin.debugPhoto never appeared"). My ten runs reused an installed Glow A, which hid it. Now every run installs the built app first, then grants location, and either step failing stops the run with a message. Checked from cold: after `sim.sh reset A`, the old script fails run 1 the same way, and the new one passes run 1. The journeys only exercise the allowed-location path. The denied one ("Don't Allow") has not been run by anyone, so nothing here shows what the app does after a refusal.
+
+## U1 · Design foundation
+
+### U1-D1 · Warm the neutrals in place instead of adding new ones
+
+DIRECTION.md asks for a warm near-black canvas and warm grey secondary text. The spec's neutral tokens (`background`, `surface`, `surfaceRaised`, `textPrimary`, `textSecondary`, `line`) keep their names and roughly their luminance, but move to warm values (`#0B0A0F`, `#17151C`, `#221F27`, `#F5F3F0`, `#A9A39D`, `#2D2931`), so every screen warms without code changes and every WCAG pairing still passes (`GlowPalette.textPairings`). Accent, danger and the glow hues are unchanged. B7's admin CSS should copy the new hex values from `GlowPalette.tokens`.
+
+### U1-D2 · Time-driven light holds still under tests
+
+Breathing lights, staggered rises and blooms read the clock. Under XCTest and Swift Testing (`XCTestCase` is loaded) they hold still at rest and fully visible (`GlowMotionClock.isFrozen`), so every module's snapshots stay deterministic. The app itself, including UI tests, animates normally.
+
+### U1-D3 · Sounds are on by default, ambient, and never needed
+
+The three cues are synthesized in code (`GlowSoundSynth`), play in the `.ambient` session (mixes with other audio, muted by the silent switch) and can be turned off in Settings > Sound. Nothing depends on hearing them.
