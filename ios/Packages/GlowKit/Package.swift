@@ -59,8 +59,11 @@ struct Module {
     var exclude: [String] = []
 }
 
-let core: [Target.Dependency] = ["AppCore", "APIClient"]
-let feature: [Target.Dependency] = ["AppCore", "APIClient", "DesignSystem"]
+// Every module that talks to the API imports the generated client's runtime and HTTP types
+// (for example `GlowAPI.send`, `Base64EncodedData`), so they're declared here rather than
+// reached through APIClient by accident.
+let core: [Target.Dependency] = ["AppCore", "APIClient", openAPIRuntime, httpTypes]
+let feature: [Target.Dependency] = ["AppCore", "APIClient", "DesignSystem", openAPIRuntime, httpTypes]
 
 let modules: [Module] = [
     // Foundations (A3, A2)

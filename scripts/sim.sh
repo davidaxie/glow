@@ -31,6 +31,8 @@ SIM_B="${GLOW_SIM_B:-Glow B}"
 
 # shellcheck source=../ios/fixtures/demo-room.env
 source "$IOS/fixtures/demo-room.env"
+# shellcheck source=lib/slot-pool.sh
+source "$ROOT/scripts/lib/slot-pool.sh"
 
 say() { printf '==> %s\n' "$*"; }
 die() { printf 'sim.sh: %s\n' "$*" >&2; exit 1; }
@@ -100,6 +102,12 @@ newest_pro_device_type() {
 }
 
 # --- Simulator slots ---------------------------------------------------------------------------
+# Simulators, xcodebuild runs and database stacks come from one pool shared by every project on
+# this Mac: `mac-slots` (scripts/lib/slot-pool.sh; `mac-slots status` shows it). Glow's project
+# name there is `glow`. Fair share: a project with no slots goes ahead of one that has some.
+# What follows is the pool path first (a Simulator slot is a mac-slots `sim` slot, plus a small
+# record here of which Simulator holds it, so a dead owner's Simulator can be shut down), then
+# Glow's own limits, used only when mac-slots isn't installed (it prints a warning):
 # At most GLOW_SIM_MAX_SLOTS (3) Glow Simulators are booted on this Mac at once, across every
 # agent. A slot is a directory under GLOW_SIM_SLOT_DIR, taken with an atomic mkdir. Its `owner`
 # file names the Simulator, the agent, the time, and (from ci-local) the owning process. A slot
@@ -113,6 +121,9 @@ SLOT_GRACE=180
 # case its owner stopped without cleaning up (several agents can share one owner process).
 SLOT_IDLE="${GLOW_SIM_SLOT_IDLE:-7200}"
 RELEASE_ON_EXIT=""
+# Pool path: which Simulator holds which mac-slots slot. One file per UDID, with slot=, pid=
+# (the slot's owner), name=, agent= and since= (renewed by every sim.sh command that uses it).
+SIM_REG="$GLOW_POOL_DIR/glow-sims"
 
 # At most GLOW_MAX_BUILDS (4) xcodebuild runs (build, test, allow-push) at once on this Mac,
 # across every agent: parallel builds are what pushed the load average toward 870. Same mechanism
@@ -122,6 +133,30 @@ BUILD_SLOT_DIR="${GLOW_BUILD_SLOT_DIR:-/tmp/glow-build-slots}"
 MAX_BUILDS="${GLOW_MAX_BUILDS:-4}"
 BUILD_WAIT="${GLOW_BUILD_SLOT_WAIT:-3600}"
 BUILD_SLOT=""
+
+reg_field() { # <udid> <key>; empty when there's no record (and never an error, under set -e)
+  { sed -nE "s/^$2=//p" "$SIM_REG/$1" 2>/dev/null || true; } | head -1
+}
+
+# The slot recorded for <udid> still exists and still belongs to the process that took it
+# (mac-slots reuses slot-N names, so the owner has to match too).
+reg_slot_valid() {
+  local slot rpid
+  slot="$(reg_field "$1" slot)"
+  rpid="$(reg_field "$1" pid)"
+  [ -n "$slot" ] && [ -n "$rpid" ] && [ "$rpid" != 0 ] && [ -d "$slot" ] &&
+    [ "$(pool_slot_pid "$slot")" = "$rpid" ] && kill -0 "$rpid" 2>/dev/null
+}
+
+# Gives the recorded slot back to mac-slots, if it's still the one we took.
+reg_release_slot() {
+  local slot rpid
+  slot="$(reg_field "$1" slot)"
+  rpid="$(reg_field "$1" pid)"
+  if [ -n "$slot" ] && [ -d "$slot" ] && [ "$(pool_slot_pid "$slot")" = "$rpid" ]; then
+    pool release "$slot" >/dev/null 2>&1 || true
+  fi
+}
 
 booted_glow_udids() {
   xcrun simctl list -j devices booted | jq -r '.devices[][] | select(.name | startswith("Glow")) | .udid'
@@ -149,10 +184,43 @@ slot_field_gone() { # a readable name for a Simulator whose slot is already gone
 # Marks a slot as just used, so an active Simulator never counts as idle.
 touch_slot() {
   local held
+  if pool_on; then
+    [ -f "$SIM_REG/$1" ] && sed -i '' "s/^since=.*/since=$(date +%s)/" "$SIM_REG/$1" 2>/dev/null || true
+    return 0
+  fi
   if held="$(slot_of "$1")"; then sed -i '' "s/^since=.*/since=$(date +%s)/" "$held/owner" 2>/dev/null || true; fi
 }
 
+# Pool path: shut down the Simulator of every record whose slot is gone or whose owner died
+# (mac-slots frees the slot itself), and of every one unused for SLOT_IDLE.
+reap_slots_pool() {
+  local f udid now since name
+  now="$(date +%s)"
+  for f in "$SIM_REG"/*; do
+    [ -f "$f" ] || continue
+    udid="$(basename "$f")"
+    since="$(reg_field "$udid" since)"
+    name="$(reg_field "$udid" name)"
+    if ! reg_slot_valid "$udid"; then
+      xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+      reg_release_slot "$udid"
+      rm -f "$f"
+      say "Freed the slot of $name: its owner is gone, so its Simulator was shut down."
+    elif [ $((now - ${since:-0})) -gt "$SLOT_IDLE" ]; then
+      xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+      reg_release_slot "$udid"
+      rm -f "$f"
+      say "Freed the slot of $name: unused for over $((SLOT_IDLE / 60)) minutes, so its Simulator was shut down."
+    fi
+  done
+}
+
 reap_slots() {
+  if pool_on; then
+    mkdir -p "$SIM_REG"
+    reap_slots_pool
+    return 0
+  fi
   local booted slot udid pid since now
   booted="$(booted_glow_udids 2>/dev/null || true)"
   now="$(date +%s)"
@@ -176,6 +244,17 @@ reap_slots() {
 }
 
 show_slots() {
+  if pool_on; then
+    local f any=0
+    for f in "$SIM_REG"/*; do
+      [ -f "$f" ] || continue
+      any=1
+      printf '    %s (agent %s, process %s, since %s)\n' "$(reg_field "$(basename "$f")" name)" "$(reg_field "$(basename "$f")" agent)" \
+        "$(reg_field "$(basename "$f")" pid)" "$(date -r "$(reg_field "$(basename "$f")" since)" +%H:%M:%S 2>/dev/null || echo '?')" >&2
+    done
+    [ "$any" -eq 1 ] || printf '    no Glow Simulator holds a slot\n' >&2
+    return 0
+  fi
   local slot since any=0
   for slot in "$SLOT_DIR"/slot-*; do
     [ -d "$slot" ] || continue
@@ -200,34 +279,24 @@ unslotted_glow_booted() {
   echo "$count"
 }
 
-# The process that owns a slot: GLOW_SLOT_OWNER_PID if set (ci-local sets it to itself), else
-# the nearest ancestor that isn't a shell, which for an agent is the agent's own long-lived
-# process and for a person is their terminal. When it dies (an outage, a crash), the slot is
-# freed and its Simulator shut down.
-owner_pid() {
-  if [ -n "${GLOW_SLOT_OWNER_PID:-}" ]; then
-    echo "$GLOW_SLOT_OWNER_PID"
-    return
-  fi
-  local pid="$PPID" comm i
-  for i in 1 2 3 4 5 6 7 8; do
-    comm="$(ps -o comm= -p "$pid" 2>/dev/null | sed 's#.*/##; s/^-//')"
-    case "$comm" in
-      bash | zsh | sh | dash | fish | env | sudo | timeout | "") ;;
-      *)
-        echo "$pid"
-        return
-        ;;
-    esac
-    pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
-    if [ -z "$pid" ] || [ "$pid" -le 1 ]; then break; fi
-  done
-  echo 0
-}
-
 # Takes a slot for <udid> <name>, waiting (a local sleep, no network) until one is free.
 acquire_slot() {
   local udid="$1" name="$2" waited=0 i slot used held
+  if pool_on; then
+    mkdir -p "$SIM_REG"
+    if reg_slot_valid "$udid"; then
+      touch_slot "$udid" # already ours (say, setup then test)
+      return 0
+    fi
+    # A record whose owner died: drop it without touching the Simulator, then queue again.
+    reg_release_slot "$udid"
+    rm -f "$SIM_REG/$udid"
+    reap_slots_pool
+    slot="$(pool acquire sim "$GLOW_POOL_PROJECT" "$(owner_pid)")" || die "no Simulator slot came free (mac-slots)."
+    printf 'slot=%s\npid=%s\nname=%s\nagent=%s\nsince=%s\n' "$slot" "$(pool_slot_pid "$slot")" "$name" \
+      "${GLOW_AGENT_ID:-none}" "$(date +%s)" >"$SIM_REG/$udid"
+    return 0
+  fi
   mkdir -p "$SLOT_DIR"
   chmod 1777 "$SLOT_DIR" 2>/dev/null || true
   if held="$(slot_of "$udid")"; then
@@ -264,6 +333,11 @@ acquire_slot() {
 release_slot() {
   local slot
   xcrun simctl shutdown "$1" >/dev/null 2>&1 || true
+  if pool_on; then
+    reg_release_slot "$1"
+    rm -f "$SIM_REG/$1"
+    return 0
+  fi
   if slot="$(slot_of "$1")"; then rm -rf "$slot"; fi
 }
 
@@ -297,6 +371,10 @@ show_build_slots() {
 acquire_build_slot() {
   local what="$1" waited=0 i slot
   [ -z "$BUILD_SLOT" ] || return 0
+  if pool_on; then
+    BUILD_SLOT="$(pool acquire build "$GLOW_POOL_PROJECT" "$$")" || die "no build slot came free (mac-slots)."
+    return 0
+  fi
   mkdir -p "$BUILD_SLOT_DIR"
   chmod 1777 "$BUILD_SLOT_DIR" 2>/dev/null || true
   while :; do
@@ -321,7 +399,7 @@ acquire_build_slot() {
 
 release_build_slot() {
   if [ -n "$BUILD_SLOT" ]; then
-    rm -rf "$BUILD_SLOT"
+    if pool_on; then pool release "$BUILD_SLOT" >/dev/null 2>&1 || true; else rm -rf "$BUILD_SLOT"; fi
     BUILD_SLOT=""
   fi
 }
@@ -411,6 +489,14 @@ cmd_release() {
 cmd_slots() {
   use_xcode
   need jq "Install it with: brew install jq"
+  if pool_on; then
+    reap_slots
+    say "The Mac's shared slot pool, all projects (mac-slots status):"
+    pool status | sed 's/^/    /'
+    say "Glow Simulators holding a slot:"
+    show_slots
+    return 0
+  fi
   mkdir -p "$SLOT_DIR" "$BUILD_SLOT_DIR"
   reap_slots
   reap_build_slots
@@ -783,17 +869,30 @@ Glow Simulator workflow (docs/SPEC.md, "Simulator workflow")
   scripts/sim.sh reset [A|B|both]      erase the Simulators
   scripts/sim.sh teardown [A|B|both]   shut down and delete this agent's Simulators
   scripts/sim.sh release [A|B|both]    shut down this agent's Simulators and free their slots
-  scripts/sim.sh slots                 who holds the Mac's Simulator slots (3) and build slots (4)
+  scripts/sim.sh slots                 who holds the Mac's Simulator and build slots (mac-slots status)
 
 Most commands take A, B or both (the default) as their last argument.
 
 Parallel agents: eval "$(scripts/agent-env.sh <ID>)" first, so GLOW_SIM_A and GLOW_SIM_B name
 this agent's own Simulators and GLOW_API_BASE_URL points the app at this agent's server.
-At most 3 Glow Simulators are booted on this Mac at once: setup, install and test wait for a free
-slot, and test shuts Glow A down and frees its slot when it finishes. At most 4 xcodebuild runs
-(build, test, allow-push) go at once; the rest wait for a build slot.
+Simulators and xcodebuild runs share one slot pool with every other project on this Mac
+(mac-slots: 3 Simulators, 4 xcodebuilds): setup, install, build and test wait for a free slot, and
+test shuts Glow A down and frees its slot when it finishes.
 EOF
 }
+
+# Slot plumbing for tests, no Simulator involved: _slot acquire|release|reap <fake udid> [name]
+cmd__slot() {
+  case "${1:-}" in
+    acquire) acquire_slot "${2:?udid}" "${3:-test}" ;;
+    release) release_slot "${2:?udid}" ;;
+    reap) reap_slots ;;
+    *) die "usage: sim.sh _slot acquire|release|reap" ;;
+  esac
+}
+
+# Run the command, unless this file was sourced (the slot tests do that).
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0 2>/dev/null || true; fi
 
 command="${1:-help}"
 [ $# -gt 0 ] && shift
@@ -818,6 +917,7 @@ case "$command" in
   teardown) cmd_teardown "$@" ;;
   release) cmd_release "$@" ;;
   slots) cmd_slots "$@" ;;
+  _slot) cmd__slot "$@" ;;
   help | -h | --help) cmd_help ;;
   *) die "unknown command '$command'. Run: scripts/sim.sh help" ;;
 esac

@@ -16,10 +16,15 @@
 #   eval "$(scripts/agent-env.sh B4 --own-db --reset)"   # same, and reapplies migrations and seed
 #   scripts/agent-env.sh B4 --stop-db            # stops glow-b4
 #
+# An own stack takes one of the Mac's shared `db` slots (mac-slots, one pool for every project;
+# `mac-slots status`), held until --stop-db. If the pool is full, it waits for a free one.
+#
 # Everything except the exports goes to stderr, so the eval only sees exports.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/slot-pool.sh
+source "$ROOT/scripts/lib/slot-pool.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -93,10 +98,30 @@ STATE="${GLOW_AGENT_STATE_DIR:-$ROOT/.agent-state}/$LOWER"
 SUPABASE_BIN="$(command -v supabase || true)"
 if [ -z "$SUPABASE_BIN" ] && [ -x "$HOME/.local/bin/supabase" ]; then SUPABASE_BIN="$HOME/.local/bin/supabase"; fi
 
+# The db slot this stack holds is recorded in $STATE/mac-slot ("<slot path> <owner pid>").
+db_slot_valid() {
+  local slot rpid
+  [ -f "$STATE/mac-slot" ] || return 1
+  read -r slot rpid <"$STATE/mac-slot"
+  [ -n "$slot" ] && [ -d "$slot" ] && [ "$(pool_slot_pid "$slot")" = "$rpid" ] && kill -0 "$rpid" 2>/dev/null
+}
+
+# Gives the db slot back, if it's still the one this stack took.
+release_db_slot() {
+  local slot rpid
+  [ -f "$STATE/mac-slot" ] || return 0
+  read -r slot rpid <"$STATE/mac-slot"
+  if [ -n "$slot" ] && [ -d "$slot" ] && [ "$(pool_slot_pid "$slot")" = "$rpid" ] && pool_on; then
+    pool release "$slot" >/dev/null 2>&1 || true
+  fi
+  rm -f "$STATE/mac-slot"
+}
+
 if [ "$STOP_DB" -eq 1 ]; then
   [ -n "$SUPABASE_BIN" ] || { echo "agent-env: the supabase CLI isn't installed." >&2; exit 1; }
   [ -d "$STATE/supabase" ] || { echo "agent-env: $AGENT has no own database at $STATE." >&2; exit 1; }
   "$SUPABASE_BIN" stop --workdir "$STATE" --no-backup >&2
+  release_db_slot
   echo "agent-env: stopped $PROJECT_ID." >&2
   exit 0
 fi
@@ -167,11 +192,23 @@ if [ "$restart" -eq 1 ] && "$SUPABASE_BIN" status --workdir "$STATE" >/dev/null 
   echo "agent-env: restarting $PROJECT_ID to pick up changed templates or settings (data is kept)" >&2
   "$SUPABASE_BIN" stop --workdir "$STATE" >&2
 fi
+# The shared pool: this stack needs a db slot while it runs, whether it's already up or about to
+# start. Exit 4 means the pool stayed full for the whole wait.
+if pool_on && ! db_slot_valid; then
+  rm -f "$STATE/mac-slot"
+  echo "agent-env: taking a database slot from the Mac's shared pool (waits if it's full)" >&2
+  slot="$(MAC_SLOTS_WAIT_MAX="${GLOW_DB_SLOT_WAIT:-1800}" pool acquire db "$GLOW_POOL_PROJECT" "$(owner_pid)")" || {
+    echo "agent-env: no database slot came free (mac-slots status shows who holds them)." >&2
+    exit 4
+  }
+  printf '%s %s\n' "$slot" "$(pool_slot_pid "$slot")" >"$STATE/mac-slot"
+fi
 if ! "$SUPABASE_BIN" status --workdir "$STATE" >/dev/null 2>&1; then
-  # At most GLOW_MAX_OWN_DBS (6) agent stacks at once on this Mac, besides the shared one.
+  # Without mac-slots: at most GLOW_MAX_OWN_DBS (6) agent stacks at once on this Mac, besides the
+  # shared one.
   others="$(docker ps --format '{{.Names}}' 2>/dev/null | sed -nE 's/^supabase_db_(glow-[a-z0-9]+)$/\1/p' | grep -vx "$PROJECT_ID" || true)"
   running="$(printf '%s' "$others" | grep -c . || true)"
-  if [ "$running" -ge "${GLOW_MAX_OWN_DBS:-6}" ]; then
+  if ! pool_on && [ "$running" -ge "${GLOW_MAX_OWN_DBS:-6}" ]; then
     echo "agent-env: $running agent Supabase stacks are running ($(echo $others)), and the limit is ${GLOW_MAX_OWN_DBS:-6}. Try again when one stops." >&2
     exit 3
   fi
