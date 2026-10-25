@@ -37,7 +37,7 @@ struct DeckSnapshotTests {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
         await model.start(showMe: nil, viewerCode: "YTVFCREQ")
         await model.apply(.none)
-        await snapshot(deck(model), "grid", size, wait: 0.6)
+        await snapshot(deck(model), "grid", size, wait: 1.4)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -52,7 +52,7 @@ struct DeckSnapshotTests {
         model.requestTap(card.id)
         _ = await model.confirmTap()
         model.toast = nil
-        await snapshot(deck(model), "grid-filtered-tapped", size, wait: 0.6)
+        await snapshot(deck(model), "grid-filtered-tapped", size, wait: 1.4)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -61,7 +61,7 @@ struct DeckSnapshotTests {
         await model.start(showMe: nil, viewerCode: "YTVFCREQ")
         await model.apply(.none)
         try model.open(#require(model.cards.dropFirst().first?.id))
-        await snapshot(deck(model), "enlarged", size, wait: 0.6)
+        await snapshot(deck(model), "enlarged", size, wait: 1.4)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -72,7 +72,7 @@ struct DeckSnapshotTests {
         let card = try #require(model.cards.dropFirst().first?.id)
         model.open(card)
         model.requestTap(card)
-        await snapshot(deck(model), "confirm", size, wait: 0.6)
+        await snapshot(deck(model), "confirm", size, wait: 1.4)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -82,7 +82,7 @@ struct DeckSnapshotTests {
         let card = try #require(model.cards.dropFirst().first)
         model.preview(phase: .loaded, cards: model.cards, tapsLeft: 0, viewsLeft: 40)
         model.open(card.id)
-        await snapshot(deck(model), "no-taps-left", size, wait: 0.6)
+        await snapshot(deck(model), "no-taps-left", size, wait: 1.4)
     }
 
     @Test(arguments: [
@@ -118,7 +118,7 @@ struct DeckSnapshotTests {
     func hiddenWhileRecorded(_ size: DynamicTypeSize) async {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
         await model.apply(.none)
-        await snapshot(deck(model).environment(\.isSceneCaptured, true), "hidden-recording", size, wait: 0.6)
+        await snapshot(deck(model).environment(\.isSceneCaptured, true), "hidden-recording", size, wait: 1.4)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -126,7 +126,7 @@ struct DeckSnapshotTests {
         let model = makeModel(FixtureDeckService(count: 24, now: { testNow }))
         await model.apply(.none)
         model.screenshotTaken()
-        await snapshot(deck(model), "screenshot-note", size, wait: 0.6)
+        await snapshot(deck(model), "screenshot-note", size, wait: 1.4)
     }
 
     @Test(arguments: deckSnapshotSizes)
@@ -216,6 +216,7 @@ struct DeckSnapshotTests {
             .environment(\.dynamicTypeSize, size)
             .environment(\.colorScheme, .dark)
             .environment(\.deckHidesWhenInactive, false)
+            .environment(\.deckLightBreathes, false)
             .environment(\.deckClock) { testNow }
             .environment(\.dependencies, .preview(imaging: FixtureImagingService()))
         let traits = UITraitCollection { traits in
