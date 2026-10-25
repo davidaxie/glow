@@ -793,6 +793,7 @@ _2026-10-24, Wave 3._ PR [#43](https://github.com/davidaxie/glow/pull/43) on `w3
 - Nothing is mocked. Setup uses only B1's real routes; the service role is used only to end a check-in early for the expiry journey (D1-D2).
 - Push taps are judged by `screen.<Module>` identifiers where they exist and by the screen's words where they don't (C2, C3 and C4 haven't added identifiers; For C2, C3 and C4).
 - Actions is down, so nothing runs in CI yet (For A1: `--e2e`).
+- **Not run by anyone: the denied-location path.** Every journey grants location (`run.sh` installs the app, then `simctl privacy grant`, D1-D8), so the "Don't Allow" answer and the approximate-only path have never been run against the app. B2's unit tests cover the failure screens; nothing drives them end to end.
 
 **Done when**
 
