@@ -29,16 +29,17 @@ Two people in one room both tap each other. Both phones buzz, then both screens 
 
 ## Blind mode and the design revamp (branch `integrate/y1`, not on main)
 
-`blind-mode` merges X1 (Blind backend), X2 (Blind tab, FeatureBlind), U1 (design foundation), U2 (rooms, check-in, deck) and U3 (mutual moment, glow, chat). Y1 integrated it; details in `docs/qa/y1.md`.
+`blind-mode` merges X1 (Blind backend), X2 (Blind tab, FeatureBlind), U1 (design foundation), U2 (rooms, check-in, deck) and U3 (mutual moment, glow, chat). Y1 integrated it; details in `docs/qa/y1.md`. R1 re-ran the Rooms journey on it (`verify/r1`, from `blind-mode` `734d3ea`); details in `docs/qa/r1.md`.
 
 | Area | State | Proof |
 | --- | --- | --- |
-| Builds and lint | iOS build and SwiftLint/SwiftFormat clean after Y1's fixes | `scripts/sim.sh build`, `lint` on `integrate/y1` |
-| Tests | Server Vitest 1019 passed; iOS unit tests pass with 53 Deck, Match, Glow and Chat snapshots re-recorded for the redesign (looked at), except one flaky Glow loading snapshot (2 cases); pgTAP 672/672 on a clean stack | `docs/qa/y1.md` |
+| Builds and lint | iOS build and SwiftLint/SwiftFormat clean after Y1's fixes | `scripts/sim.sh build`, `lint` on `integrate/y1`, and again on `verify/r1` |
+| Tests | Server Vitest 1019 passed; pgTAP 672/672 on a clean stack (Y1). iOS unit tests on `verify/r1`: 466 in 20 runs, all pass, no recording. R1 froze the two flaky snapshots (Glow loading, Match waiting: live breathing lights) and fixed the hairline outside capsule buttons (79 snapshots re-recorded, looked at) | `docs/qa/y1.md`, `docs/qa/r1.md` |
+| **Rooms on the redesign, live** | D1's full journey (check in, today's looks, B's card, secret tap, mutual, both Find, the same code word, We met) passes with no selector or copy change. Person B is a script on the API | `scripts/e2e/run.sh full` on R1's own stack: 4 of 4 runs passed (the last on the final code, recording both Simulators: Glow B showed the same code word and color as Glow A), no privacy violations from player B; screenshots `docs/shots/combined/rooms-live-*.png` |
 | Blind backend | Every `/api/blind/*` route live | X1's stage script 27/27 on Y1's own stack, no leaks before reveal |
 | **Blind on two Simulators, live** | Opt-in, 5 likes, drop, chat both ways, one-sided reveal (the other phone unchanged), mutual reveal | XCUITest on Glow A and Glow B against the real server and database (no mocks); 19 screenshots in `docs/shots/combined/` |
 
-Not proven on this branch: D1's Rooms journey after the redesign (not re-run), Blind's give-away warning, Guess Who, Report and Block on a live server, and anything on a real iPhone.
+Not proven on this branch: D1's chat, block, expiry and push journeys after the redesign (only the full journey was re-run), Blind's give-away warning, Guess Who, Report and Block on a live server, and anything on a real iPhone.
 
 ## In progress
 
