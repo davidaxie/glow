@@ -775,7 +775,7 @@ _2026-10-24, Wave 3._ PR [#43](https://github.com/davidaxie/glow/pull/43) on `w3
 
 **Built**
 
-- `scripts/e2e/player-b.ts`: person B through the API. Test sign-in (B1's route, or the same thing through the local Supabase while it's a stub), join with a fix at the room's centre, check in with an `outfit-real-*` fixture, wait for a card and fetch its signed image (P4), tap, wait for the match, Find or Just chat, wait for the glow, We met, wait for both, say, read, block, unmatch, wait for the end, leave. Runs a list of steps (`--steps`), or takes them one at a time from a UI test (`--control PORT`). Every reply is checked for A's user ID and, outside the match routes, A's first name (P1, D1-D3).
+- `scripts/e2e/player-b.ts`: person B through the API. Test sign-in (B1's route), join with a fix at the room's centre, check in with an `outfit-real-*` fixture, wait for a card and fetch its signed image (P4), tap, wait for the match, Find or Just chat, wait for the glow, We met, wait for both, say, read, block, unmatch, wait for the end, leave. Runs a list of steps (`--steps`), or takes them one at a time from a UI test (`--control PORT`). Every reply is checked for A's user ID and, outside the match routes, A's first name (P1, D1-D3).
 - `scripts/e2e/harness.ts`: a fresh room (`room`, through B7's admin API), a fresh onboarded person (`person`), the end of a room, a check-in expiry plus the purge cron (`expire`), and `serve`, the Mac-side helper UI tests call for `simctl push` and expiry.
 - `scripts/e2e/glow.ts`: the shared client, typed from the generated contract (`server/src/contracts/openapi/types.gen.ts`), local servers only.
 - `scripts/e2e/run.sh` and `scripts/e2e/record.sh`, above.
@@ -790,9 +790,9 @@ _2026-10-24, Wave 3._ PR [#43](https://github.com/davidaxie/glow/pull/43) on `w3
 
 **Still mocked or blocked**
 
-- The full, chat, block and expiry journeys need a signed-in person A in the app: B1's live session (#6) plus `-GlowDebugTestLogin` (For B1). Until then they run up to the sign-in and stop.
+- The full, chat, block and expiry journeys need a signed-in person A in the app: B1's iOS session plus `-GlowDebugTestLogin` (For B1). B1's server routes are on main (#50) and player B already uses them.
 - C1's deck screens (#25, draft) for A's side of the journeys. C2, C3 and C4 are on main.
-- Setup falls back to the service role for B1's four stub routes only (D1-D2).
+- Setup uses only B1's real routes (no fallbacks); the service role is only for the expiry journey's early expiry (D1-D2).
 
 **Done when**
 

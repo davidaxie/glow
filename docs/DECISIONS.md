@@ -1154,9 +1154,9 @@ It stops the same address and the same Apple ID, and nothing else. A new address
 
 The orchestrator's notes said to join the seeded demo room, and `player-b.ts` still does by default (`--slug demo`). But `scripts/e2e/run.sh` makes a fresh room for each run through B7's admin API (as `admin@glow.test`, centred on the demo room's spot, so `sim.sh at venue` is inside it) and ends it afterwards, and both people are fresh `@glow.test` addresses. Check-ins last 3 hours and taps 24, so in a shared room the tenth run's deck would hold the first nine runs' people, and other agents' testers too. A room per run makes the deck exactly "person B", so a journey can tap "the only card" without ever learning who anyone is.
 
-### D1-D2 · Setup falls back to the service role only for B1's stubs, and only locally
+### D1-D2 · The service role is only for ending a check-in early, and only locally
 
-Until B1's routes ship, `POST /api/dev/test-login`, `PUT /api/me/profile`, `POST /api/me/photos` and `POST /api/me/onboarding/complete` answer 501. For those four alone, the scripts do what the route would (a Supabase magic-link token redeemed for a session; the profile row written with the service role) and say so on stderr. Every step a journey tests (join, check in, deck, tap, choose, glow, chat, block) goes only through the API, and never falls back: a 501 there fails the step with exit code 3. The scripts refuse any API or Supabase that isn't localhost, so the service role key in `server/.env.local` can't reach anything real.
+Everything else goes through the API: test sign-in, profile, photo and onboarding (B1's routes, used the day they merged; the first version fell back to the local Supabase while they were 501 stubs, and that code is gone), join, check-in, deck, tap, choose, glow, chat, block. The one exception is the expiry journey, which sets a check-in's `expires_at` in the past with the service role and then calls the real purge route, because waiting 3 hours isn't a test. The scripts refuse any API or Supabase that isn't localhost, so the service role key in `server/.env.local` can't reach anything real.
 
 ### D1-D3 · Player B is also a P1 probe
 
